@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IE Rafael Uribe Uribe - Red Social</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Boxicons for modern icons -->
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Top Header -->
+    <header class="header">
+        <div class="logo-container">
+            <i class='bx bxs-graduation logo-icon'></i>
+            <h1 class="logo-text">IE Rafael Uribe Uribe</h1>
+        </div>
+        <div class="search-bar">
+            <i class='bx bx-search'></i>
+            <input type="text" placeholder="Buscar...">
+        </div>
+        <div class="header-actions">
+            <button class="icon-btn"><i class='bx bx-bell'></i></button>
+            <button class="icon-btn"><i class='bx bx-user'></i></button>
+        </div>
+    </header>
+
+    <!-- Main Content Layout -->
+    <main class="main-layout">
+        <!-- Left Sidebar -->
+        <aside class="left-sidebar">
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active">
+                    <i class='bx bxs-home'></i>
+                    <span>Home</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class='bx bx-news'></i>
+                    <span>Institutional News</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class='bx bx-file'></i>
+                    <span>Reports</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class='bx bx-calendar-event'></i>
+                    <span>Events</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class='bx bx-group'></i>
+                    <span>Community</span>
+                </a>
+            </nav>
+            <button class="btn-primary create-post-btn" id="open-modal-btn">
+                <i class='bx bx-plus'></i>
+                Create Post
+            </button>
+        </aside>
+
+        <!-- Center Feed -->
+        <section class="feed-section">
+            <div id="posts-container">
+                <!-- Posts will be injected here by app.js -->
+            </div>
+        </section>
+
+        <!-- Right Sidebar -->
+        <aside class="right-sidebar">
+            <!-- News Widget -->
+            <div class="widget news-widget">
+                <div class="widget-header">
+                    <i class='bx bx-broadcast'></i>
+                    <h2>Noticias</h2>
+                </div>
+                <div class="widget-content">
+                    <div class="news-item">
+                        <h3>Día del Idioma</h3>
+                        <p>Concurso de ortografía y poesía el próximo martes.</p>
+                    </div>
+                    <div class="news-item">
+                        <h3>Mantenimiento de Red</h3>
+                        <p>Intermitencias esperadas en el portal este fin de semana.</p>
+                    </div>
+                </div>
+                <a href="#" class="widget-link">Ver todas las noticias</a>
+            </div>
+
+            <!-- Quick Reports Widget -->
+            <div class="widget reports-widget">
+                <div class="widget-header">
+                    <i class='bx bx-bar-chart-alt-2'></i>
+                    <h2>Reportes Rápidos</h2>
+                </div>
+                <div class="widget-content">
+                    <div class="report-item">
+                        <div class="report-info">
+                            <i class='bx bx-check-square'></i>
+                            <span>Boletines P1</span>
+                        </div>
+                        <span class="badge success">Disponible</span>
+                    </div>
+                    <div class="report-item">
+                        <div class="report-info">
+                            <i class='bx bx-calendar-check'></i>
+                            <span>Asistencia Semanal</span>
+                        </div>
+                        <i class='bx bx-chevron-right'></i>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Create Post Modal -->
+    <div class="modal-overlay" id="post-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Crear nueva publicación</h2>
+                <button class="close-modal-btn" id="close-modal-btn"><i class='bx bx-x'></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="user-info-mini">
+                    <img src="https://i.pravatar.cc/150?img=68" alt="Tú" class="avatar">
+                    <span class="username">Tu perfil</span>
+                </div>
+                <textarea id="post-textarea" placeholder="¿Qué hay de nuevo en la institución?" rows="4"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary publish-btn" id="publish-post-btn">Publicar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+</html>
