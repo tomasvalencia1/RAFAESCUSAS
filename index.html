@@ -81,10 +81,12 @@
             <!-- Left Sidebar -->
             <aside class="left-sidebar">
                 <nav class="nav-menu glass-card">
-                    <a href="#" class="nav-item active"><i class='bx bxs-home'></i><span>Inicio</span></a>
-                    <a href="#" class="nav-item"><i class='bx bx-news'></i><span>Noticias</span></a>
-                    <a href="#" class="nav-item"><i class='bx bx-file'></i><span>Reportes</span></a>
-                    <a href="#" class="nav-item" id="nav-events-btn"><i class='bx bx-calendar-event'></i><span>Eventos</span></a>
+                    <a href="#" class="nav-item active" id="nav-home-btn"><i class='bx bxs-home'></i><span>Inicio</span></a>
+                    <a href="#" class="nav-item student-hidden"><i class='bx bx-news'></i><span>Noticias</span></a>
+                    <a href="#" class="nav-item student-hidden"><i class='bx bx-file'></i><span>Reportes</span></a>
+                    <a href="#" class="nav-item student-hidden" id="nav-events-btn"><i class='bx bx-calendar-event'></i><span>Eventos</span></a>
+                    <a href="#" class="nav-item student-hidden" id="nav-chat-btn"><i class='bx bx-chat'></i><span>Chat Directo</span></a>
+                    <a href="#" class="nav-item admin-only" id="nav-users-btn" style="display: none;"><i class='bx bx-group'></i><span>Usuarios</span></a>
                 </nav>
                 <button class="btn-primary create-post-btn" id="open-modal-btn">
                     <i class='bx bx-plus'></i> <span>Crear Publicación</span>
@@ -231,6 +233,103 @@
                 </div>
             </div>
         </div>
+
+        <!-- Role Selection Screen -->
+        <div id="role-selection-screen" class="modal-overlay">
+            <div class="modal-content" style="max-width: 800px;">
+                <div class="modal-header" style="justify-content: center; margin-bottom: 40px; text-align: center; flex-direction: column; gap: 10px;">
+                    <h2>¡Bienvenido a la red!</h2>
+                    <p style="color: var(--text-muted);">Por favor, selecciona tu rol en la institución para continuar</p>
+                </div>
+                <div class="role-cards-container">
+                    <div class="role-card" data-role="estudiante">
+                        <div class="role-icon-bg student"><i class='bx bxs-graduation'></i></div>
+                        <h3>Estudiante</h3>
+                        <p>Solo ver publicaciones</p>
+                    </div>
+                    <div class="role-card" data-role="profesor">
+                        <div class="role-icon-bg teacher"><i class='bx bxs-chalkboard'></i></div>
+                        <h3>Profesor</h3>
+                        <p>Interactúa y chatea</p>
+                    </div>
+                    <div class="role-card" data-role="padre">
+                        <div class="role-icon-bg parent"><i class='bx bxs-group'></i></div>
+                        <h3>Padre de Familia</h3>
+                        <p>Mantente informado</p>
+                    </div>
+                    <div class="role-card" data-role="directivo">
+                        <div class="role-icon-bg director"><i class='bx bxs-briefcase'></i></div>
+                        <h3>Directivo</h3>
+                        <p>Gestión y noticias</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Panel (Slide-in) -->
+        <div id="chat-panel" class="chat-panel">
+            <!-- Sidebar with contacts -->
+            <div class="chat-sidebar">
+                <div class="chat-header">
+                    <h2>Mensajes Directos</h2>
+                    <button class="close-chat-btn" id="close-chat-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="chat-search">
+                    <i class='bx bx-search'></i>
+                    <input type="text" id="chat-search-input" placeholder="Buscar contacto...">
+                </div>
+                <div class="contacts-list" id="chat-contacts-list">
+                    <div class="loading-spinner small">Cargando contactos...</div>
+                </div>
+            </div>
+            <!-- Conversation Area -->
+            <div class="chat-conversation" id="chat-conversation" style="display: none;">
+                <div class="conversation-header">
+                    <button class="back-to-contacts-btn" id="back-to-contacts-btn"><i class='bx bx-arrow-back'></i></button>
+                    <img src="" id="chat-active-avatar" class="avatar-small">
+                    <div class="chat-active-info">
+                        <h3 id="chat-active-name">Nombre</h3>
+                        <span id="chat-active-role" class="badge">Rol</span>
+                    </div>
+                </div>
+                <div class="conversation-messages" id="conversation-messages">
+                    <!-- Messages go here -->
+                </div>
+                <div class="conversation-input">
+                    <input type="text" id="chat-message-input" placeholder="Escribe un mensaje...">
+                    <button id="send-message-btn" class="send-message-btn"><i class='bx bxs-send'></i></button>
+                </div>
+            </div>
+            <!-- Empty state -->
+            <div class="chat-empty-state" id="chat-empty-state">
+                <i class='bx bx-chat'></i>
+                <h3>Selecciona un chat</h3>
+                <p>Elige un contacto de la lista para empezar a conversar.</p>
+            </div>
+        </div>
+
+        <!-- Admin Users Modal -->
+        <div class="modal-overlay" id="admin-users-modal">
+            <div class="modal-content" style="max-width: 800px; max-height: 90vh; display: flex; flex-direction: column;">
+                <div class="modal-header">
+                    <h2>Gestión de Usuarios</h2>
+                    <button class="close-modal-btn" id="close-users-modal-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body" style="flex: 1; overflow-y: auto;">
+                    <div class="users-list-table">
+                        <div class="users-table-header">
+                            <div class="col-user">Usuario</div>
+                            <div class="col-role">Rol Actual</div>
+                            <div class="col-action">Acción</div>
+                        </div>
+                        <div id="admin-users-list" class="users-table-body">
+                            <div class="loading-spinner">Cargando usuarios...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </body>
 </html>

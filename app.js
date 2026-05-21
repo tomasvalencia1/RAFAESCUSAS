@@ -42,6 +42,29 @@ const newsModal = document.getElementById('news-modal');
 const reportModal = document.getElementById('report-modal');
 const eventsViewModal = document.getElementById('events-view-modal');
 const eventCreateModal = document.getElementById('event-create-modal');
+const roleSelectionScreen = document.getElementById('role-selection-screen');
+const chatPanel = document.getElementById('chat-panel');
+const adminUsersModal = document.getElementById('admin-users-modal');
+
+// Chat Elements
+const navChatBtn = document.getElementById('nav-chat-btn');
+const closeChatBtn = document.getElementById('close-chat-btn');
+const chatContactsList = document.getElementById('chat-contacts-list');
+const chatSearchInput = document.getElementById('chat-search-input');
+const chatConversation = document.getElementById('chat-conversation');
+const chatEmptyState = document.getElementById('chat-empty-state');
+const conversationMessages = document.getElementById('conversation-messages');
+const chatMessageInput = document.getElementById('chat-message-input');
+const sendMessageBtn = document.getElementById('send-message-btn');
+const backToContactsBtn = document.getElementById('back-to-contacts-btn');
+const chatActiveAvatar = document.getElementById('chat-active-avatar');
+const chatActiveName = document.getElementById('chat-active-name');
+const chatActiveRole = document.getElementById('chat-active-role');
+
+// Admin Elements
+const navUsersBtn = document.getElementById('nav-users-btn');
+const adminUsersList = document.getElementById('admin-users-list');
+const closeUsersModalBtn = document.getElementById('close-users-modal-btn');
 
 // Image Upload Elements
 let currentPostImageBase64 = null;
@@ -58,11 +81,17 @@ const addEventBtn = document.getElementById('add-event-btn');
 
 // Nav & Inputs
 const navEventsBtn = document.getElementById('nav-events-btn');
+const studentHiddenEls = document.querySelectorAll('.student-hidden');
+const rightSidebar = document.querySelector('.right-sidebar');
 
 // Globals
 let currentUser = null;
 let isAdmin = false;
-let allPostsCache = []; // To calculate user stats quickly
+let userRole = null;
+let allPostsCache = []; 
+let activeChatId = null;
+let activeChatListener = null;
+let allContactsCache = [];
 
 // === THEME LOGIC ===
 function initTheme() {
@@ -138,24 +167,72 @@ logoutBtn.addEventListener('click', () => signOut(auth));
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
-        const snapshot = await get(ref(db, `admins/${user.uid}`));
-        isAdmin = snapshot.exists() && snapshot.val() === true;
-
-        headerAvatar.src = user.photoURL || "https://i.pravatar.cc/150?img=68";
-        headerUsername.textContent = user.displayName;
-        loginScreen.classList.remove('active');
-        appContainer.style.display = 'block';
-
-        // Toggle admin buttons visibility
-        adminBtns.forEach(btn => btn.style.display = isAdmin ? (btn.id==='add-event-btn'?'inline-flex':'flex') : 'none');
-
-        // Load data
-        loadPosts(); loadNews(); loadReports(); loadEvents();
+        const adminSnap = await get(ref(db, `admins/${user.uid}`));
+        isAdmin = adminSnap.exists() && adminSnap.val() === true;
+        
+        // Fetch user profile to get role
+        const userSnap = await get(ref(db, `users/${user.uid}`));
+        if (userSnap.exists() && userSnap.val().role) {
+            userRole = userSnap.val().role;
+            completeLogin();
+        } else {
+            // New user or no role yet
+            loginScreen.classList.remove('active');
+            roleSelectionScreen.classList.add('active');
+            
+            // Save basic info without role yet
+            await set(ref(db, `users/${user.uid}`), {
+                name: user.displayName,
+                email: user.email,
+                avatar: user.photoURL || "https://i.pravatar.cc/150?img=68",
+                createdAt: Date.now()
+            });
+        }
     } else {
-        currentUser = null; isAdmin = false; allPostsCache = [];
+        currentUser = null; isAdmin = false; userRole = null; allPostsCache = [];
         loginScreen.classList.add('active'); appContainer.style.display = 'none';
+        roleSelectionScreen.classList.remove('active');
         profilePopover.classList.remove('active');
     }
+});
+
+async function completeLogin() {
+    roleSelectionScreen.classList.remove('active');
+    loginScreen.classList.remove('active');
+    appContainer.style.display = 'block';
+
+    headerAvatar.src = currentUser.photoURL || "https://i.pravatar.cc/150?img=68";
+    headerUsername.textContent = currentUser.displayName;
+
+    // Toggle admin buttons visibility
+    adminBtns.forEach(btn => btn.style.display = isAdmin ? (btn.id==='add-event-btn'?'inline-flex': (btn.id==='nav-users-btn' ? 'flex' : 'flex')) : 'none');
+    
+    // Toggle student restrictions
+    if (userRole === 'estudiante') {
+        studentHiddenEls.forEach(el => el.style.display = 'none');
+        rightSidebar.style.display = 'none';
+    } else {
+        studentHiddenEls.forEach(el => el.style.display = 'flex');
+        rightSidebar.style.display = 'flex';
+        loadChatContacts();
+    }
+
+    // Load data
+    loadPosts(); 
+    if (userRole !== 'estudiante') {
+        loadNews(); loadReports(); loadEvents();
+    }
+}
+
+// Role Selection Event Listeners
+document.querySelectorAll('.role-card').forEach(card => {
+    card.addEventListener('click', async () => {
+        const selectedRole = card.dataset.role;
+        // Update DB
+        await set(ref(db, `users/${currentUser.uid}/role`), selectedRole);
+        userRole = selectedRole;
+        completeLogin();
+    });
 });
 
 // === MODALS TOGGLE & IMAGE UPLOAD ===
@@ -436,5 +513,205 @@ function loadEvents() {
             eventsListContainer.appendChild(el);
         });
         if(isAdmin) document.querySelectorAll('.delete-event-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar evento?")) await remove(ref(db, `events/${e.target.closest('.delete-event-btn').dataset.id}`)); });
+    }); 
+}
+
+// === CHAT SYSTEM ===
+if (navChatBtn) navChatBtn.onclick = (e) => { e.preventDefault(); chatPanel.classList.add('active'); };
+if (closeChatBtn) closeChatBtn.onclick = () => { chatPanel.classList.remove('active'); };
+if (backToContactsBtn) backToContactsBtn.onclick = () => { chatConversation.classList.remove('active'); };
+
+function loadChatContacts() {
+    onValue(ref(db, 'users'), (snapshot) => {
+        chatContactsList.innerHTML = '';
+        if (!snapshot.exists()) return;
+        
+        const users = snapshot.val();
+        let contactsHtml = '';
+        allContactsCache = [];
+
+        Object.entries(users).forEach(([uid, userData]) => {
+            if (uid === currentUser.uid) return; // Don't show self
+            if (!userData.role) return;
+            if (userData.role === 'estudiante') return; // Students can't chat
+
+            allContactsCache.push({ uid, ...userData });
+
+            contactsHtml += `
+                <div class="contact-item" data-uid="${uid}">
+                    <img src="${userData.avatar}" class="avatar-small" alt="Avatar">
+                    <div class="contact-info">
+                        <div class="contact-name">${userData.name} <span class="badge ${userData.role}">${userData.role}</span></div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        if (contactsHtml === '') {
+            chatContactsList.innerHTML = '<p style="color:var(--text-muted);text-align:center;margin-top:20px;">No hay contactos disponibles.</p>';
+        } else {
+            chatContactsList.innerHTML = contactsHtml;
+            document.querySelectorAll('.contact-item').forEach(item => {
+                item.addEventListener('click', () => openChat(item.dataset.uid));
+            });
+        }
+    });
+}
+
+chatSearchInput.addEventListener('input', (e) => {
+    const term = e.target.value.toLowerCase();
+    document.querySelectorAll('.contact-item').forEach(item => {
+        const name = item.querySelector('.contact-name').textContent.toLowerCase();
+        item.style.display = name.includes(term) ? 'flex' : 'none';
+    });
+});
+
+function getChatId(uid1, uid2) {
+    return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
+}
+
+async function openChat(targetUid) {
+    const targetUser = allContactsCache.find(u => u.uid === targetUid);
+    if (!targetUser) return;
+
+    // Update UI
+    document.querySelectorAll('.contact-item').forEach(item => item.classList.remove('active'));
+    const contactItem = document.querySelector(`.contact-item[data-uid="${targetUid}"]`);
+    if(contactItem) contactItem.classList.add('active');
+
+    chatEmptyState.style.display = 'none';
+    chatConversation.style.display = 'flex';
+    // For mobile slide
+    if(window.innerWidth <= 768) chatConversation.classList.add('active');
+
+    chatActiveAvatar.src = targetUser.avatar;
+    chatActiveName.textContent = targetUser.name;
+    chatActiveRole.textContent = targetUser.role;
+    chatActiveRole.className = `badge ${targetUser.role}`;
+
+    activeChatId = getChatId(currentUser.uid, targetUid);
+    
+    // Unsubscribe from previous chat if exists
+    if (activeChatListener) activeChatListener();
+    
+    // Add Participants if new
+    const participantsRef = ref(db, `chats/${activeChatId}/participants`);
+    const pSnap = await get(participantsRef);
+    if (!pSnap.exists()) {
+        await set(participantsRef, { [currentUser.uid]: true, [targetUid]: true });
+    }
+
+    // Listen to messages
+    const messagesRef = ref(db, `chats/${activeChatId}/messages`);
+    activeChatListener = onValue(messagesRef, (snapshot) => {
+        conversationMessages.innerHTML = '';
+        if (!snapshot.exists()) return;
+        
+        const msgs = Object.values(snapshot.val()).sort((a,b) => a.timestamp - b.timestamp);
+
+        msgs.forEach(msg => {
+            const isMe = msg.sender === currentUser.uid;
+            const dateObj = new Date(msg.timestamp);
+            const timeStr = dateObj.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            
+            conversationMessages.innerHTML += `
+                <div class="chat-msg ${isMe ? 'sent' : 'received'}">
+                    <div class="msg-bubble">${msg.text}</div>
+                    <span class="msg-time">${timeStr}</span>
+                </div>
+            `;
+        });
+        
+        // Scroll to bottom
+        setTimeout(() => {
+            conversationMessages.scrollTop = conversationMessages.scrollHeight;
+        }, 100);
+    });
+}
+
+sendMessageBtn.addEventListener('click', sendChatMessage);
+chatMessageInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendChatMessage();
+});
+
+async function sendChatMessage() {
+    const text = chatMessageInput.value.trim();
+    if (!text || !activeChatId) return;
+    
+    chatMessageInput.value = '';
+    const msgData = {
+        sender: currentUser.uid,
+        text: text,
+        timestamp: Date.now()
+    };
+    
+    // Save message
+    await set(push(ref(db, `chats/${activeChatId}/messages`)), msgData);
+    
+    // Update last message info
+    await set(ref(db, `chats/${activeChatId}/lastMessage`), text);
+    await set(ref(db, `chats/${activeChatId}/lastTimestamp`), Date.now());
+}
+
+// === ADMIN USERS MANAGEMENT ===
+if (navUsersBtn) {
+    navUsersBtn.onclick = (e) => {
+        e.preventDefault();
+        adminUsersModal.classList.add('active');
+        loadAllUsersForAdmin();
+    };
+}
+if (closeUsersModalBtn) closeUsersModalBtn.onclick = () => adminUsersModal.classList.remove('active');
+
+function loadAllUsersForAdmin() {
+    if (!isAdmin) return;
+    onValue(ref(db, 'users'), (snapshot) => {
+        adminUsersList.innerHTML = '';
+        if (!snapshot.exists()) return;
+        
+        const users = Object.entries(snapshot.val()).map(([uid, data]) => ({uid, ...data})).sort((a,b) => a.name.localeCompare(b.name));
+        
+        users.forEach(user => {
+            if (user.uid === currentUser.uid) return; // Cannot edit self role easily here
+            
+            const role = user.role || 'Sin rol';
+            const el = document.createElement('div');
+            el.className = 'admin-user-item';
+            el.innerHTML = `
+                <div class="admin-user-info">
+                    <img src="${user.avatar}" class="avatar-small">
+                    <div>
+                        <h4>${user.name}</h4>
+                        <p>${user.email}</p>
+                    </div>
+                </div>
+                <div class="admin-user-role">
+                    <span class="badge ${role}">${role}</span>
+                </div>
+                <div class="admin-user-action">
+                    <select class="text-input role-select" data-uid="${user.uid}">
+                        <option value="estudiante" ${role === 'estudiante' ? 'selected' : ''}>Estudiante</option>
+                        <option value="profesor" ${role === 'profesor' ? 'selected' : ''}>Profesor</option>
+                        <option value="padre" ${role === 'padre' ? 'selected' : ''}>Padre</option>
+                        <option value="directivo" ${role === 'directivo' ? 'selected' : ''}>Directivo</option>
+                    </select>
+                </div>
+            `;
+            adminUsersList.appendChild(el);
+        });
+        
+        // Add listeners to selects
+        document.querySelectorAll('.role-select').forEach(select => {
+            select.addEventListener('change', async (e) => {
+                const newRole = e.target.value;
+                const uid = e.target.dataset.uid;
+                if(confirm(`¿Cambiar rol a ${newRole}?`)) {
+                    await set(ref(db, `users/${uid}/role`), newRole);
+                } else {
+                    // Revert selection
+                    e.target.value = role; // Revert visually if user cancels
+                }
+            });
+        });
     });
 }
