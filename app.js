@@ -210,18 +210,16 @@ async function completeLogin() {
     // Toggle student restrictions
     if (userRole === 'estudiante') {
         studentHiddenEls.forEach(el => el.style.display = 'none');
-        rightSidebar.style.display = 'none';
     } else {
         studentHiddenEls.forEach(el => el.style.display = 'flex');
-        rightSidebar.style.display = 'flex';
         loadChatContacts();
     }
 
     // Load data
     loadPosts(); 
-    if (userRole !== 'estudiante') {
-        loadNews(); loadReports(); loadEvents();
-    }
+    loadNews(); 
+    loadReports(); 
+    loadEvents();
 }
 
 // Role Selection Event Listeners
