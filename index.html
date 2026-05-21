@@ -4,139 +4,139 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IE Rafael Uribe Uribe - Red Social</title>
-    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Boxicons for modern icons -->
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-    <!-- Custom Styles -->
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- Top Header -->
-    <header class="header">
-        <div class="logo-container">
-            <i class='bx bxs-graduation logo-icon'></i>
-            <h1 class="logo-text">IE Rafael Uribe Uribe</h1>
-        </div>
-        <div class="search-bar">
-            <i class='bx bx-search'></i>
-            <input type="text" placeholder="Buscar...">
-        </div>
-        <div class="header-actions">
-            <button class="icon-btn"><i class='bx bx-bell'></i></button>
-            <button class="icon-btn"><i class='bx bx-user'></i></button>
-        </div>
-    </header>
 
-    <!-- Main Content Layout -->
-    <main class="main-layout">
-        <!-- Left Sidebar -->
-        <aside class="left-sidebar">
-            <nav class="nav-menu">
-                <a href="#" class="nav-item active">
-                    <i class='bx bxs-home'></i>
-                    <span>Home</span>
-                </a>
-                <a href="#" class="nav-item">
-                    <i class='bx bx-news'></i>
-                    <span>Institutional News</span>
-                </a>
-                <a href="#" class="nav-item">
-                    <i class='bx bx-file'></i>
-                    <span>Reports</span>
-                </a>
-                <a href="#" class="nav-item">
-                    <i class='bx bx-calendar-event'></i>
-                    <span>Events</span>
-                </a>
-                <a href="#" class="nav-item">
-                    <i class='bx bx-group'></i>
-                    <span>Community</span>
-                </a>
-            </nav>
-            <button class="btn-primary create-post-btn" id="open-modal-btn">
-                <i class='bx bx-plus'></i>
-                Create Post
+    <!-- Login Screen (Visible by default until authenticated) -->
+    <div id="login-screen" class="login-overlay active">
+        <div class="login-card">
+            <i class='bx bxs-graduation logo-icon large'></i>
+            <h2>Red Social Institucional</h2>
+            <p>IE Rafael Uribe Uribe</p>
+            <button id="login-google-btn" class="btn-primary login-btn">
+                <i class='bx bxl-google'></i> Continuar con Google
             </button>
-        </aside>
+        </div>
+    </div>
 
-        <!-- Center Feed -->
-        <section class="feed-section">
-            <div id="posts-container">
-                <!-- Posts will be injected here by app.js -->
+    <!-- Main App Container (Hidden until authenticated) -->
+    <div id="app-container" style="display: none;">
+        <!-- Top Header -->
+        <header class="header">
+            <div class="logo-container">
+                <i class='bx bxs-graduation logo-icon'></i>
+                <h1 class="logo-text">IE Rafael Uribe Uribe</h1>
             </div>
-        </section>
-
-        <!-- Right Sidebar -->
-        <aside class="right-sidebar">
-            <!-- News Widget -->
-            <div class="widget news-widget">
-                <div class="widget-header">
-                    <i class='bx bx-broadcast'></i>
-                    <h2>Noticias</h2>
-                </div>
-                <div class="widget-content">
-                    <div class="news-item">
-                        <h3>Día del Idioma</h3>
-                        <p>Concurso de ortografía y poesía el próximo martes.</p>
-                    </div>
-                    <div class="news-item">
-                        <h3>Mantenimiento de Red</h3>
-                        <p>Intermitencias esperadas en el portal este fin de semana.</p>
-                    </div>
-                </div>
-                <a href="#" class="widget-link">Ver todas las noticias</a>
+            <div class="search-bar">
+                <i class='bx bx-search'></i>
+                <input type="text" placeholder="Buscar...">
             </div>
-
-            <!-- Quick Reports Widget -->
-            <div class="widget reports-widget">
-                <div class="widget-header">
-                    <i class='bx bx-bar-chart-alt-2'></i>
-                    <h2>Reportes Rápidos</h2>
+            <div class="header-actions">
+                <div class="user-profile-header">
+                    <img src="" alt="Avatar" id="header-avatar" class="avatar-small">
+                    <span id="header-username" class="username-small">Cargando...</span>
                 </div>
-                <div class="widget-content">
-                    <div class="report-item">
-                        <div class="report-info">
-                            <i class='bx bx-check-square'></i>
-                            <span>Boletines P1</span>
+                <button class="icon-btn logout-btn" id="logout-btn" title="Cerrar sesión"><i class='bx bx-log-out'></i></button>
+            </div>
+        </header>
+
+        <!-- Main Content Layout -->
+        <main class="main-layout">
+            <!-- Left Sidebar -->
+            <aside class="left-sidebar">
+                <nav class="nav-menu">
+                    <a href="#" class="nav-item active"><i class='bx bxs-home'></i><span>Inicio</span></a>
+                    <a href="#" class="nav-item"><i class='bx bx-news'></i><span>Noticias</span></a>
+                    <a href="#" class="nav-item"><i class='bx bx-file'></i><span>Reportes</span></a>
+                    <a href="#" class="nav-item"><i class='bx bx-calendar-event'></i><span>Eventos</span></a>
+                </nav>
+                <button class="btn-primary create-post-btn" id="open-modal-btn">
+                    <i class='bx bx-plus'></i> Crear Publicación
+                </button>
+            </aside>
+
+            <!-- Center Feed -->
+            <section class="feed-section">
+                <div id="posts-container">
+                    <div class="loading-spinner">Cargando publicaciones...</div>
+                </div>
+            </section>
+
+            <!-- Right Sidebar -->
+            <aside class="right-sidebar">
+                <!-- News Widget -->
+                <div class="widget news-widget">
+                    <div class="widget-header">
+                        <div class="header-title">
+                            <i class='bx bx-broadcast'></i>
+                            <h2>Noticias</h2>
                         </div>
-                        <span class="badge success">Disponible</span>
+                        <button id="add-news-btn" class="icon-btn small admin-only" style="display: none;" title="Añadir Noticia">
+                            <i class='bx bx-plus'></i>
+                        </button>
                     </div>
-                    <div class="report-item">
-                        <div class="report-info">
-                            <i class='bx bx-calendar-check'></i>
-                            <span>Asistencia Semanal</span>
-                        </div>
-                        <i class='bx bx-chevron-right'></i>
+                    <div class="widget-content" id="news-container">
+                        <!-- News injected here -->
+                        <div class="loading-spinner small">Cargando...</div>
                     </div>
                 </div>
-            </div>
-        </aside>
-    </main>
 
-    <!-- Create Post Modal -->
-    <div class="modal-overlay" id="post-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Crear nueva publicación</h2>
-                <button class="close-modal-btn" id="close-modal-btn"><i class='bx bx-x'></i></button>
-            </div>
-            <div class="modal-body">
-                <div class="user-info-mini">
-                    <img src="https://i.pravatar.cc/150?img=68" alt="Tú" class="avatar">
-                    <span class="username">Tu perfil</span>
+                <!-- Quick Reports Widget -->
+                <div class="widget reports-widget">
+                    <div class="widget-header">
+                        <i class='bx bx-bar-chart-alt-2'></i>
+                        <h2>Reportes Rápidos</h2>
+                    </div>
+                    <div class="widget-content">
+                        <div class="report-item">
+                            <div class="report-info"><i class='bx bx-check-square'></i><span>Boletines P1</span></div>
+                            <span class="badge success">Disponible</span>
+                        </div>
+                    </div>
                 </div>
-                <textarea id="post-textarea" placeholder="¿Qué hay de nuevo en la institución?" rows="4"></textarea>
+            </aside>
+        </main>
+
+        <!-- Create Post Modal -->
+        <div class="modal-overlay" id="post-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Crear nueva publicación</h2>
+                    <button class="close-modal-btn" id="close-modal-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body">
+                    <textarea id="post-textarea" placeholder="¿Qué hay de nuevo en la institución?" rows="4"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-primary publish-btn" id="publish-post-btn">Publicar</button>
+                </div>
             </div>
-            <div class="modal-footer">
-                <button class="btn-primary publish-btn" id="publish-post-btn">Publicar</button>
+        </div>
+
+        <!-- Create News Modal (Admin Only) -->
+        <div class="modal-overlay" id="news-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Añadir Noticia Institucional</h2>
+                    <button class="close-modal-btn" id="close-news-modal-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="news-title-input" placeholder="Título de la noticia" class="text-input" style="margin-bottom: 12px;">
+                    <textarea id="news-desc-input" placeholder="Descripción corta" rows="3"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-primary publish-btn" id="publish-news-btn">Publicar Noticia</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="app.js"></script>
+    <!-- Firebase SDKs will be imported dynamically in app.js using modules -->
+    <script type="module" src="app.js"></script>
 </body>
 </html>
