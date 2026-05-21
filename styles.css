@@ -173,7 +173,7 @@ body {
 
 /* Feed Section & Posts */
 .feed-section { display: flex; flex-direction: column; gap: 40px; } /* Increased gap for separation */
-.post-card { background: var(--glass-bg); backdrop-filter: blur(24px); border: var(--glass-border); border-top: 1px solid var(--glass-border-highlight); border-left: 1px solid var(--glass-border-highlight); border-radius: var(--radius-lg); padding: 32px; box-shadow: var(--shadow-glass); transition: all 0.3s ease; }
+.post-card { background: var(--glass-bg); backdrop-filter: blur(24px); border: var(--glass-border); border-top: 1px solid var(--glass-border-highlight); border-left: 1px solid var(--glass-border-highlight); border-radius: var(--radius-lg); padding: 32px; box-shadow: var(--shadow-glass); transition: all 0.3s ease; margin-bottom: 40px; }
 .post-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); }
 
 .post-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }

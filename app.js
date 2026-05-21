@@ -43,6 +43,13 @@ const reportModal = document.getElementById('report-modal');
 const eventsViewModal = document.getElementById('events-view-modal');
 const eventCreateModal = document.getElementById('event-create-modal');
 
+// Image Upload Elements
+let currentPostImageBase64 = null;
+const postImageInput = document.getElementById('post-image-input');
+const imagePreviewContainer = document.getElementById('image-preview-container');
+const postImagePreview = document.getElementById('post-image-preview');
+const removeImageBtn = document.getElementById('remove-image-btn');
+
 // Admin Buttons (Display toggle)
 const adminBtns = document.querySelectorAll('.admin-only');
 const addNewsBtn = document.getElementById('add-news-btn');
@@ -106,7 +113,7 @@ function updateProfileStats() {
     allPostsCache.forEach(post => {
         if (post.author.uid === currentUser.uid) {
             userPostsCount++;
-            userLikesCount += (post.likesCount || 0);
+            userLikesCount += (post.likes ? Object.keys(post.likes).length : 0);
         }
     });
 
@@ -151,9 +158,12 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// === MODALS TOGGLE ===
+// === MODALS TOGGLE & IMAGE UPLOAD ===
 document.getElementById('open-modal-btn').onclick = () => postModal.classList.add('active');
-document.getElementById('close-modal-btn').onclick = () => postModal.classList.remove('active');
+document.getElementById('close-modal-btn').onclick = () => {
+    postModal.classList.remove('active');
+    resetImagePreview();
+};
 
 addNewsBtn.onclick = () => newsModal.classList.add('active');
 document.getElementById('close-news-modal-btn').onclick = () => newsModal.classList.remove('active');
@@ -167,17 +177,73 @@ document.getElementById('close-events-view-btn').onclick = () => eventsViewModal
 addEventBtn.onclick = () => eventCreateModal.classList.add('active');
 document.getElementById('close-event-create-btn').onclick = () => eventCreateModal.classList.remove('active');
 
+// Image upload and compression logic
+postImageInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+            // Compress image using canvas
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            const MAX_WIDTH = 800;
+            const MAX_HEIGHT = 800;
+
+            if (width > height) {
+                if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+            } else {
+                if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+            }
+            
+            canvas.width = width; canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            currentPostImageBase64 = canvas.toDataURL('image/jpeg', 0.7); // 70% quality jpeg
+            
+            postImagePreview.src = currentPostImageBase64;
+            imagePreviewContainer.style.display = 'block';
+        };
+        img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+});
+
+removeImageBtn.addEventListener('click', () => {
+    resetImagePreview();
+});
+
+function resetImagePreview() {
+    currentPostImageBase64 = null;
+    postImageInput.value = '';
+    imagePreviewContainer.style.display = 'none';
+    postImagePreview.src = '';
+}
+
 // === POSTS LOGIC ===
 document.getElementById('publish-post-btn').addEventListener('click', async (e) => {
     const text = document.getElementById('post-textarea').value.trim();
-    if (!text || !currentUser) return;
+    if ((!text && !currentPostImageBase64) || !currentUser) return;
+    
     const btn = e.target; btn.textContent = 'Publicando...'; btn.disabled = true;
     try {
-        await set(push(ref(db, 'posts')), {
+        const postData = {
             author: { uid: currentUser.uid, name: currentUser.displayName, avatar: currentUser.photoURL },
-            content: text, timestamp: Date.now(), likesCount: 0
-        });
-        postModal.classList.remove('active'); document.getElementById('post-textarea').value = '';
+            content: text, 
+            timestamp: Date.now()
+        };
+        if (currentPostImageBase64) {
+            postData.imageBase64 = currentPostImageBase64;
+        }
+        
+        await set(push(ref(db, 'posts')), postData);
+        postModal.classList.remove('active'); 
+        document.getElementById('post-textarea').value = '';
+        resetImagePreview();
     } catch (error) { console.error(error); } 
     finally { btn.textContent = 'Publicar'; btn.disabled = false; }
 });
@@ -197,10 +263,13 @@ function loadPosts() {
         postsArray.forEach(post => {
             const minutesAgo = Math.floor((Date.now() - post.timestamp) / 60000);
             const timeStr = minutesAgo < 60 ? `Hace ${minutesAgo} min` : (minutesAgo < 1440 ? `Hace ${Math.floor(minutesAgo/60)} horas` : `Hace ${Math.floor(minutesAgo/1440)} días`);
+            
+            const likesCount = post.likes ? Object.keys(post.likes).length : 0;
             const myLike = post.likes && post.likes[currentUser.uid] ? true : false;
             
+            const imageHtml = post.imageBase64 ? `<img src="${post.imageBase64}" alt="Imagen adjunta" style="width: 100%; border-radius: 12px; margin-bottom: 24px; object-fit: contain; max-height: 500px; background: rgba(0,0,0,0.1); border: 1px solid var(--border-color);">` : '';
+            
             const commentsHtml = post.comments ? Object.values(post.comments).map(c => {
-                // Find comment key by matching value (since we need the ID to delete)
                 const commentId = Object.keys(post.comments).find(key => post.comments[key] === c);
                 return `
                 <div class="comment">
@@ -224,9 +293,10 @@ function loadPosts() {
                     </div>
                     ${isAdmin ? `<button class="action-btn delete-post-btn" data-id="${post.id}"><i class='bx bx-trash'></i></button>` : ''}
                 </div>
-                <div class="post-content">${post.content}</div>
+                ${post.content ? `<div class="post-content">${post.content}</div>` : ''}
+                ${imageHtml}
                 <div class="post-actions">
-                    <button class="action-btn like-btn ${myLike?'liked':''}" data-id="${post.id}"><i class='bx ${myLike?'bxs-like':'bx-like'}'></i><span class="likes-count">${post.likesCount || 0}</span></button>
+                    <button class="action-btn like-btn ${myLike?'liked':''}" data-id="${post.id}"><i class='bx ${myLike?'bxs-like':'bx-like'}'></i><span class="likes-count">${likesCount}</span></button>
                     <button class="action-btn comment-btn" data-id="${post.id}"><i class='bx bx-message-rounded'></i>${post.comments ? Object.keys(post.comments).length : 0}</button>
                 </div>
                 <div class="comments-section" id="comments-${post.id}">
@@ -257,15 +327,17 @@ postsContainer.addEventListener('click', async (e) => {
             await remove(ref(db, `posts/${postId}/comments/${commentId}`));
         }
     }
-    // Like Post
+    // Like Post (Bug fixed: directly setting true/null removes race conditions)
     const likeBtn = e.target.closest('.like-btn');
     if (likeBtn) {
         const id = likeBtn.dataset.id;
         const likeRef = ref(db, `posts/${id}/likes/${currentUser.uid}`);
         const snap = await get(likeRef);
-        const count = (await get(ref(db, `posts/${id}`))).val().likesCount || 0;
-        if (snap.exists()) { await remove(likeRef); await set(ref(db, `posts/${id}/likesCount`), count - 1); }
-        else { await set(likeRef, true); await set(ref(db, `posts/${id}/likesCount`), count + 1); }
+        if (snap.exists()) { 
+            await remove(likeRef); 
+        } else { 
+            await set(likeRef, true); 
+        }
     }
     // Toggle Comments
     const commentBtn = e.target.closest('.comment-btn');

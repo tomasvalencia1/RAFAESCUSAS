@@ -143,8 +143,17 @@
                 </div>
                 <div class="modal-body">
                     <textarea id="post-textarea" placeholder="¿Qué hay de nuevo en la institución?" rows="4"></textarea>
+                    <div id="image-preview-container" style="display: none; position: relative; margin-bottom: 20px;">
+                        <img id="post-image-preview" src="" alt="Vista previa" style="width: 100%; border-radius: 12px; max-height: 300px; object-fit: cover; border: 1px solid var(--border-color);">
+                        <button id="remove-image-btn" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center;"><i class='bx bx-x'></i></button>
+                    </div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer" style="justify-content: space-between; align-items: center;">
+                    <label for="post-image-input" class="action-btn" style="cursor: pointer; color: var(--primary-blue); background: var(--hover-bg); margin: 0;">
+                        <i class='bx bx-image-add'></i> <span style="font-size: 14px;">Foto</span>
+                    </label>
+                    <input type="file" id="post-image-input" accept="image/*" style="display: none;">
+                    
                     <button class="btn-primary" id="publish-post-btn">Publicar</button>
                 </div>
             </div>
