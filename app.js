@@ -26,6 +26,11 @@ const logoutBtn = document.getElementById('logout-btn');
 const headerAvatar = document.getElementById('header-avatar');
 const headerUsername = document.getElementById('header-username');
 
+// Theme & Profile
+const themeToggleBtn = document.getElementById('theme-toggle-btn');
+const profileBtn = document.getElementById('profile-btn');
+const profilePopover = document.getElementById('profile-popover');
+
 const postsContainer = document.getElementById('posts-container');
 const newsContainer = document.getElementById('news-container');
 const reportsContainer = document.getElementById('reports-container');
@@ -50,6 +55,71 @@ const navEventsBtn = document.getElementById('nav-events-btn');
 // Globals
 let currentUser = null;
 let isAdmin = false;
+let allPostsCache = []; // To calculate user stats quickly
+
+// === THEME LOGIC ===
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        themeToggleBtn.innerHTML = "<i class='bx bx-sun'></i>";
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+        themeToggleBtn.innerHTML = "<i class='bx bx-moon'></i>";
+    }
+}
+initTheme();
+
+themeToggleBtn.addEventListener('click', () => {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    if (currentTheme === 'light') {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'dark');
+        themeToggleBtn.innerHTML = "<i class='bx bx-moon'></i>";
+    } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        localStorage.setItem('theme', 'light');
+        themeToggleBtn.innerHTML = "<i class='bx bx-sun'></i>";
+    }
+});
+
+// === PROFILE POPOVER LOGIC ===
+profileBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    profilePopover.classList.toggle('active');
+    updateProfileStats();
+});
+
+document.addEventListener('click', (e) => {
+    if (!profilePopover.contains(e.target) && !profileBtn.contains(e.target)) {
+        profilePopover.classList.remove('active');
+    }
+});
+
+function updateProfileStats() {
+    if (!currentUser) return;
+    
+    // Calculate stats
+    let userPostsCount = 0;
+    let userLikesCount = 0;
+    
+    allPostsCache.forEach(post => {
+        if (post.author.uid === currentUser.uid) {
+            userPostsCount++;
+            userLikesCount += (post.likesCount || 0);
+        }
+    });
+
+    document.getElementById('popover-avatar').src = currentUser.photoURL || "https://i.pravatar.cc/150?img=68";
+    document.getElementById('popover-name').textContent = currentUser.displayName;
+    document.getElementById('popover-email').textContent = currentUser.email;
+    document.getElementById('popover-posts-count').textContent = userPostsCount;
+    document.getElementById('popover-likes-count').textContent = userLikesCount;
+    
+    // Format creation time
+    const creationTime = new Date(currentUser.metadata.creationTime);
+    document.getElementById('popover-date').textContent = creationTime.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+}
 
 // === AUTHENTICATION ===
 loginGoogleBtn.addEventListener('click', async () => {
@@ -75,8 +145,9 @@ onAuthStateChanged(auth, async (user) => {
         // Load data
         loadPosts(); loadNews(); loadReports(); loadEvents();
     } else {
-        currentUser = null; isAdmin = false;
+        currentUser = null; isAdmin = false; allPostsCache = [];
         loginScreen.classList.add('active'); appContainer.style.display = 'none';
+        profilePopover.classList.remove('active');
     }
 });
 
@@ -114,19 +185,34 @@ document.getElementById('publish-post-btn').addEventListener('click', async (e) 
 function loadPosts() {
     onValue(ref(db, 'posts'), (snapshot) => {
         postsContainer.innerHTML = '';
-        if (!snapshot.exists()) { postsContainer.innerHTML = '<div class="glass-card loading-spinner">No hay publicaciones aún.</div>'; return; }
-        const postsArray = Object.entries(snapshot.val()).map(([id, data]) => ({id, ...data})).sort((a,b) => b.timestamp - a.timestamp);
+        if (!snapshot.exists()) { 
+            postsContainer.innerHTML = '<div class="glass-card loading-spinner">No hay publicaciones aún.</div>'; 
+            allPostsCache = [];
+            return; 
+        }
         
+        const postsArray = Object.entries(snapshot.val()).map(([id, data]) => ({id, ...data})).sort((a,b) => b.timestamp - a.timestamp);
+        allPostsCache = postsArray; // Cache for stats
+
         postsArray.forEach(post => {
             const minutesAgo = Math.floor((Date.now() - post.timestamp) / 60000);
             const timeStr = minutesAgo < 60 ? `Hace ${minutesAgo} min` : (minutesAgo < 1440 ? `Hace ${Math.floor(minutesAgo/60)} horas` : `Hace ${Math.floor(minutesAgo/1440)} días`);
             const myLike = post.likes && post.likes[currentUser.uid] ? true : false;
             
-            const commentsHtml = post.comments ? Object.values(post.comments).map(c => `
+            const commentsHtml = post.comments ? Object.values(post.comments).map(c => {
+                // Find comment key by matching value (since we need the ID to delete)
+                const commentId = Object.keys(post.comments).find(key => post.comments[key] === c);
+                return `
                 <div class="comment">
                     <img src="${c.authorAvatar}" class="avatar" alt="Avatar">
-                    <div class="comment-content"><strong>${c.authorName}</strong>${c.text}</div>
-                </div>`).join('') : '';
+                    <div class="comment-content">
+                        <div class="comment-text-group">
+                            <strong>${c.authorName}</strong>${c.text}
+                        </div>
+                        ${isAdmin ? `<button class="action-btn delete-comment-btn" data-post-id="${post.id}" data-comment-id="${commentId}"><i class='bx bx-x'></i></button>` : ''}
+                    </div>
+                </div>`;
+            }).join('') : '';
 
             const postEl = document.createElement('article');
             postEl.className = 'post-card';
@@ -158,9 +244,20 @@ function loadPosts() {
 
 // Interacciones en posts (delegadas)
 postsContainer.addEventListener('click', async (e) => {
+    // Delete Post
     if (e.target.closest('.delete-post-btn') && isAdmin) {
         if(confirm("¿Eliminar publicación?")) await remove(ref(db, `posts/${e.target.closest('.delete-post-btn').dataset.id}`));
     }
+    // Delete Comment
+    const deleteCommentBtn = e.target.closest('.delete-comment-btn');
+    if (deleteCommentBtn && isAdmin) {
+        if(confirm("¿Eliminar comentario?")) {
+            const postId = deleteCommentBtn.dataset.postId;
+            const commentId = deleteCommentBtn.dataset.commentId;
+            await remove(ref(db, `posts/${postId}/comments/${commentId}`));
+        }
+    }
+    // Like Post
     const likeBtn = e.target.closest('.like-btn');
     if (likeBtn) {
         const id = likeBtn.dataset.id;
@@ -170,8 +267,11 @@ postsContainer.addEventListener('click', async (e) => {
         if (snap.exists()) { await remove(likeRef); await set(ref(db, `posts/${id}/likesCount`), count - 1); }
         else { await set(likeRef, true); await set(ref(db, `posts/${id}/likesCount`), count + 1); }
     }
+    // Toggle Comments
     const commentBtn = e.target.closest('.comment-btn');
     if (commentBtn) document.getElementById(`comments-${commentBtn.dataset.id}`).classList.toggle('visible');
+    
+    // Submit Comment
     const submitBtn = e.target.closest('.comment-submit-btn');
     if (submitBtn) await submitComment(submitBtn.dataset.id, document.querySelector(`.new-comment-input[data-id="${submitBtn.dataset.id}"]`));
 });
@@ -263,6 +363,6 @@ function loadEvents() {
             `;
             eventsListContainer.appendChild(el);
         });
-        if(isAdmin) document.querySelectorAll('.delete-event-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar evento?")) await remove(ref(db, `events/${e.currentTarget.dataset.id}`)); });
+        if(isAdmin) document.querySelectorAll('.delete-event-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar evento?")) await remove(ref(db, `events/${e.target.closest('.delete-event-btn').dataset.id}`)); });
     });
 }

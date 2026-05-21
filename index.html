@@ -37,11 +37,42 @@
                 <input type="text" placeholder="Buscar publicaciones...">
             </div>
             <div class="header-actions">
-                <div class="user-profile-header">
+                <button class="theme-toggle-btn" id="theme-toggle-btn" title="Cambiar Tema">
+                    <i class='bx bx-moon'></i>
+                </button>
+                <div class="user-profile-header" id="profile-btn">
                     <img src="" alt="Avatar" id="header-avatar" class="avatar-small">
                     <span id="header-username" class="username-small">Cargando...</span>
                 </div>
-                <button class="icon-btn logout-btn" id="logout-btn" title="Cerrar sesión"><i class='bx bx-log-out'></i></button>
+                
+                <!-- Profile Popover -->
+                <div class="profile-popover" id="profile-popover">
+                    <div class="popover-header">
+                        <img src="" alt="Avatar" id="popover-avatar" class="avatar">
+                        <div class="popover-header-info">
+                            <h3 id="popover-name">Usuario</h3>
+                            <p id="popover-email">correo@ejemplo.com</p>
+                        </div>
+                    </div>
+                    <div class="popover-stats">
+                        <div class="stat-box">
+                            <span class="stat-value" id="popover-posts-count">0</span>
+                            <span class="stat-label">Publicaciones</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-value" id="popover-likes-count">0</span>
+                            <span class="stat-label">Me gusta</span>
+                        </div>
+                    </div>
+                    <div style="text-align: center; margin-bottom: 8px;">
+                        <span class="stat-label">Miembro desde: <span id="popover-date">...</span></span>
+                    </div>
+                    <div class="popover-actions">
+                        <button class="logout-btn" id="logout-btn">
+                            <i class='bx bx-log-out'></i> Cerrar Sesión
+                        </button>
+                    </div>
+                </div>
             </div>
         </header>
 
@@ -56,7 +87,7 @@
                     <a href="#" class="nav-item" id="nav-events-btn"><i class='bx bx-calendar-event'></i><span>Eventos</span></a>
                 </nav>
                 <button class="btn-primary create-post-btn" id="open-modal-btn">
-                    <i class='bx bx-plus'></i> Crear Publicación
+                    <i class='bx bx-plus'></i> <span>Crear Publicación</span>
                 </button>
             </aside>
 
