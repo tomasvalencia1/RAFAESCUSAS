@@ -4,15 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IE Rafael Uribe Uribe - Red Social</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Módulos de Firebase y Lógica -->
+    <script type="module" src="app.js"></script>
+    <!-- Estilos y Fuentes -->
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-    <!-- Login Screen (Visible by default until authenticated) -->
+    <!-- Login Screen -->
     <div id="login-screen" class="login-overlay active">
         <div class="login-card">
             <i class='bx bxs-graduation logo-icon large'></i>
@@ -24,7 +24,7 @@
         </div>
     </div>
 
-    <!-- Main App Container (Hidden until authenticated) -->
+    <!-- Main App Container -->
     <div id="app-container" style="display: none;">
         <!-- Top Header -->
         <header class="header">
@@ -34,7 +34,7 @@
             </div>
             <div class="search-bar">
                 <i class='bx bx-search'></i>
-                <input type="text" placeholder="Buscar...">
+                <input type="text" placeholder="Buscar publicaciones...">
             </div>
             <div class="header-actions">
                 <div class="user-profile-header">
@@ -49,11 +49,11 @@
         <main class="main-layout">
             <!-- Left Sidebar -->
             <aside class="left-sidebar">
-                <nav class="nav-menu">
+                <nav class="nav-menu glass-card">
                     <a href="#" class="nav-item active"><i class='bx bxs-home'></i><span>Inicio</span></a>
                     <a href="#" class="nav-item"><i class='bx bx-news'></i><span>Noticias</span></a>
                     <a href="#" class="nav-item"><i class='bx bx-file'></i><span>Reportes</span></a>
-                    <a href="#" class="nav-item"><i class='bx bx-calendar-event'></i><span>Eventos</span></a>
+                    <a href="#" class="nav-item" id="nav-events-btn"><i class='bx bx-calendar-event'></i><span>Eventos</span></a>
                 </nav>
                 <button class="btn-primary create-post-btn" id="open-modal-btn">
                     <i class='bx bx-plus'></i> Crear Publicación
@@ -63,14 +63,14 @@
             <!-- Center Feed -->
             <section class="feed-section">
                 <div id="posts-container">
-                    <div class="loading-spinner">Cargando publicaciones...</div>
+                    <div class="glass-card loading-spinner">Cargando publicaciones...</div>
                 </div>
             </section>
 
             <!-- Right Sidebar -->
             <aside class="right-sidebar">
                 <!-- News Widget -->
-                <div class="widget news-widget">
+                <div class="glass-card news-widget">
                     <div class="widget-header">
                         <div class="header-title">
                             <i class='bx bx-broadcast'></i>
@@ -81,22 +81,23 @@
                         </button>
                     </div>
                     <div class="widget-content" id="news-container">
-                        <!-- News injected here -->
                         <div class="loading-spinner small">Cargando...</div>
                     </div>
                 </div>
 
                 <!-- Quick Reports Widget -->
-                <div class="widget reports-widget">
+                <div class="glass-card reports-widget">
                     <div class="widget-header">
-                        <i class='bx bx-bar-chart-alt-2'></i>
-                        <h2>Reportes Rápidos</h2>
-                    </div>
-                    <div class="widget-content">
-                        <div class="report-item">
-                            <div class="report-info"><i class='bx bx-check-square'></i><span>Boletines P1</span></div>
-                            <span class="badge success">Disponible</span>
+                        <div class="header-title">
+                            <i class='bx bx-bar-chart-alt-2'></i>
+                            <h2>Reportes Rápidos</h2>
                         </div>
+                        <button id="add-report-btn" class="icon-btn small admin-only" style="display: none;" title="Añadir Reporte">
+                            <i class='bx bx-plus'></i>
+                        </button>
+                    </div>
+                    <div class="widget-content" id="reports-container">
+                        <div class="loading-spinner small">Cargando...</div>
                     </div>
                 </div>
             </aside>
@@ -113,12 +114,12 @@
                     <textarea id="post-textarea" placeholder="¿Qué hay de nuevo en la institución?" rows="4"></textarea>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn-primary publish-btn" id="publish-post-btn">Publicar</button>
+                    <button class="btn-primary" id="publish-post-btn">Publicar</button>
                 </div>
             </div>
         </div>
 
-        <!-- Create News Modal (Admin Only) -->
+        <!-- Create News Modal -->
         <div class="modal-overlay" id="news-modal">
             <div class="modal-content">
                 <div class="modal-header">
@@ -126,17 +127,70 @@
                     <button class="close-modal-btn" id="close-news-modal-btn"><i class='bx bx-x'></i></button>
                 </div>
                 <div class="modal-body">
-                    <input type="text" id="news-title-input" placeholder="Título de la noticia" class="text-input" style="margin-bottom: 12px;">
+                    <input type="text" id="news-title-input" placeholder="Título de la noticia" class="text-input">
                     <textarea id="news-desc-input" placeholder="Descripción corta" rows="3"></textarea>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn-primary publish-btn" id="publish-news-btn">Publicar Noticia</button>
+                    <button class="btn-primary" id="publish-news-btn">Publicar Noticia</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Report Modal -->
+        <div class="modal-overlay" id="report-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Añadir Reporte Rápido</h2>
+                    <button class="close-modal-btn" id="close-report-modal-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="report-title-input" placeholder="Nombre del reporte (Ej: Boletines P2)" class="text-input">
+                    <select id="report-status-input" class="text-input">
+                        <option value="Disponible">Disponible</option>
+                        <option value="Pendiente">Pendiente</option>
+                        <option value="En revisión">En revisión</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-primary" id="publish-report-btn">Añadir Reporte</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Events Viewer Modal -->
+        <div class="modal-overlay" id="events-view-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Próximos Eventos</h2>
+                    <div>
+                        <button id="add-event-btn" class="btn-primary admin-only" style="display: none; padding: 8px 16px; font-size: 14px; margin-right: 10px; display: inline-flex;">+ Crear Evento</button>
+                        <button class="close-modal-btn" id="close-events-view-btn" style="display: inline-flex;"><i class='bx bx-x'></i></button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div id="events-list-container" class="event-list">
+                        <div class="loading-spinner">Cargando eventos...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Event Modal -->
+        <div class="modal-overlay" id="event-create-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Añadir Nuevo Evento</h2>
+                    <button class="close-modal-btn" id="close-event-create-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="event-title-input" placeholder="Título del evento" class="text-input">
+                    <input type="date" id="event-date-input" class="text-input">
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-primary" id="publish-event-btn">Guardar Evento</button>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Firebase SDKs will be imported dynamically in app.js using modules -->
-    <script type="module" src="app.js"></script>
 </body>
 </html>
