@@ -418,3 +418,45 @@ select option { background: var(--surface-color); color: var(--text-dark); paddi
     margin-bottom: 0 !important;
   }
 }
+@media (max-width: 768px) {
+  /* Convertimos el contenedor principal en una columna */
+  .main-layout {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 1. Mantenemos la barra de navegación (menú) en su posición normal */
+  .left-sidebar {
+    order: 1;
+  }
+
+  /* 2. Movemos el carrusel de Noticias/Reportes justo debajo del menú (arriba de los posts) */
+  .right-sidebar {
+    order: 2; 
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 15px;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Oculta la barra de scroll en Firefox */
+  }
+  
+  /* 3. Las publicaciones (Feed) se van para abajo */
+  .feed-section {
+    order: 3;
+  }
+  
+  /* Ocultar barra de scroll en Chrome/Safari */
+  .right-sidebar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Ajuste del tamaño de las tarjetas en el carrusel */
+  .news-widget, .reports-widget {
+    min-width: 85vw; 
+    flex-shrink: 0;
+    margin-bottom: 0 !important;
+  }
+}
