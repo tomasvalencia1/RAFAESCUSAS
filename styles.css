@@ -460,3 +460,44 @@ select option { background: var(--surface-color); color: var(--text-dark); paddi
     margin-bottom: 0 !important;
   }
 }
+/* =========================================
+   ESTILOS INTERNOS DE LOS JUEGOS Y RETOS
+   ========================================= */
+.clickable { cursor: pointer; transition: transform 0.2s; }
+.clickable:hover { transform: scale(1.02); }
+
+.trivia-question-box {
+  background: var(--hover-bg);
+  padding: 20px;
+  border-radius: 12px;
+  margin-top: 15px;
+  border: 1px solid var(--border-color);
+}
+.trivia-question-box h3 {
+  font-size: 18px;
+  color: var(--text-dark);
+}
+
+.excuse-item {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 15px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.vote-excuse-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 12px;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+.vote-excuse-btn i { font-size: 20px; }
+.vote-excuse-btn.voted {
+  color: var(--primary-blue);
+  background: var(--hover-bg);
+}
