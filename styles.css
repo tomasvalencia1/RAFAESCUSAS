@@ -393,4 +393,28 @@ select option { background: var(--surface-color); color: var(--text-dark); paddi
     .chat-conversation.active { left: 0; }
     .chat-empty-state { display: none; }
     .back-to-contacts-btn { display: block; }
+}  
+@media (max-width: 768px) {
+  .right-sidebar {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 15px;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+    /* Para que el scroll sea suave en celulares */
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Oculta la barra de scroll en Firefox */
+  }
+  
+  /* Ocultar barra de scroll en Chrome/Safari */
+  .right-sidebar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .news-widget, .reports-widget {
+    min-width: 85vw; /* Cada tarjeta ocupará el 85% de la pantalla de ancho */
+    flex-shrink: 0;
+    margin-bottom: 0 !important;
+  }
 }
