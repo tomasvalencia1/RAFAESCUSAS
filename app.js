@@ -234,7 +234,12 @@ document.querySelectorAll('.role-card').forEach(card => {
 });
 
 // === MODALS TOGGLE & IMAGE UPLOAD ===
-document.getElementById('open-modal-btn').onclick = () => postModal.classList.add('active');
+const openModalBtnFeed = document.getElementById('open-modal-btn-feed');
+if (openModalBtnFeed) openModalBtnFeed.onclick = () => postModal.classList.add('active');
+
+const openModalBtn = document.getElementById('open-modal-btn');
+if (openModalBtn) openModalBtn.onclick = () => postModal.classList.add('active');
+
 document.getElementById('close-modal-btn').onclick = () => {
     postModal.classList.remove('active');
     resetImagePreview();
@@ -342,7 +347,7 @@ function loadPosts() {
             const likesCount = post.likes ? Object.keys(post.likes).length : 0;
             const myLike = post.likes && post.likes[currentUser.uid] ? true : false;
             
-            const imageHtml = post.imageBase64 ? `<img src="${post.imageBase64}" alt="Imagen adjunta" style="width: 100%; border-radius: 12px; margin-bottom: 24px; object-fit: contain; max-height: 500px; background: rgba(0,0,0,0.1); border: 1px solid var(--border-color);">` : '';
+            const imageHtml = post.imageBase64 ? `<img src="${post.imageBase64}" alt="Imagen adjunta" class="post-image-full">` : '';
             
             const commentsHtml = post.comments ? Object.values(post.comments).map(c => {
                 const commentId = Object.keys(post.comments).find(key => post.comments[key] === c);
@@ -371,7 +376,7 @@ function loadPosts() {
                 ${post.content ? `<div class="post-content">${post.content}</div>` : ''}
                 ${imageHtml}
                 <div class="post-actions">
-                    <button class="action-btn like-btn ${myLike?'liked':''}" data-id="${post.id}"><i class='bx ${myLike?'bxs-like':'bx-like'}'></i><span class="likes-count">${likesCount}</span></button>
+                    <button class="action-btn like-btn ${myLike?'liked':''}" data-id="${post.id}"><i class='bx ${myLike?'bxs-heart':'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button>
                     <button class="action-btn comment-btn" data-id="${post.id}"><i class='bx bx-message-rounded'></i>${post.comments ? Object.keys(post.comments).length : 0}</button>
                 </div>
                 <div class="comments-section" id="comments-${post.id}">
@@ -513,6 +518,84 @@ function loadEvents() {
         if(isAdmin) document.querySelectorAll('.delete-event-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar evento?")) await remove(ref(db, `events/${e.target.closest('.delete-event-btn').dataset.id}`)); });
     }); 
 }
+
+// === GAMES & CHALLENGES (TIC TAC TOE) ===
+const navGamesBtn = document.getElementById('nav-games-btn');
+const gamesModal = document.getElementById('games-modal');
+const closeGamesModalBtn = document.getElementById('close-games-modal-btn');
+const boardEl = document.getElementById('tic-tac-toe-board');
+const statusText = document.getElementById('game-status-text');
+const resetGameBtn = document.getElementById('reset-game-btn');
+
+let boardState = Array(9).fill(null);
+let xIsNext = true;
+let gameActive = false;
+
+if (navGamesBtn) {
+    navGamesBtn.onclick = (e) => {
+        e.preventDefault();
+        gamesModal.classList.add('active');
+        initGame();
+    };
+}
+if (closeGamesModalBtn) closeGamesModalBtn.onclick = () => gamesModal.classList.remove('active');
+
+function initGame() {
+    boardState = Array(9).fill(null);
+    xIsNext = true;
+    gameActive = true;
+    statusText.textContent = "Tu turno (X)";
+    boardEl.innerHTML = '';
+    
+    for (let i = 0; i < 9; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'tic-tac-toe-cell';
+        cell.dataset.index = i;
+        cell.addEventListener('click', handleCellClick);
+        boardEl.appendChild(cell);
+    }
+}
+
+function handleCellClick(e) {
+    const idx = e.target.dataset.index;
+    if (!gameActive || boardState[idx]) return;
+
+    boardState[idx] = xIsNext ? 'X' : 'O';
+    e.target.textContent = boardState[idx];
+    e.target.classList.add(boardState[idx].toLowerCase());
+
+    if (checkWin()) {
+        statusText.textContent = `¡${boardState[idx]} ha ganado!`;
+        gameActive = false;
+        return;
+    }
+
+    if (!boardState.includes(null)) {
+        statusText.textContent = "¡Empate!";
+        gameActive = false;
+        return;
+    }
+
+    xIsNext = !xIsNext;
+    statusText.textContent = `Turno de ${xIsNext ? 'X' : 'O'}`;
+}
+
+function checkWin() {
+    const lines = [
+        [0,1,2], [3,4,5], [6,7,8], // rows
+        [0,3,6], [1,4,7], [2,5,8], // cols
+        [0,4,8], [2,4,6] // diagonals
+    ];
+    for (let line of lines) {
+        const [a, b, c] = line;
+        if (boardState[a] && boardState[a] === boardState[b] && boardState[a] === boardState[c]) {
+            return true;
+        }
+    }
+    return false;
+}
+
+if (resetGameBtn) resetGameBtn.onclick = initGame;
 
 // === CHAT SYSTEM ===
 if (navChatBtn) navChatBtn.onclick = (e) => { e.preventDefault(); chatPanel.classList.add('active'); };
