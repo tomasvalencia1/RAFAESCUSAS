@@ -219,39 +219,46 @@ body {
 /* ===== FEED ===== */
 .feed-section { display: flex; flex-direction: column; gap: 24px; }
 
+/* Inline Create Post Widget */
+.inline-create-post { margin-bottom: 24px; transition: all 0.2s; }
+.inline-create-post:hover { box-shadow: var(--shadow-glass); border-color: var(--primary-blue); }
+
 /* Post Cards */
 .post-card {
     background: var(--surface-color); border: var(--glass-border);
-    border-radius: var(--radius-lg); padding: 24px;
+    border-radius: var(--radius-lg); padding: 0; overflow: hidden;
     box-shadow: var(--shadow-glass); transition: all 0.2s;
 }
 .post-card:hover { box-shadow: var(--shadow-hover); }
 
-.post-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+.post-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 16px 20px 8px; }
 .user-info { display: flex; align-items: center; gap: 14px; }
-.avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
 .user-details { display: flex; flex-direction: column; }
-.username { font-weight: 600; font-size: 15px; color: var(--text-primary); }
-.post-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.username { font-weight: 600; font-size: 14px; color: var(--text-primary); }
+.post-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
-.post-content { font-size: 15px; line-height: 1.6; margin-bottom: 20px; white-space: pre-wrap; color: var(--text-primary); }
-.post-actions { display: flex; align-items: center; gap: 16px; border-top: 1px solid var(--border-color); padding-top: 16px; }
+.post-content { font-size: 14px; line-height: 1.5; padding: 0 20px 16px; white-space: pre-wrap; color: var(--text-primary); }
+
+.post-image-full { width: 100%; max-height: 600px; object-fit: cover; display: block; background: var(--bg-secondary); border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
+
+.post-actions { display: flex; align-items: center; gap: 16px; padding: 12px 20px; }
 
 .action-btn {
-    display: flex; align-items: center; gap: 8px; background: none; border: none;
-    color: var(--text-muted); font-size: 14px; cursor: pointer; font-weight: 600;
-    transition: all 0.2s; padding: 6px 12px; border-radius: 20px;
+    display: flex; align-items: center; gap: 6px; background: none; border: none;
+    color: var(--text-primary); font-size: 15px; cursor: pointer; font-weight: 600;
+    transition: all 0.2s; padding: 0; border-radius: 0;
 }
-.action-btn i { font-size: 20px; }
-.action-btn:hover { background: var(--hover-bg); color: var(--text-primary); }
-.action-btn.liked { color: var(--primary-blue); background: rgba(0, 123, 181, 0.1); }
+.action-btn i { font-size: 26px; }
+.action-btn:hover { color: var(--text-secondary); opacity: 0.7; background: transparent; }
+.action-btn.liked { color: var(--danger-red); }
 .action-btn.liked i { transform: scale(1.1); }
 
-.delete-post-btn { color: var(--danger-red) !important; margin-left: auto; }
-.delete-post-btn:hover { background-color: rgba(239, 68, 68, 0.1) !important; }
+.delete-post-btn { color: var(--text-muted) !important; margin-left: auto; font-size: 20px; }
+.delete-post-btn:hover { color: var(--danger-red) !important; background: transparent !important; }
 
 /* Comments */
-.comments-section { margin-top: 20px; display: none; border-top: 1px solid var(--border-color); padding-top: 20px; }
+.comments-section { padding: 0 20px 20px; display: none; }
 .comments-section.visible { display: block; }
 
 .comment { display: flex; gap: 12px; margin-bottom: 16px; align-items: flex-start; }
@@ -347,6 +354,16 @@ body {
 }
 .event-info h3 { font-size: 15px; margin-bottom: 4px; color: var(--text-primary); }
 .event-date { font-size: 13px; color: var(--primary-blue); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+
+/* Tic Tac Toe Game */
+.tic-tac-toe-cell {
+    width: 100px; height: 100px; background: var(--hover-bg); border-radius: var(--radius-md);
+    display: flex; justify-content: center; align-items: center; font-size: 48px; font-weight: bold;
+    cursor: pointer; color: var(--text-primary); border: 2px solid transparent; transition: all 0.2s;
+}
+.tic-tac-toe-cell:hover { background: var(--input-bg); border-color: var(--primary-blue); }
+.tic-tac-toe-cell.x { color: var(--primary-blue); }
+.tic-tac-toe-cell.o { color: var(--danger-red); }
 
 .loading-spinner { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
 
