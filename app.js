@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+import { getAuth, signInWithPopup, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 import { getDatabase, ref, onValue, push, set, remove, get } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
 
 const firebaseConfig = {
@@ -159,7 +159,7 @@ function updateProfileStats() {
 
 // === AUTHENTICATION ===
 loginGoogleBtn.addEventListener('click', async () => {
-    try { await signInWithPopup(auth, provider); } 
+    try { await signInWithRedirect(auth, provider); } 
     catch (error) { alert("Hubo un error al iniciar sesión."); }
 });
 logoutBtn.addEventListener('click', () => signOut(auth));
