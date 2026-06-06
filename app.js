@@ -135,7 +135,6 @@ document.addEventListener('click', (e) => {
 function updateProfileStats() {
     if (!currentUser) return;
     
-    // Calculate stats
     let userPostsCount = 0;
     let userLikesCount = 0;
     
@@ -152,7 +151,6 @@ function updateProfileStats() {
     document.getElementById('popover-posts-count').textContent = userPostsCount;
     document.getElementById('popover-likes-count').textContent = userLikesCount;
     
-    // Format creation time
     const creationTime = new Date(currentUser.metadata.creationTime);
     document.getElementById('popover-date').textContent = creationTime.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
 }
@@ -170,17 +168,14 @@ onAuthStateChanged(auth, async (user) => {
         const adminSnap = await get(ref(db, `admins/${user.uid}`));
         isAdmin = adminSnap.exists() && adminSnap.val() === true;
         
-        // Fetch user profile to get role
         const userSnap = await get(ref(db, `users/${user.uid}`));
         if (userSnap.exists() && userSnap.val().role) {
             userRole = userSnap.val().role;
             completeLogin();
         } else {
-            // New user or no role yet
             loginScreen.classList.remove('active');
             roleSelectionScreen.classList.add('active');
             
-            // Save basic info without role yet
             await set(ref(db, `users/${user.uid}`), {
                 name: user.displayName,
                 email: user.email,
@@ -203,11 +198,12 @@ async function completeLogin() {
 
     headerAvatar.src = currentUser.photoURL || "https://i.pravatar.cc/150?img=68";
     headerUsername.textContent = currentUser.displayName;
+    
+    const inlineAvatar = document.getElementById('inline-avatar');
+    if (inlineAvatar) inlineAvatar.src = currentUser.photoURL || "https://i.pravatar.cc/150?img=68";
 
-    // Toggle admin buttons visibility
     adminBtns.forEach(btn => btn.style.display = isAdmin ? (btn.id==='add-event-btn'?'inline-flex': (btn.id==='nav-users-btn' ? 'flex' : 'flex')) : 'none');
     
-    // Toggle student restrictions
     if (userRole === 'estudiante') {
         studentHiddenEls.forEach(el => el.style.display = 'none');
     } else {
@@ -215,7 +211,6 @@ async function completeLogin() {
         loadChatContacts();
     }
 
-    // Load data
     loadPosts(); 
     loadNews(); 
     loadReports(); 
@@ -226,7 +221,6 @@ async function completeLogin() {
 document.querySelectorAll('.role-card').forEach(card => {
     card.addEventListener('click', async () => {
         const selectedRole = card.dataset.role;
-        // Update DB
         await set(ref(db, `users/${currentUser.uid}/role`), selectedRole);
         userRole = selectedRole;
         completeLogin();
@@ -266,7 +260,6 @@ postImageInput.addEventListener('change', (e) => {
     reader.onload = (event) => {
         const img = new Image();
         img.onload = () => {
-            // Compress image using canvas
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
@@ -283,7 +276,7 @@ postImageInput.addEventListener('change', (e) => {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
             
-            currentPostImageBase64 = canvas.toDataURL('image/jpeg', 0.7); // 70% quality jpeg
+            currentPostImageBase64 = canvas.toDataURL('image/jpeg', 0.7);
             
             postImagePreview.src = currentPostImageBase64;
             imagePreviewContainer.style.display = 'block';
@@ -338,7 +331,7 @@ function loadPosts() {
         }
         
         const postsArray = Object.entries(snapshot.val()).map(([id, data]) => ({id, ...data})).sort((a,b) => b.timestamp - a.timestamp);
-        allPostsCache = postsArray; // Cache for stats
+        allPostsCache = postsArray;
 
         postsArray.forEach(post => {
             const minutesAgo = Math.floor((Date.now() - post.timestamp) / 60000);
@@ -394,11 +387,9 @@ function loadPosts() {
 
 // Interacciones en posts (delegadas)
 postsContainer.addEventListener('click', async (e) => {
-    // Delete Post
     if (e.target.closest('.delete-post-btn') && isAdmin) {
         if(confirm("¿Eliminar publicación?")) await remove(ref(db, `posts/${e.target.closest('.delete-post-btn').dataset.id}`));
     }
-    // Delete Comment
     const deleteCommentBtn = e.target.closest('.delete-comment-btn');
     if (deleteCommentBtn && isAdmin) {
         if(confirm("¿Eliminar comentario?")) {
@@ -407,7 +398,6 @@ postsContainer.addEventListener('click', async (e) => {
             await remove(ref(db, `posts/${postId}/comments/${commentId}`));
         }
     }
-    // Like Post (Bug fixed: directly setting true/null removes race conditions)
     const likeBtn = e.target.closest('.like-btn');
     if (likeBtn) {
         const id = likeBtn.dataset.id;
@@ -419,11 +409,9 @@ postsContainer.addEventListener('click', async (e) => {
             await set(likeRef, true); 
         }
     }
-    // Toggle Comments
     const commentBtn = e.target.closest('.comment-btn');
     if (commentBtn) document.getElementById(`comments-${commentBtn.dataset.id}`).classList.toggle('visible');
     
-    // Submit Comment
     const submitBtn = e.target.closest('.comment-submit-btn');
     if (submitBtn) await submitComment(submitBtn.dataset.id, document.querySelector(`.new-comment-input[data-id="${submitBtn.dataset.id}"]`));
 });
@@ -505,7 +493,7 @@ function loadEvents() {
     onValue(ref(db, 'events'), (snapshot) => {
         eventsListContainer.innerHTML = '';
         if (!snapshot.exists()) { eventsListContainer.innerHTML = '<p style="color:var(--text-muted);text-align:center;">No hay próximos eventos programados.</p>'; return; }
-        const arr = Object.entries(snapshot.val()).map(([id, d]) => ({id, ...d})).sort((a,b)=> new Date(a.date) - new Date(b.date)); // Sort by date ascending
+        const arr = Object.entries(snapshot.val()).map(([id, d]) => ({id, ...d})).sort((a,b)=> new Date(a.date) - new Date(b.date));
         arr.forEach(item => {
             const el = document.createElement('div'); el.className = 'event-item';
             const formattedDate = new Date(item.date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'long' });
@@ -582,9 +570,9 @@ function handleCellClick(e) {
 
 function checkWin() {
     const lines = [
-        [0,1,2], [3,4,5], [6,7,8], // rows
-        [0,3,6], [1,4,7], [2,5,8], // cols
-        [0,4,8], [2,4,6] // diagonals
+        [0,1,2], [3,4,5], [6,7,8],
+        [0,3,6], [1,4,7], [2,5,8],
+        [0,4,8], [2,4,6]
     ];
     for (let line of lines) {
         const [a, b, c] = line;
@@ -612,9 +600,9 @@ function loadChatContacts() {
         allContactsCache = [];
 
         Object.entries(users).forEach(([uid, userData]) => {
-            if (uid === currentUser.uid) return; // Don't show self
+            if (uid === currentUser.uid) return;
             if (!userData.role) return;
-            if (userData.role === 'estudiante') return; // Students can't chat
+            if (userData.role === 'estudiante') return;
 
             allContactsCache.push({ uid, ...userData });
 
@@ -655,14 +643,12 @@ async function openChat(targetUid) {
     const targetUser = allContactsCache.find(u => u.uid === targetUid);
     if (!targetUser) return;
 
-    // Update UI
     document.querySelectorAll('.contact-item').forEach(item => item.classList.remove('active'));
     const contactItem = document.querySelector(`.contact-item[data-uid="${targetUid}"]`);
     if(contactItem) contactItem.classList.add('active');
 
     chatEmptyState.style.display = 'none';
     chatConversation.style.display = 'flex';
-    // For mobile slide
     if(window.innerWidth <= 768) chatConversation.classList.add('active');
 
     chatActiveAvatar.src = targetUser.avatar;
@@ -672,17 +658,14 @@ async function openChat(targetUid) {
 
     activeChatId = getChatId(currentUser.uid, targetUid);
     
-    // Unsubscribe from previous chat if exists
     if (activeChatListener) activeChatListener();
     
-    // Add Participants if new
     const participantsRef = ref(db, `chats/${activeChatId}/participants`);
     const pSnap = await get(participantsRef);
     if (!pSnap.exists()) {
         await set(participantsRef, { [currentUser.uid]: true, [targetUid]: true });
     }
 
-    // Listen to messages
     const messagesRef = ref(db, `chats/${activeChatId}/messages`);
     activeChatListener = onValue(messagesRef, (snapshot) => {
         conversationMessages.innerHTML = '';
@@ -703,7 +686,6 @@ async function openChat(targetUid) {
             `;
         });
         
-        // Scroll to bottom
         setTimeout(() => {
             conversationMessages.scrollTop = conversationMessages.scrollHeight;
         }, 100);
@@ -726,10 +708,8 @@ async function sendChatMessage() {
         timestamp: Date.now()
     };
     
-    // Save message
     await set(push(ref(db, `chats/${activeChatId}/messages`)), msgData);
     
-    // Update last message info
     await set(ref(db, `chats/${activeChatId}/lastMessage`), text);
     await set(ref(db, `chats/${activeChatId}/lastTimestamp`), Date.now());
 }
@@ -753,7 +733,7 @@ function loadAllUsersForAdmin() {
         const users = Object.entries(snapshot.val()).map(([uid, data]) => ({uid, ...data})).sort((a,b) => a.name.localeCompare(b.name));
         
         users.forEach(user => {
-            if (user.uid === currentUser.uid) return; // Cannot edit self role easily here
+            if (user.uid === currentUser.uid) return;
             
             const role = user.role || 'Sin rol';
             const el = document.createElement('div');
@@ -781,7 +761,6 @@ function loadAllUsersForAdmin() {
             adminUsersList.appendChild(el);
         });
         
-        // Add listeners to selects
         document.querySelectorAll('.role-select').forEach(select => {
             select.addEventListener('change', async (e) => {
                 const newRole = e.target.value;
@@ -789,8 +768,7 @@ function loadAllUsersForAdmin() {
                 if(confirm(`¿Cambiar rol a ${newRole}?`)) {
                     await set(ref(db, `users/${uid}/role`), newRole);
                 } else {
-                    // Revert selection
-                    e.target.value = role; // Revert visually if user cancels
+                    e.target.value = role;
                 }
             });
         });
