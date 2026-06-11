@@ -33,8 +33,18 @@
 </head>
 <body data-theme="dark">
 
-    <!-- Login Screen -->
-    <div id="login-screen" class="login-overlay active">
+        <!-- Pantalla de Carga Inicial (NUEVA) -->
+    <div id="loading-screen" class="login-overlay active" style="z-index: 10000;">
+        <div class="login-card" style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <img src="logo.png" alt="Logo IE" class="school-logo large pulse-animation" style="width: 80px; height: 80px; object-fit: contain; margin: 0 auto 16px; display: block;">
+            <h2>RafaExcusas</h2>
+            <p style="color: var(--text-muted); margin-bottom: 20px;">Comprobando sesión...</p>
+            <div class="custom-spinner"></div>
+        </div>
+    </div>
+
+    <!-- Login Screen (MODIFICADA) -->
+    <div id="login-screen" class="login-overlay">
         <div class="login-card">
             <img src="logo.png" alt="Logo IE" class="school-logo large" style="width: 80px; height: 80px; object-fit: contain; margin: 0 auto 16px; display: block;">
             <h2>RafaExcusas</h2>
