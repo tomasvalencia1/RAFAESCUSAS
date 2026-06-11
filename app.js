@@ -19,6 +19,7 @@ const db = getDatabase(app);
 const provider = new GoogleAuthProvider();
 
 // DOM Elements
+const loadingScreen = document.getElementById('loading-screen');
 const loginScreen = document.getElementById('login-screen');
 const appContainer = document.getElementById('app-container');
 const loginGoogleBtn = document.getElementById('login-google-btn');
@@ -156,13 +157,38 @@ function updateProfileStats() {
 }
 
 // === AUTHENTICATION ===
+let isAuthenticating = false; 
+let initialAuthCheckDone = false; 
+
 loginGoogleBtn.addEventListener('click', async () => {
-    try { await signInWithRedirect(auth, provider); } 
-    catch (error) { alert("Hubo un error al iniciar sesión."); }
+    if (isAuthenticating) return; 
+    isAuthenticating = true;
+    
+    loginGoogleBtn.disabled = true;
+    loginGoogleBtn.innerHTML = "<i class='bx bx-loader-alt bx-spin'></i> Iniciando...";
+    loginGoogleBtn.style.opacity = "0.7";
+    loginGoogleBtn.style.cursor = "not-allowed";
+
+    try { 
+        await signInWithRedirect(auth, provider); 
+    } catch (error) { 
+        alert("Hubo un error al iniciar sesión."); 
+        isAuthenticating = false;
+        loginGoogleBtn.disabled = false;
+        loginGoogleBtn.innerHTML = "<i class='bx bxl-google'></i> Continuar con Google";
+        loginGoogleBtn.style.opacity = "1";
+        loginGoogleBtn.style.cursor = "pointer";
+    }
 });
+
 logoutBtn.addEventListener('click', () => signOut(auth));
 
 onAuthStateChanged(auth, async (user) => {
+    if (!initialAuthCheckDone) {
+        initialAuthCheckDone = true;
+        if (loadingScreen) loadingScreen.classList.remove('active');
+    }
+
     if (user) {
         currentUser = user;
         const adminSnap = await get(ref(db, `admins/${user.uid}`));
@@ -173,7 +199,7 @@ onAuthStateChanged(auth, async (user) => {
             userRole = userSnap.val().role;
             completeLogin();
         } else {
-            loginScreen.classList.remove('active');
+            if (loginScreen) loginScreen.classList.remove('active');
             roleSelectionScreen.classList.add('active');
             
             await set(ref(db, `users/${user.uid}`), {
@@ -185,15 +211,22 @@ onAuthStateChanged(auth, async (user) => {
         }
     } else {
         currentUser = null; isAdmin = false; userRole = null; allPostsCache = [];
-        loginScreen.classList.add('active'); appContainer.style.display = 'none';
+        if (loginScreen) loginScreen.classList.add('active'); 
+        appContainer.style.display = 'none';
         roleSelectionScreen.classList.remove('active');
         profilePopover.classList.remove('active');
+        
+        isAuthenticating = false;
+        loginGoogleBtn.disabled = false;
+        loginGoogleBtn.innerHTML = "<i class='bx bxl-google'></i> Continuar con Google";
+        loginGoogleBtn.style.opacity = "1";
+        loginGoogleBtn.style.cursor = "pointer";
     }
 });
 
 async function completeLogin() {
     roleSelectionScreen.classList.remove('active');
-    loginScreen.classList.remove('active');
+    if (loginScreen) loginScreen.classList.remove('active');
     appContainer.style.display = 'block';
 
     headerAvatar.src = currentUser.photoURL || "https://i.pravatar.cc/150?img=68";
@@ -448,7 +481,7 @@ function loadNews() {
             el.innerHTML = `${isAdmin ? `<button class="delete-news-btn" data-id="${item.id}"><i class='bx bx-trash'></i></button>` : ''}<h3>${item.title}</h3><p>${item.desc}</p>`;
             newsContainer.appendChild(el);
         });
-        if(isAdmin) document.querySelectorAll('.delete-news-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar noticia?")) await remove(ref(db, `news/${e.currentTarget.dataset.id}`)); });
+        if(isAdmin) document.querySelectorAll('.delete-news-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar noticia?")) await remove(ref(db, `news/${e.target.closest('.delete-news-btn').dataset.id}`)); });
     });
 }
 
