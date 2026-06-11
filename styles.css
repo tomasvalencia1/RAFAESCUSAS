@@ -768,7 +768,21 @@ body {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
-/* Ajuste para evitar que el encabezado choque con la barra de estado del celular */
+/* Ajuste definitivo para bajar el header y alinear el logo/texto */
 .header {
-    padding-top: calc(15px + env(safe-area-inset-top)) !important;
+    /* Usamos 'max' para garantizar mínimo 35px de espacio, o más si el celular tiene una muesca grande */
+    padding-top: max(35px, env(safe-area-inset-top)) !important; 
+    display: flex !important;
+    align-items: center !important;
+}
+
+.logo-container {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important; /* Espacio entre el logo y el texto */
+}
+
+.logo-container .logo-text {
+    margin: 0 !important; /* Quitamos márgenes por defecto para que no se suba ni se baje */
+    line-height: 1 !important;
 }
