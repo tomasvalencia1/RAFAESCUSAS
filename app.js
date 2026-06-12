@@ -65,6 +65,7 @@ const chatActiveRole = document.getElementById('chat-active-role');
 // Admin Elements
 const navUsersBtn = document.getElementById('nav-users-btn');
 const adminUsersList = document.getElementById('admin-users-list');
+const adminUserSearchInput = document.getElementById('admin-user-search-input');
 const closeUsersModalBtn = document.getElementById('close-users-modal-btn');
 
 // Image Upload Elements
@@ -82,6 +83,11 @@ const addEventBtn = document.getElementById('add-event-btn');
 
 // Nav & Inputs
 const navEventsBtn = document.getElementById('nav-events-btn');
+const mobileHomeBtn = document.getElementById('mobile-home-btn');
+const mobileChatBtn = document.getElementById('mobile-chat-btn');
+const mobileOpenModalBtn = document.getElementById('mobile-open-modal-btn');
+const mobileEventsBtn = document.getElementById('mobile-events-btn');
+const mobileUsersBtn = document.getElementById('mobile-users-btn');
 const studentHiddenEls = document.querySelectorAll('.student-hidden');
 const teacherChatEls = document.querySelectorAll('.teacher-chat-only');
 const rightSidebar = document.querySelector('.right-sidebar');
@@ -94,9 +100,10 @@ let allPostsCache = [];
 let activeChatId = null;
 let activeChatListener = null;
 let allContactsCache = [];
+let allAdminUsersCache = [];
 let hasResolvedInitialAuth = false;
 let isLoginInProgress = false;
-const TEACHER_CHAT_ROLES = ['maestro', 'profesor'];
+const TEACHER_CHAT_ROLES = ['maestro', 'profesor', 'padre', 'acudiente'];
 
 function normalizeRole(role) {
     return (role || '').toString().toLowerCase();
@@ -107,6 +114,10 @@ function getRoleClass(role) {
 }
 
 function canUseTeacherChat(role = userRole) {
+    return isAdmin || TEACHER_CHAT_ROLES.includes(normalizeRole(role));
+}
+
+function isTeacherChatContactRole(role) {
     return TEACHER_CHAT_ROLES.includes(normalizeRole(role));
 }
 
@@ -116,6 +127,7 @@ function formatRoleLabel(role) {
         maestro: 'Maestro',
         profesor: 'Profesor',
         padre: 'Padre',
+        acudiente: 'Acudiente',
         directivo: 'Directivo'
     };
     return labels[normalizeRole(role)] || 'Sin rol';
@@ -305,6 +317,8 @@ if (openModalBtnFeed) openModalBtnFeed.onclick = () => postModal.classList.add('
 
 const openModalBtn = document.getElementById('open-modal-btn');
 if (openModalBtn) openModalBtn.onclick = () => postModal.classList.add('active');
+if (mobileOpenModalBtn) mobileOpenModalBtn.onclick = () => postModal.classList.add('active');
+if (mobileHomeBtn) mobileHomeBtn.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
 document.getElementById('close-modal-btn').onclick = () => {
     postModal.classList.remove('active');
@@ -318,6 +332,7 @@ addReportBtn.onclick = () => reportModal.classList.add('active');
 document.getElementById('close-report-modal-btn').onclick = () => reportModal.classList.remove('active');
 
 navEventsBtn.onclick = (e) => { e.preventDefault(); eventsViewModal.classList.add('active'); };
+if (mobileEventsBtn) mobileEventsBtn.onclick = () => eventsViewModal.classList.add('active');
 document.getElementById('close-events-view-btn').onclick = () => eventsViewModal.classList.remove('active');
 
 addEventBtn.onclick = () => eventCreateModal.classList.add('active');
@@ -658,14 +673,19 @@ function checkWin() {
 if (resetGameBtn) resetGameBtn.onclick = initGame;
 
 // === CHAT SYSTEM ===
-if (navChatBtn) navChatBtn.onclick = (e) => {
-    e.preventDefault();
+function openTeacherChatPanel() {
     if (!canUseTeacherChat()) {
-        alert('El chat docente está disponible solo para maestros y profesores.');
+        alert('El chat está disponible solo para maestros, profesores, acudientes y administradores.');
         return;
     }
     chatPanel.classList.add('active');
+}
+
+if (navChatBtn) navChatBtn.onclick = (e) => {
+    e.preventDefault();
+    openTeacherChatPanel();
 };
+if (mobileChatBtn) mobileChatBtn.onclick = openTeacherChatPanel;
 if (closeChatBtn) closeChatBtn.onclick = () => { chatPanel.classList.remove('active'); };
 if (backToContactsBtn) backToContactsBtn.onclick = () => { chatConversation.classList.remove('active'); };
 
@@ -683,7 +703,7 @@ function loadChatContacts() {
         Object.entries(users).forEach(([uid, userData]) => {
             if (uid === currentUser.uid) return;
             if (!userData.role) return;
-            if (!canUseTeacherChat(userData.role)) return;
+            if (!isTeacherChatContactRole(userData.role)) return;
 
             allContactsCache.push({ uid, ...userData });
             const role = getRoleClass(userData.role);
@@ -701,7 +721,7 @@ function loadChatContacts() {
         });
         
         if (contactsHtml === '') {
-            chatContactsList.innerHTML = '<p style="color:var(--text-muted);text-align:center;margin-top:20px;">No hay maestros o profesores disponibles.</p>';
+            chatContactsList.innerHTML = '<p style="color:var(--text-muted);text-align:center;margin-top:20px;">No hay maestros, profesores o acudientes disponibles.</p>';
         } else {
             chatContactsList.innerHTML = contactsHtml;
             document.querySelectorAll('.contact-item').forEach(item => {
@@ -725,12 +745,12 @@ function getChatId(uid1, uid2) {
 
 async function openChat(targetUid) {
     if (!canUseTeacherChat()) {
-        alert('El chat docente está disponible solo para maestros y profesores.');
+        alert('El chat está disponible solo para maestros, profesores, acudientes y administradores.');
         return;
     }
 
     const targetUser = allContactsCache.find(u => u.uid === targetUid);
-    if (!targetUser || !canUseTeacherChat(targetUser.role)) return;
+    if (!targetUser || !isTeacherChatContactRole(targetUser.role)) return;
 
     document.querySelectorAll('.contact-item').forEach(item => item.classList.remove('active'));
     const contactItem = document.querySelector(`.contact-item[data-uid="${targetUid}"]`);
@@ -805,64 +825,107 @@ async function sendChatMessage() {
 }
 
 // === ADMIN USERS MANAGEMENT ===
+function openAdminUsersModal() {
+    if (!isAdmin) return;
+    adminUsersModal.classList.add('active');
+    loadAllUsersForAdmin();
+}
+
 if (navUsersBtn) {
     navUsersBtn.onclick = (e) => {
         e.preventDefault();
-        adminUsersModal.classList.add('active');
-        loadAllUsersForAdmin();
+        openAdminUsersModal();
     };
 }
+if (mobileUsersBtn) mobileUsersBtn.onclick = openAdminUsersModal;
 if (closeUsersModalBtn) closeUsersModalBtn.onclick = () => adminUsersModal.classList.remove('active');
+if (adminUserSearchInput) {
+    adminUserSearchInput.addEventListener('input', () => {
+        renderAdminUsers(adminUserSearchInput.value);
+    });
+}
 
 function loadAllUsersForAdmin() {
     if (!isAdmin) return;
     onValue(ref(db, 'users'), (snapshot) => {
-        adminUsersList.innerHTML = '';
-        if (!snapshot.exists()) return;
-        
-        const users = Object.entries(snapshot.val()).map(([uid, data]) => ({uid, ...data})).sort((a,b) => a.name.localeCompare(b.name));
-        
-        users.forEach(user => {
-            if (user.uid === currentUser.uid) return;
-            
-            const role = user.role || 'Sin rol';
-            const roleKey = getRoleClass(role);
-            const el = document.createElement('div');
-            el.className = 'admin-user-item';
-            el.innerHTML = `
-                <div class="admin-user-info">
-                    <img src="${user.avatar}" class="avatar-small">
-                    <div>
-                        <h4>${user.name}</h4>
-                        <p>${user.email}</p>
-                    </div>
+        if (!snapshot.exists()) {
+            allAdminUsersCache = [];
+            adminUsersList.innerHTML = '<div class="loading-spinner">No hay usuarios registrados.</div>';
+            return;
+        }
+
+        allAdminUsersCache = Object.entries(snapshot.val())
+            .map(([uid, data]) => ({uid, ...data}))
+            .filter(user => user.uid !== currentUser.uid)
+            .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+
+        renderAdminUsers(adminUserSearchInput ? adminUserSearchInput.value : '');
+    });
+}
+
+function renderAdminUsers(filter = '') {
+    if (!isAdmin) return;
+    const term = normalizeRole(filter);
+    const users = allAdminUsersCache.filter(user => {
+        const searchable = [
+            user.name,
+            user.email,
+            user.role,
+            formatRoleLabel(user.role)
+        ].join(' ').toLowerCase();
+        return searchable.includes(term);
+    });
+
+    adminUsersList.innerHTML = '';
+
+    if (users.length === 0) {
+        adminUsersList.innerHTML = '<div class="loading-spinner">No se encontraron usuarios.</div>';
+        return;
+    }
+
+    users.forEach(user => {
+        const role = user.role || 'Sin rol';
+        const roleKey = getRoleClass(role);
+        const avatar = user.avatar || "https://i.pravatar.cc/150?img=68";
+        const name = escapeHTML(user.name || 'Usuario');
+        const email = escapeHTML(user.email || 'Sin correo');
+        const el = document.createElement('div');
+        el.className = 'admin-user-item';
+        el.innerHTML = `
+            <div class="admin-user-info">
+                <img src="${avatar}" class="avatar-small">
+                <div>
+                    <h4>${name}</h4>
+                    <p>${email}</p>
                 </div>
-                <div class="admin-user-role">
-                    <span class="badge ${roleKey}">${formatRoleLabel(role)}</span>
-                </div>
-                <div class="admin-user-action">
-                    <select class="text-input role-select" data-uid="${user.uid}">
-                        <option value="estudiante" ${role === 'estudiante' ? 'selected' : ''}>Estudiante</option>
-                        <option value="maestro" ${role === 'maestro' ? 'selected' : ''}>Maestro</option>
-                        <option value="profesor" ${role === 'profesor' ? 'selected' : ''}>Profesor</option>
-                        <option value="padre" ${role === 'padre' ? 'selected' : ''}>Padre</option>
-                        <option value="directivo" ${role === 'directivo' ? 'selected' : ''}>Directivo</option>
-                    </select>
-                </div>
-            `;
-            adminUsersList.appendChild(el);
-        });
-        
-        document.querySelectorAll('.role-select').forEach(select => {
-            select.addEventListener('change', async (e) => {
-                const newRole = e.target.value;
-                const uid = e.target.dataset.uid;
-                if(confirm(`¿Cambiar rol a ${newRole}?`)) {
-                    await set(ref(db, `users/${uid}/role`), newRole);
-                } else {
-                    e.target.value = role;
-                }
-            });
+            </div>
+            <div class="admin-user-role">
+                <span class="badge ${roleKey}">${formatRoleLabel(role)}</span>
+            </div>
+            <div class="admin-user-action">
+                <select class="text-input role-select" data-uid="${user.uid}" data-current-role="${role}">
+                    <option value="estudiante" ${role === 'estudiante' ? 'selected' : ''}>Estudiante</option>
+                    <option value="maestro" ${role === 'maestro' ? 'selected' : ''}>Maestro</option>
+                    <option value="profesor" ${role === 'profesor' ? 'selected' : ''}>Profesor</option>
+                    <option value="padre" ${role === 'padre' ? 'selected' : ''}>Padre</option>
+                    <option value="acudiente" ${role === 'acudiente' ? 'selected' : ''}>Acudiente</option>
+                    <option value="directivo" ${role === 'directivo' ? 'selected' : ''}>Directivo</option>
+                </select>
+            </div>
+        `;
+        adminUsersList.appendChild(el);
+    });
+
+    document.querySelectorAll('.role-select').forEach(select => {
+        select.addEventListener('change', async (e) => {
+            const newRole = e.target.value;
+            const uid = e.target.dataset.uid;
+            const previousRole = e.target.dataset.currentRole;
+            if(confirm(`¿Cambiar rol a ${formatRoleLabel(newRole)}?`)) {
+                await set(ref(db, `users/${uid}/role`), newRole);
+            } else {
+                e.target.value = previousRole;
+            }
         });
     });
 }

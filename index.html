@@ -117,7 +117,7 @@
                     <a href="#" class="nav-item"><i class='bx bx-file'></i><span>Reportes</span></a>
                     <a href="#" class="nav-item" id="nav-events-btn"><i class='bx bx-calendar-event'></i><span>Eventos</span></a>
                     <a href="#" class="nav-item" id="nav-games-btn"><i class='bx bx-joystick'></i><span>Juegos y Retos</span></a>
-                    <a href="#" class="nav-item teacher-chat-only" id="nav-chat-btn"><i class='bx bx-chat'></i><span>Chat Docente</span></a>
+                    <a href="#" class="nav-item teacher-chat-only" id="nav-chat-btn"><i class='bx bx-chat'></i><span>Chat Maestro/Acudiente</span></a>
                     <a href="#" class="nav-item admin-only" id="nav-users-btn" style="display: none;"><i class='bx bx-group'></i><span>Usuarios</span></a>
                 </nav>
                 <button class="btn-primary create-post-btn" id="open-modal-btn">
@@ -173,6 +173,32 @@
                 </div>
             </aside>
         </main>
+
+        <!-- Mobile Bottom Navigation -->
+        <div class="mobile-bottom-bar">
+            <nav>
+                <button class="mobile-nav-item" id="mobile-home-btn" type="button">
+                    <i class='bx bxs-home'></i>
+                    <span>Inicio</span>
+                </button>
+                <button class="mobile-nav-item teacher-chat-only" id="mobile-chat-btn" type="button">
+                    <i class='bx bx-chat'></i>
+                    <span>Chats</span>
+                </button>
+                <button class="mobile-nav-item create-btn" id="mobile-open-modal-btn" type="button" title="Crear publicación">
+                    <i class='bx bx-plus'></i>
+                    <span>Crear</span>
+                </button>
+                <button class="mobile-nav-item" id="mobile-events-btn" type="button">
+                    <i class='bx bx-calendar-event'></i>
+                    <span>Eventos</span>
+                </button>
+                <button class="mobile-nav-item admin-only" id="mobile-users-btn" type="button" style="display: none;">
+                    <i class='bx bx-user-check'></i>
+                    <span>Roles</span>
+                </button>
+            </nav>
+        </div>
 
         <!-- Create Post Modal -->
         <div class="modal-overlay" id="post-modal">
@@ -333,12 +359,12 @@
             <!-- Sidebar with contacts -->
             <div class="chat-sidebar">
                 <div class="chat-header">
-                    <h2>Chat Docente</h2>
+                    <h2>Chat Maestro/Acudiente</h2>
                     <button class="close-chat-btn" id="close-chat-btn"><i class='bx bx-x'></i></button>
                 </div>
                 <div class="chat-search">
                     <i class='bx bx-search'></i>
-                    <input type="text" id="chat-search-input" placeholder="Buscar maestro o profesor...">
+                    <input type="text" id="chat-search-input" placeholder="Buscar maestro, profesor o acudiente...">
                 </div>
                 <div class="contacts-list" id="chat-contacts-list">
                     <div class="loading-spinner small">Cargando contactos...</div>
@@ -365,8 +391,8 @@
             <!-- Empty state -->
             <div class="chat-empty-state" id="chat-empty-state">
                 <i class='bx bx-chat'></i>
-                <h3>Selecciona un docente</h3>
-                <p>Elige un maestro o profesor para empezar a conversar.</p>
+                <h3>Selecciona un contacto</h3>
+                <p>Elige un maestro, profesor o acudiente para empezar a conversar.</p>
             </div>
         </div>
 
@@ -378,6 +404,10 @@
                     <button class="close-modal-btn" id="close-users-modal-btn"><i class='bx bx-x'></i></button>
                 </div>
                 <div class="modal-body" style="flex: 1; overflow-y: auto;">
+                    <div class="admin-users-search">
+                        <i class='bx bx-search'></i>
+                        <input type="text" id="admin-user-search-input" placeholder="Buscar usuario por nombre, correo o rol...">
+                    </div>
                     <div class="users-list-table">
                         <div class="users-table-header">
                             <div class="col-user">Usuario</div>

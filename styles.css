@@ -518,6 +518,7 @@ body {
 .badge.maestro { background: rgba(20,184,166,0.14); color: #2dd4bf; border: 1px solid rgba(20,184,166,0.28); }
 .badge.profesor { background: rgba(249,115,79,0.14); color: #fb8a67; border: 1px solid rgba(249,115,79,0.28); }
 .badge.padre { background: rgba(245,158,11,0.14); color: #f59e0b; border: 1px solid rgba(245,158,11,0.28); }
+.badge.acudiente { background: rgba(245,158,11,0.14); color: #fbbf24; border: 1px solid rgba(245,158,11,0.28); }
 .badge.directivo { background: rgba(124,58,237,0.13); color: #a78bfa; border: 1px solid rgba(124,58,237,0.26); }
 
 /* ===== MODALS — SIN backdrop-filter ===== */
@@ -733,6 +734,34 @@ body {
 .chat-empty-state p  { font-size: 12px; text-align: center; }
 
 /* ===== ADMIN USERS TABLE ===== */
+.admin-users-search {
+    position: relative;
+    margin-bottom: 14px;
+}
+.admin-users-search i {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 17px;
+}
+.admin-users-search input {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-pill);
+    padding: 11px 14px 11px 40px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+    outline: none;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    transition: border-color 0.25s, box-shadow 0.25s;
+}
+.admin-users-search input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(20,184,166,0.14);
+}
 .users-list-table { border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-color); }
 .users-table-header, .users-table-body > div {
     display: grid; grid-template-columns: 1fr 120px 120px;
@@ -741,6 +770,26 @@ body {
 .users-table-header { background: var(--surface-2); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
 .users-table-body > div { border-top: 1px solid var(--border-color); font-size: 13px; transition: background 0.2s; }
 .users-table-body > div:hover { background: var(--hover-bg); }
+.admin-user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+.admin-user-info h4 {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+.admin-user-info p {
+    color: var(--text-muted);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+.admin-user-action .text-input {
+    margin-bottom: 0;
+}
 
 /* ===== SCROLLBAR ===== */
 ::-webkit-scrollbar { width: 5px; }
@@ -766,6 +815,27 @@ body {
     .glass-card   { padding: 14px; }
     .modal-content { padding: 22px 18px; }
     .chat-panel   { width: 100%; right: -100%; }
+    .mobile-bottom-bar { left: 10px; right: 10px; bottom: 10px; }
+    .mobile-nav-item { padding: 6px 7px; min-width: 48px; }
+    .users-table-header { display: none; }
+    .users-list-table { border: none; overflow: visible; }
+    .users-table-body > div {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        padding: 14px;
+        margin-bottom: 10px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        background: var(--surface-2);
+    }
+    .admin-user-role,
+    .admin-user-action {
+        display: flex;
+        justify-content: flex-start;
+    }
+    .admin-user-action .text-input {
+        max-width: 220px;
+    }
 
     /* Popover fullscreen en móvil — sólido, sin blur */
     .profile-popover {
