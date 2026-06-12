@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IE Rafael Uribe Uribe - RafaConecta</title>
+    
+    <!-- Meta SEO -->
+    <meta name="description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Conecta con estudiantes, profesores y directivos. Mantente al día con las últimas noticias y eventos.">
+    <meta name="keywords" content="IE Rafael Uribe Uribe, Red Social, Colegio, Estudiantes, Profesores, Noticias, Eventos, Educación">
+    <meta name="author" content="IE Rafael Uribe Uribe">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://rafaexcusas.vercel.app/">
+    
+    <!-- Open Graph (Facebook, WhatsApp, etc.) -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://rafaexcusas.vercel.app/">
+    <meta property="og:title" content="IE Rafael Uribe Uribe - RafaConecta">
+    <meta property="og:description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Mantente al día con nuestra comunidad.">
+    <meta property="og:image" content="https://rafaexcusas.vercel.app/logo.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://rafaexcusas.vercel.app/">
+    <meta property="twitter:title" content="IE Rafael Uribe Uribe - RafaConecta">
+    <meta property="twitter:description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Mantente al día con nuestra comunidad.">
+    <meta property="twitter:image" content="https://rafaexcusas.vercel.app/logo.png">
+    <!-- Módulos de Firebase y Lógica -->
+    <script type="module" src="app-animaciones.js"></script>
+    <!-- Estilos y Fuentes -->
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <link rel="stylesheet" href="styles-animaciones.css">
+</head>
+<body data-theme="dark">
+
+    <!-- Initial Auth Loading Screen -->
+    <div id="auth-loading-screen" class="auth-loading-overlay active">
+        <div class="auth-loading-card">
+            <img src="logo.png" alt="Logo IE" class="school-logo large" style="width: 76px; height: 76px; object-fit: contain; margin: 0 auto 18px; display: block;">
+            <div class="auth-loading-spinner" aria-hidden="true"></div>
+            <h2>RafaConecta</h2>
+            <p>Comprobando sesión...</p>
+        </div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-overlay">
+        <div class="login-card">
+            <img src="logo.png" alt="Logo IE" class="school-logo large" style="width: 80px; height: 80px; object-fit: contain; margin: 0 auto 16px; display: block;">
+            <h2>RafaConecta</h2>
+            <p>IE Rafael Uribe Uribe</p>
+            <button id="login-google-btn" class="btn-primary login-btn">
+                <i class='bx bxl-google'></i> Continuar con Google
+            </button>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="app-container" style="display: none;">
+        <!-- Top Header -->
+        <header class="header">
+            <div class="logo-container">
+                <img src="logo.png" alt="Logo IE" class="school-logo" style="width: 40px; height: 40px; object-fit: contain;">
+                <h1 class="logo-text">IE Rafael Uribe Uribe</h1>
+            </div>
+            <div class="search-bar">
+                <i class='bx bx-search'></i>
+                <input type="text" placeholder="Buscar publicaciones...">
+            </div>
+            <div class="header-actions">
+                <button class="theme-toggle-btn" id="theme-toggle-btn" title="Cambiar Tema">
+                    <i class='bx bx-sun'></i>
+                </button>
+                <div class="user-profile-header" id="profile-btn">
+                    <img src="" alt="Avatar" id="header-avatar" class="avatar-small">
+                    <span id="header-username" class="username-small">Cargando...</span>
+                </div>
+                
+                <!-- Profile Popover -->
+                <div class="profile-popover" id="profile-popover">
+                    <div class="popover-header">
+                        <img src="" alt="Avatar" id="popover-avatar" class="avatar">
+                        <div class="popover-header-info">
+                            <h3 id="popover-name">Usuario</h3>
+                            <p id="popover-email">correo@ejemplo.com</p>
+                        </div>
+                    </div>
+                    <div class="popover-stats">
+                        <div class="stat-box">
+                            <span class="stat-value" id="popover-posts-count">0</span>
+                            <span class="stat-label">Publicaciones</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-value" id="popover-likes-count">0</span>
+                            <span class="stat-label">Me gusta</span>
+                        </div>
+                    </div>
+                    <div class="popover-date-container">
+                        <span class="stat-label">Miembro desde: <span id="popover-date">...</span></span>
+                    </div>
+                    <div class="popover-actions">
+                        <button class="profile-home-btn" id="profile-home-btn" type="button">
+                            <i class='bx bxs-home'></i> Inicio
+                        </button>
+                        <button class="logout-btn" id="logout-btn">
+                            <i class='bx bx-log-out'></i> Cerrar Sesión
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Layout -->
+        <main class="main-layout">
+            <!-- Left Sidebar -->
+            <aside class="left-sidebar">
+                <nav class="nav-menu glass-card">
+                    <a href="#" class="nav-item active" id="nav-home-btn"><i class='bx bxs-home'></i><span>Inicio</span></a>
+                    <a href="#" class="nav-item"><i class='bx bx-news'></i><span>Noticias</span></a>
+                    <a href="#" class="nav-item"><i class='bx bx-file'></i><span>Reportes</span></a>
+                    <a href="#" class="nav-item" id="nav-events-btn"><i class='bx bx-calendar-event'></i><span>Eventos</span></a>
+                    <a href="#" class="nav-item" id="nav-games-btn"><i class='bx bx-joystick'></i><span>Juegos y Retos</span></a>
+                    <a href="#" class="nav-item teacher-chat-only" id="nav-chat-btn"><i class='bx bx-chat'></i><span>Chat Maestro/Acudiente</span></a>
+                    <a href="#" class="nav-item admin-only" id="nav-users-btn" style="display: none;"><i class='bx bx-group'></i><span>Usuarios</span></a>
+                </nav>
+                <button class="btn-primary create-post-btn" id="open-modal-btn">
+                    <i class='bx bx-plus'></i> <span>Crear Publicación</span>
+                </button>
+            </aside>
+
+            <!-- Center Feed -->
+            <section class="feed-section">
+                <!-- Inline Create Post Widget -->
+                <div class="glass-card inline-create-post" id="open-modal-btn-feed" style="display: flex; align-items: center; gap: 16px; cursor: pointer;">
+                    <img src="https://i.pravatar.cc/150?img=68" id="inline-avatar" class="avatar-small">
+                    <div class="inline-post-input" style="flex: 1; background: var(--input-bg); padding: 12px 20px; border-radius: 24px; color: var(--text-muted); font-size: 14px; border: 1px solid var(--border-color);">¿Qué está pasando en la institución?</div>
+                    <button class="icon-btn" style="color:var(--primary-blue);"><i class='bx bx-image-add'></i></button>
+                </div>
+                <div id="posts-container">
+                    <div class="glass-card loading-spinner">Cargando publicaciones...</div>
+                </div>
+            </section>
+
+            <!-- Right Sidebar -->
+            <aside class="right-sidebar">
+                <!-- News Widget -->
+                <div class="glass-card news-widget">
+                    <div class="widget-header">
+                        <div class="header-title">
+                            <i class='bx bx-broadcast'></i>
+                            <h2>Noticias</h2>
+                        </div>
+                        <button id="add-news-btn" class="icon-btn small admin-only" style="display: none;" title="Añadir Noticia">
+                            <i class='bx bx-plus'></i>
+                        </button>
+                    </div>
+                    <div class="widget-content" id="news-container">
+                        <div class="loading-spinner small">Cargando...</div>
+                    </div>
+                </div>
+
+                <!-- Quick Reports Widget -->
+                <div class="glass-card reports-widget">
+                    <div class="widget-header">
+                        <div class="header-title">
+                            <i class='bx bx-bar-chart-alt-2'></i>
+                            <h2>Reportes Rápidos</h2>
+                        </div>
+                        <button id="add-report-btn" class="icon-btn small admin-only" style="display: none;" title="Añadir Reporte">
+                            <i class='bx bx-plus'></i>
+                        </button>
+                    </div>
+                    <div class="widget-content" id="reports-container">
+                        <div class="loading-spinner small">Cargando...</div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Mobile Bottom Navigation -->
+        <div class="mobile-bottom-bar">
+            <nav>
+                <button class="mobile-nav-item" id="mobile-home-btn" type="button">
+                    <i class='bx bxs-home'></i>
+                    <span>Inicio</span>
+                </button>
+                <button class="mobile-nav-item teacher-chat-only" id="mobile-chat-btn" type="button">
+                    <i class='bx bx-chat'></i>
+                    <span>Chats</span>
+                </button>
+                <button class="mobile-nav-item create-btn" id="mobile-open-modal-btn" type="button" title="Crear publicación">
+                    <i class='bx bx-plus'></i>
+                    <span>Crear</span>
+                </button>
+                <button class="mobile-nav-item" id="mobile-events-btn" type="button">
+                    <i class='bx bx-calendar-event'></i>
+                    <span>Eventos</span>
+                </button>
+                <button class="mobile-nav-item admin-only" id="mobile-users-btn" type="button" style="display: none;">
+                    <i class='bx bx-user-check'></i>
+                    <span>Roles</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- Create Post Modal -->
+        <div class="modal-overlay" id="post-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Crear nueva publicación</h2>
+                    <button class="close-modal-btn" id="close-modal-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body">
+                    <textarea id="post-textarea" placeholder="¿Qué hay de nuevo en la institución?" rows="4"></textarea>
+                    <div id="image-preview-container" style="display: none; position: relative; margin-bottom: 20px;">
+                        <img id="post-image-preview" src="" alt="Vista previa" style="width: 100%; border-radius: 12px; max-height: 300px; object-fit: cover; border: 1px solid var(--border-color);">
+                        <button id="remove-image-btn" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center;"><i class='bx bx-x'></i></button>
+                    </div>
+                </div>
+                <div class="modal-footer" style="justify-content: space-between; align-items: center;">
+                    <label for="post-image-input" class="action-btn" style="cursor: pointer; color: var(--primary-blue); background: var(--hover-bg); margin: 0;">
+                        <i class='bx bx-image-add'></i> <span style="font-size: 14px;">Foto</span>
+                    </label>
+                    <input type="file" id="post-image-input" accept="image/*" style="display: none;">
+                    
+                    <button class="btn-primary" id="publish-post-btn">Publicar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create News Modal -->
+        <div class="modal-overlay" id="news-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Añadir Noticia Institucional</h2>
+                    <button class="close-modal-btn" id="close-news-modal-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="news-title-input" placeholder="Título de la noticia" class="text-input">
+                    <textarea id="news-desc-input" placeholder="Descripción corta" rows="3"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-primary" id="publish-news-btn">Publicar Noticia</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Report Modal -->
+        <div class="modal-overlay" id="report-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Añadir Reporte Rápido</h2>
+                    <button class="close-modal-btn" id="close-report-modal-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="report-title-input" placeholder="Nombre del reporte (Ej: Boletines P2)" class="text-input">
+                    <select id="report-status-input" class="text-input">
+                        <option value="Disponible">Disponible</option>
+                        <option value="Pendiente">Pendiente</option>
+                        <option value="En revisión">En revisión</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-primary" id="publish-report-btn">Añadir Reporte</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Events Viewer Modal -->
+        <div class="modal-overlay" id="events-view-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Próximos Eventos</h2>
+                    <div>
+                        <button id="add-event-btn" class="btn-primary admin-only" style="display: none; padding: 8px 16px; font-size: 14px; margin-right: 10px; display: inline-flex;">+ Crear Evento</button>
+                        <button class="close-modal-btn" id="close-events-view-btn" style="display: inline-flex;"><i class='bx bx-x'></i></button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div id="events-list-container" class="event-list">
+                        <div class="loading-spinner">Cargando eventos...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Event Modal -->
+        <div class="modal-overlay" id="event-create-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Añadir Nuevo Evento</h2>
+                    <button class="close-modal-btn" id="close-event-create-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="event-title-input" placeholder="Título del evento" class="text-input">
+                    <input type="date" id="event-date-input" class="text-input">
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-primary" id="publish-event-btn">Guardar Evento</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Games Modal -->
+        <div class="modal-overlay" id="games-modal">
+            <div class="modal-content" style="max-width: 500px; text-align: center;">
+                <div class="modal-header">
+                    <h2>Juegos y Retos</h2>
+                    <button class="close-modal-btn" id="close-games-modal-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body" style="padding-top: 10px;">
+                    <p style="color: var(--text-muted); margin-bottom: 20px;">¡Tres en Raya! Juega contra ti mismo o un amigo a tu lado.</p>
+                    <div id="tic-tac-toe-board" style="display: grid; grid-template-columns: repeat(3, 100px); gap: 10px; justify-content: center; margin: 0 auto 20px auto;">
+                        <!-- JS will populate the grid -->
+                    </div>
+                    <h3 id="game-status-text" style="color: var(--primary-blue); min-height: 24px; margin-bottom: 20px;">Tu turno (X)</h3>
+                    <button class="btn-primary" id="reset-game-btn" style="margin: 0 auto;">Reiniciar Juego</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Role Selection Screen -->
+        <div id="role-selection-screen" class="modal-overlay">
+            <div class="modal-content" style="max-width: 800px;">
+                <div class="modal-header" style="justify-content: center; margin-bottom: 40px; text-align: center; flex-direction: column; gap: 10px;">
+                    <h2>¡Bienvenido a la red!</h2>
+                    <p style="color: var(--text-muted);">Por favor, selecciona tu rol en la institución para continuar</p>
+                </div>
+                <div class="role-cards-container">
+                    <div class="role-card" data-role="estudiante">
+                        <div class="role-icon-bg student"><i class='bx bxs-graduation'></i></div>
+                        <h3>Estudiante</h3>
+                        <p>Solo ver publicaciones</p>
+                    </div>
+                    <div class="role-card" data-role="profesor">
+                        <div class="role-icon-bg teacher"><i class='bx bxs-chalkboard'></i></div>
+                        <h3>Profesor</h3>
+                        <p>Publica y chatea</p>
+                    </div>
+                    <div class="role-card" data-role="maestro">
+                        <div class="role-icon-bg mentor"><i class='bx bxs-book-reader'></i></div>
+                        <h3>Maestro</h3>
+                        <p>Chat docente</p>
+                    </div>
+                    <div class="role-card" data-role="padre">
+                        <div class="role-icon-bg parent"><i class='bx bxs-group'></i></div>
+                        <h3>Padre de Familia</h3>
+                        <p>Mantente informado</p>
+                    </div>
+                    <div class="role-card" data-role="directivo">
+                        <div class="role-icon-bg director"><i class='bx bxs-briefcase'></i></div>
+                        <h3>Directivo</h3>
+                        <p>Gestión y noticias</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Panel (Slide-in) -->
+        <div id="chat-panel" class="chat-panel">
+            <!-- Sidebar with contacts -->
+            <div class="chat-sidebar">
+                <div class="chat-header">
+                    <h2>Chat Maestro/Acudiente</h2>
+                    <button class="close-chat-btn" id="close-chat-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="chat-search">
+                    <i class='bx bx-search'></i>
+                    <input type="text" id="chat-search-input" placeholder="Buscar maestro, profesor o acudiente...">
+                </div>
+                <div class="contacts-list" id="chat-contacts-list">
+                    <div class="loading-spinner small">Cargando contactos...</div>
+                </div>
+            </div>
+            <!-- Conversation Area -->
+            <div class="chat-conversation" id="chat-conversation" style="display: none;">
+                <div class="conversation-header">
+                    <button class="back-to-contacts-btn" id="back-to-contacts-btn"><i class='bx bx-arrow-back'></i></button>
+                    <img src="" id="chat-active-avatar" class="avatar-small">
+                    <div class="chat-active-info">
+                        <h3 id="chat-active-name">Nombre</h3>
+                        <span id="chat-active-role" class="badge">Rol</span>
+                    </div>
+                </div>
+                <div class="conversation-messages" id="conversation-messages">
+                    <!-- Messages go here -->
+                </div>
+                <div class="conversation-input">
+                    <input type="text" id="chat-message-input" placeholder="Escribe un mensaje...">
+                    <button id="send-message-btn" class="send-message-btn"><i class='bx bxs-send'></i></button>
+                </div>
+            </div>
+            <!-- Empty state -->
+            <div class="chat-empty-state" id="chat-empty-state">
+                <i class='bx bx-chat'></i>
+                <h3>Selecciona un contacto</h3>
+                <p>Elige un maestro, profesor o acudiente para empezar a conversar.</p>
+            </div>
+        </div>
+
+        <!-- Admin Users Modal -->
+        <div class="modal-overlay" id="admin-users-modal">
+            <div class="modal-content" style="max-width: 800px; max-height: 90vh; display: flex; flex-direction: column;">
+                <div class="modal-header">
+                    <h2>Gestión de Usuarios</h2>
+                    <button class="close-modal-btn" id="close-users-modal-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body" style="flex: 1; overflow-y: auto;">
+                    <div class="admin-users-search">
+                        <i class='bx bx-search'></i>
+                        <input type="text" id="admin-user-search-input" placeholder="Buscar usuario por nombre, correo o rol...">
+                    </div>
+                    <div class="users-list-table">
+                        <div class="users-table-header">
+                            <div class="col-user">Usuario</div>
+                            <div class="col-role">Rol Actual</div>
+                            <div class="col-action">Acción</div>
+                        </div>
+                        <div id="admin-users-list" class="users-table-body">
+                            <div class="loading-spinner">Cargando usuarios...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+</body>
+</html>
