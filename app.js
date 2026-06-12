@@ -31,7 +31,6 @@ const headerUsername = document.getElementById('header-username');
 const themeToggleBtn = document.getElementById('theme-toggle-btn');
 const profileBtn = document.getElementById('profile-btn');
 const profilePopover = document.getElementById('profile-popover');
-const profileHomeBtn = document.getElementById('profile-home-btn');
 
 const postsContainer = document.getElementById('posts-container');
 const newsContainer = document.getElementById('news-container');
@@ -104,7 +103,6 @@ let allContactsCache = [];
 let allAdminUsersCache = [];
 let hasResolvedInitialAuth = false;
 let isLoginInProgress = false;
-let pendingLikeAnimations = new Set();
 const TEACHER_CHAT_ROLES = ['maestro', 'profesor', 'padre', 'acudiente'];
 
 function normalizeRole(role) {
@@ -179,13 +177,6 @@ document.addEventListener('click', (e) => {
         profilePopover.classList.remove('active');
     }
 });
-
-if (profileHomeBtn) {
-    profileHomeBtn.addEventListener('click', () => {
-        profilePopover.classList.remove('active');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-}
 
 function updateProfileStats() {
     if (!currentUser) return;
@@ -437,7 +428,6 @@ function loadPosts() {
             const myLike = post.likes && post.likes[currentUser.uid] ? true : false;
             
             const imageHtml = post.imageBase64 ? `<img src="${post.imageBase64}" alt="Imagen adjunta" class="post-image-full">` : '';
-            const likeBurstClass = myLike && pendingLikeAnimations.has(post.id) ? 'like-burst' : '';
             
             const commentsHtml = post.comments ? Object.values(post.comments).map(c => {
                 const commentId = Object.keys(post.comments).find(key => post.comments[key] === c);
@@ -466,7 +456,7 @@ function loadPosts() {
                 ${post.content ? `<div class="post-content">${post.content}</div>` : ''}
                 ${imageHtml}
                 <div class="post-actions">
-                    <button class="action-btn like-btn ${myLike?'liked':''} ${likeBurstClass}" data-id="${post.id}"><i class='bx ${myLike?'bxs-heart':'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button>
+                    <button class="action-btn like-btn ${myLike?'liked':''}" data-id="${post.id}"><i class='bx ${myLike?'bxs-heart':'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button>
                     <button class="action-btn comment-btn" data-id="${post.id}"><i class='bx bx-message-rounded'></i>${post.comments ? Object.keys(post.comments).length : 0}</button>
                 </div>
                 <div class="comments-section" id="comments-${post.id}">
@@ -478,14 +468,6 @@ function loadPosts() {
                 </div>
             `;
             postsContainer.appendChild(postEl);
-
-            if (likeBurstClass) {
-                const likeButton = postEl.querySelector('.like-btn');
-                setTimeout(() => {
-                    pendingLikeAnimations.delete(post.id);
-                    if (likeButton) likeButton.classList.remove('like-burst');
-                }, 900);
-            }
         });
     });
 }
@@ -511,7 +493,6 @@ postsContainer.addEventListener('click', async (e) => {
         if (snap.exists()) { 
             await remove(likeRef); 
         } else { 
-            pendingLikeAnimations.add(id);
             await set(likeRef, true); 
         }
     }
