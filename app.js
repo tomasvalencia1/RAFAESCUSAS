@@ -19,7 +19,6 @@ const db = getDatabase(app);
 const provider = new GoogleAuthProvider();
 
 // DOM Elements
-const loadingScreen = document.getElementById('loading-screen');
 const loginScreen = document.getElementById('login-screen');
 const appContainer = document.getElementById('app-container');
 const loginGoogleBtn = document.getElementById('login-google-btn');
@@ -83,6 +82,7 @@ const addEventBtn = document.getElementById('add-event-btn');
 // Nav & Inputs
 const navEventsBtn = document.getElementById('nav-events-btn');
 const studentHiddenEls = document.querySelectorAll('.student-hidden');
+const teacherChatEls = document.querySelectorAll('.teacher-chat-only');
 const rightSidebar = document.querySelector('.right-sidebar');
 
 // Globals
@@ -93,6 +93,36 @@ let allPostsCache = [];
 let activeChatId = null;
 let activeChatListener = null;
 let allContactsCache = [];
+const TEACHER_CHAT_ROLES = ['maestro', 'profesor'];
+
+function normalizeRole(role) {
+    return (role || '').toString().toLowerCase();
+}
+
+function getRoleClass(role) {
+    return normalizeRole(role).replace(/\s+/g, '-') || 'sin-rol';
+}
+
+function canUseTeacherChat(role = userRole) {
+    return TEACHER_CHAT_ROLES.includes(normalizeRole(role));
+}
+
+function formatRoleLabel(role) {
+    const labels = {
+        estudiante: 'Estudiante',
+        maestro: 'Maestro',
+        profesor: 'Profesor',
+        padre: 'Padre',
+        directivo: 'Directivo'
+    };
+    return labels[normalizeRole(role)] || 'Sin rol';
+}
+
+function escapeHTML(value) {
+    const div = document.createElement('div');
+    div.textContent = value || '';
+    return div.innerHTML;
+}
 
 // === THEME LOGIC ===
 function initTheme() {
@@ -157,38 +187,13 @@ function updateProfileStats() {
 }
 
 // === AUTHENTICATION ===
-let isAuthenticating = false; 
-let initialAuthCheckDone = false; 
-
 loginGoogleBtn.addEventListener('click', async () => {
-    if (isAuthenticating) return; 
-    isAuthenticating = true;
-    
-    loginGoogleBtn.disabled = true;
-    loginGoogleBtn.innerHTML = "<i class='bx bx-loader-alt bx-spin'></i> Iniciando...";
-    loginGoogleBtn.style.opacity = "0.7";
-    loginGoogleBtn.style.cursor = "not-allowed";
-
-    try { 
-        await signInWithRedirect(auth, provider); 
-    } catch (error) { 
-        alert("Hubo un error al iniciar sesión."); 
-        isAuthenticating = false;
-        loginGoogleBtn.disabled = false;
-        loginGoogleBtn.innerHTML = "<i class='bx bxl-google'></i> Continuar con Google";
-        loginGoogleBtn.style.opacity = "1";
-        loginGoogleBtn.style.cursor = "pointer";
-    }
+    try { await signInWithRedirect(auth, provider); } 
+    catch (error) { alert("Hubo un error al iniciar sesión."); }
 });
-
 logoutBtn.addEventListener('click', () => signOut(auth));
 
 onAuthStateChanged(auth, async (user) => {
-    if (!initialAuthCheckDone) {
-        initialAuthCheckDone = true;
-        if (loadingScreen) loadingScreen.classList.remove('active');
-    }
-
     if (user) {
         currentUser = user;
         const adminSnap = await get(ref(db, `admins/${user.uid}`));
@@ -199,7 +204,7 @@ onAuthStateChanged(auth, async (user) => {
             userRole = userSnap.val().role;
             completeLogin();
         } else {
-            if (loginScreen) loginScreen.classList.remove('active');
+            loginScreen.classList.remove('active');
             roleSelectionScreen.classList.add('active');
             
             await set(ref(db, `users/${user.uid}`), {
@@ -211,22 +216,15 @@ onAuthStateChanged(auth, async (user) => {
         }
     } else {
         currentUser = null; isAdmin = false; userRole = null; allPostsCache = [];
-        if (loginScreen) loginScreen.classList.add('active'); 
-        appContainer.style.display = 'none';
+        loginScreen.classList.add('active'); appContainer.style.display = 'none';
         roleSelectionScreen.classList.remove('active');
         profilePopover.classList.remove('active');
-        
-        isAuthenticating = false;
-        loginGoogleBtn.disabled = false;
-        loginGoogleBtn.innerHTML = "<i class='bx bxl-google'></i> Continuar con Google";
-        loginGoogleBtn.style.opacity = "1";
-        loginGoogleBtn.style.cursor = "pointer";
     }
 });
 
 async function completeLogin() {
     roleSelectionScreen.classList.remove('active');
-    if (loginScreen) loginScreen.classList.remove('active');
+    loginScreen.classList.remove('active');
     appContainer.style.display = 'block';
 
     headerAvatar.src = currentUser.photoURL || "https://i.pravatar.cc/150?img=68";
@@ -241,7 +239,15 @@ async function completeLogin() {
         studentHiddenEls.forEach(el => el.style.display = 'none');
     } else {
         studentHiddenEls.forEach(el => el.style.display = 'flex');
+    }
+
+    if (canUseTeacherChat()) {
+        teacherChatEls.forEach(el => el.style.display = 'flex');
         loadChatContacts();
+    } else {
+        teacherChatEls.forEach(el => el.style.display = 'none');
+        chatPanel.classList.remove('active');
+        chatContactsList.innerHTML = '';
     }
 
     loadPosts(); 
@@ -481,7 +487,7 @@ function loadNews() {
             el.innerHTML = `${isAdmin ? `<button class="delete-news-btn" data-id="${item.id}"><i class='bx bx-trash'></i></button>` : ''}<h3>${item.title}</h3><p>${item.desc}</p>`;
             newsContainer.appendChild(el);
         });
-        if(isAdmin) document.querySelectorAll('.delete-news-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar noticia?")) await remove(ref(db, `news/${e.target.closest('.delete-news-btn').dataset.id}`)); });
+        if(isAdmin) document.querySelectorAll('.delete-news-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar noticia?")) await remove(ref(db, `news/${e.currentTarget.dataset.id}`)); });
     });
 }
 
@@ -619,11 +625,20 @@ function checkWin() {
 if (resetGameBtn) resetGameBtn.onclick = initGame;
 
 // === CHAT SYSTEM ===
-if (navChatBtn) navChatBtn.onclick = (e) => { e.preventDefault(); chatPanel.classList.add('active'); };
+if (navChatBtn) navChatBtn.onclick = (e) => {
+    e.preventDefault();
+    if (!canUseTeacherChat()) {
+        alert('El chat docente está disponible solo para maestros y profesores.');
+        return;
+    }
+    chatPanel.classList.add('active');
+};
 if (closeChatBtn) closeChatBtn.onclick = () => { chatPanel.classList.remove('active'); };
 if (backToContactsBtn) backToContactsBtn.onclick = () => { chatConversation.classList.remove('active'); };
 
 function loadChatContacts() {
+    if (!canUseTeacherChat()) return;
+
     onValue(ref(db, 'users'), (snapshot) => {
         chatContactsList.innerHTML = '';
         if (!snapshot.exists()) return;
@@ -635,22 +650,25 @@ function loadChatContacts() {
         Object.entries(users).forEach(([uid, userData]) => {
             if (uid === currentUser.uid) return;
             if (!userData.role) return;
-            if (userData.role === 'estudiante') return;
+            if (!canUseTeacherChat(userData.role)) return;
 
             allContactsCache.push({ uid, ...userData });
+            const role = getRoleClass(userData.role);
+            const roleLabel = formatRoleLabel(userData.role);
+            const avatar = userData.avatar || "https://i.pravatar.cc/150?img=68";
 
             contactsHtml += `
                 <div class="contact-item" data-uid="${uid}">
-                    <img src="${userData.avatar}" class="avatar-small" alt="Avatar">
+                    <img src="${avatar}" class="avatar-small" alt="Avatar">
                     <div class="contact-info">
-                        <div class="contact-name">${userData.name} <span class="badge ${userData.role}">${userData.role}</span></div>
+                        <div class="contact-name">${escapeHTML(userData.name)} <span class="badge ${role}">${roleLabel}</span></div>
                     </div>
                 </div>
             `;
         });
         
         if (contactsHtml === '') {
-            chatContactsList.innerHTML = '<p style="color:var(--text-muted);text-align:center;margin-top:20px;">No hay contactos disponibles.</p>';
+            chatContactsList.innerHTML = '<p style="color:var(--text-muted);text-align:center;margin-top:20px;">No hay maestros o profesores disponibles.</p>';
         } else {
             chatContactsList.innerHTML = contactsHtml;
             document.querySelectorAll('.contact-item').forEach(item => {
@@ -673,8 +691,13 @@ function getChatId(uid1, uid2) {
 }
 
 async function openChat(targetUid) {
+    if (!canUseTeacherChat()) {
+        alert('El chat docente está disponible solo para maestros y profesores.');
+        return;
+    }
+
     const targetUser = allContactsCache.find(u => u.uid === targetUid);
-    if (!targetUser) return;
+    if (!targetUser || !canUseTeacherChat(targetUser.role)) return;
 
     document.querySelectorAll('.contact-item').forEach(item => item.classList.remove('active'));
     const contactItem = document.querySelector(`.contact-item[data-uid="${targetUid}"]`);
@@ -682,12 +705,12 @@ async function openChat(targetUid) {
 
     chatEmptyState.style.display = 'none';
     chatConversation.style.display = 'flex';
-    if(window.innerWidth <= 768) chatConversation.classList.add('active');
+    chatConversation.classList.add('active');
 
-    chatActiveAvatar.src = targetUser.avatar;
-    chatActiveName.textContent = targetUser.name;
-    chatActiveRole.textContent = targetUser.role;
-    chatActiveRole.className = `badge ${targetUser.role}`;
+    chatActiveAvatar.src = targetUser.avatar || "https://i.pravatar.cc/150?img=68";
+    chatActiveName.textContent = targetUser.name || 'Docente';
+    chatActiveRole.textContent = formatRoleLabel(targetUser.role);
+    chatActiveRole.className = `badge ${getRoleClass(targetUser.role)}`;
 
     activeChatId = getChatId(currentUser.uid, targetUid);
     
@@ -710,10 +733,11 @@ async function openChat(targetUid) {
             const isMe = msg.sender === currentUser.uid;
             const dateObj = new Date(msg.timestamp);
             const timeStr = dateObj.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            const safeText = escapeHTML(msg.text);
             
             conversationMessages.innerHTML += `
                 <div class="chat-msg ${isMe ? 'sent' : 'received'}">
-                    <div class="msg-bubble">${msg.text}</div>
+                    <div class="msg-bubble">${safeText}</div>
                     <span class="msg-time">${timeStr}</span>
                 </div>
             `;
@@ -732,7 +756,7 @@ chatMessageInput.addEventListener('keypress', (e) => {
 
 async function sendChatMessage() {
     const text = chatMessageInput.value.trim();
-    if (!text || !activeChatId) return;
+    if (!text || !activeChatId || !canUseTeacherChat()) return;
     
     chatMessageInput.value = '';
     const msgData = {
@@ -769,6 +793,7 @@ function loadAllUsersForAdmin() {
             if (user.uid === currentUser.uid) return;
             
             const role = user.role || 'Sin rol';
+            const roleKey = getRoleClass(role);
             const el = document.createElement('div');
             el.className = 'admin-user-item';
             el.innerHTML = `
@@ -780,11 +805,12 @@ function loadAllUsersForAdmin() {
                     </div>
                 </div>
                 <div class="admin-user-role">
-                    <span class="badge ${role}">${role}</span>
+                    <span class="badge ${roleKey}">${formatRoleLabel(role)}</span>
                 </div>
                 <div class="admin-user-action">
                     <select class="text-input role-select" data-uid="${user.uid}">
                         <option value="estudiante" ${role === 'estudiante' ? 'selected' : ''}>Estudiante</option>
+                        <option value="maestro" ${role === 'maestro' ? 'selected' : ''}>Maestro</option>
                         <option value="profesor" ${role === 'profesor' ? 'selected' : ''}>Profesor</option>
                         <option value="padre" ${role === 'padre' ? 'selected' : ''}>Padre</option>
                         <option value="directivo" ${role === 'directivo' ? 'selected' : ''}>Directivo</option>

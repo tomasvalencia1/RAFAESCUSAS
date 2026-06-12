@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IE Rafael Uribe Uribe - RafaExcusas</title>
-    <meta name="theme-color" content="#0f1423">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>IE Rafael Uribe Uribe - RafaConecta</title>
+    
     <!-- Meta SEO -->
-    <meta name="description" content="Red Social Oficial de la Institución Educativa Rafael Uribe Uribe. Conecta con estudiantes, profesores y directivos. Mantente al día con las últimas noticias y eventos.">
+    <meta name="description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Conecta con estudiantes, profesores y directivos. Mantente al día con las últimas noticias y eventos.">
     <meta name="keywords" content="IE Rafael Uribe Uribe, Red Social, Colegio, Estudiantes, Profesores, Noticias, Eventos, Educación">
     <meta name="author" content="IE Rafael Uribe Uribe">
     <meta name="robots" content="index, follow">
@@ -16,15 +15,15 @@
     <!-- Open Graph (Facebook, WhatsApp, etc.) -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://rafaexcusas.vercel.app/">
-    <meta property="og:title" content="IE Rafael Uribe Uribe - RafaExcusas">
-    <meta property="og:description" content="Red Social Oficial de la Institución Educativa Rafael Uribe Uribe. Mantente al día con nuestra comunidad.">
+    <meta property="og:title" content="IE Rafael Uribe Uribe - RafaConecta">
+    <meta property="og:description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Mantente al día con nuestra comunidad.">
     <meta property="og:image" content="https://rafaexcusas.vercel.app/logo.png">
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:url" content="https://rafaexcusas.vercel.app/">
-    <meta property="twitter:title" content="IE Rafael Uribe Uribe - RafaExcusas">
-    <meta property="twitter:description" content="Red Social Oficial de la Institución Educativa Rafael Uribe Uribe. Mantente al día con nuestra comunidad.">
+    <meta property="twitter:title" content="IE Rafael Uribe Uribe - RafaConecta">
+    <meta property="twitter:description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Mantente al día con nuestra comunidad.">
     <meta property="twitter:image" content="https://rafaexcusas.vercel.app/logo.png">
     <!-- Módulos de Firebase y Lógica -->
     <script type="module" src="app.js"></script>
@@ -34,21 +33,11 @@
 </head>
 <body data-theme="dark">
 
-        <!-- Pantalla de Carga Inicial (NUEVA) -->
-    <div id="loading-screen" class="login-overlay active" style="z-index: 10000;">
-        <div class="login-card" style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <img src="logo.png" alt="Logo IE" class="school-logo large pulse-animation" style="width: 80px; height: 80px; object-fit: contain; margin: 0 auto 16px; display: block;">
-            <h2>RafaExcusas</h2>
-            <p style="color: var(--text-muted); margin-bottom: 20px;">Comprobando sesión...</p>
-            <div class="custom-spinner"></div>
-        </div>
-    </div>
-
-    <!-- Login Screen (MODIFICADA) -->
-    <div id="login-screen" class="login-overlay">
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-overlay active">
         <div class="login-card">
             <img src="logo.png" alt="Logo IE" class="school-logo large" style="width: 80px; height: 80px; object-fit: contain; margin: 0 auto 16px; display: block;">
-            <h2>RafaExcusas</h2>
+            <h2>RafaConecta</h2>
             <p>IE Rafael Uribe Uribe</p>
             <button id="login-google-btn" class="btn-primary login-btn">
                 <i class='bx bxl-google'></i> Continuar con Google
@@ -118,7 +107,7 @@
                     <a href="#" class="nav-item"><i class='bx bx-file'></i><span>Reportes</span></a>
                     <a href="#" class="nav-item" id="nav-events-btn"><i class='bx bx-calendar-event'></i><span>Eventos</span></a>
                     <a href="#" class="nav-item" id="nav-games-btn"><i class='bx bx-joystick'></i><span>Juegos y Retos</span></a>
-                    <a href="#" class="nav-item student-hidden" id="nav-chat-btn"><i class='bx bx-chat'></i><span>Chat Directo</span></a>
+                    <a href="#" class="nav-item teacher-chat-only" id="nav-chat-btn"><i class='bx bx-chat'></i><span>Chat Docente</span></a>
                     <a href="#" class="nav-item admin-only" id="nav-users-btn" style="display: none;"><i class='bx bx-group'></i><span>Usuarios</span></a>
                 </nav>
                 <button class="btn-primary create-post-btn" id="open-modal-btn">
@@ -308,7 +297,12 @@
                     <div class="role-card" data-role="profesor">
                         <div class="role-icon-bg teacher"><i class='bx bxs-chalkboard'></i></div>
                         <h3>Profesor</h3>
-                        <p>Interactúa y chatea</p>
+                        <p>Publica y chatea</p>
+                    </div>
+                    <div class="role-card" data-role="maestro">
+                        <div class="role-icon-bg mentor"><i class='bx bxs-book-reader'></i></div>
+                        <h3>Maestro</h3>
+                        <p>Chat docente</p>
                     </div>
                     <div class="role-card" data-role="padre">
                         <div class="role-icon-bg parent"><i class='bx bxs-group'></i></div>
@@ -329,12 +323,12 @@
             <!-- Sidebar with contacts -->
             <div class="chat-sidebar">
                 <div class="chat-header">
-                    <h2>Mensajes Directos</h2>
+                    <h2>Chat Docente</h2>
                     <button class="close-chat-btn" id="close-chat-btn"><i class='bx bx-x'></i></button>
                 </div>
                 <div class="chat-search">
                     <i class='bx bx-search'></i>
-                    <input type="text" id="chat-search-input" placeholder="Buscar contacto...">
+                    <input type="text" id="chat-search-input" placeholder="Buscar maestro o profesor...">
                 </div>
                 <div class="contacts-list" id="chat-contacts-list">
                     <div class="loading-spinner small">Cargando contactos...</div>
@@ -361,8 +355,8 @@
             <!-- Empty state -->
             <div class="chat-empty-state" id="chat-empty-state">
                 <i class='bx bx-chat'></i>
-                <h3>Selecciona un chat</h3>
-                <p>Elige un contacto de la lista para empezar a conversar.</p>
+                <h3>Selecciona un docente</h3>
+                <p>Elige un maestro o profesor para empezar a conversar.</p>
             </div>
         </div>
 
