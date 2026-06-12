@@ -3,20 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IE Rafael Uribe Uribe - Red Social</title>
+    <title>IE Rafael Uribe Uribe - RafaConecta</title>
+    
+    <!-- Meta SEO -->
+    <meta name="description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Conecta con estudiantes, profesores y directivos. Mantente al día con las últimas noticias y eventos.">
+    <meta name="keywords" content="IE Rafael Uribe Uribe, Red Social, Colegio, Estudiantes, Profesores, Noticias, Eventos, Educación">
+    <meta name="author" content="IE Rafael Uribe Uribe">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://rafaexcusas.vercel.app/">
+    
+    <!-- Open Graph (Facebook, WhatsApp, etc.) -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://rafaexcusas.vercel.app/">
+    <meta property="og:title" content="IE Rafael Uribe Uribe - RafaConecta">
+    <meta property="og:description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Mantente al día con nuestra comunidad.">
+    <meta property="og:image" content="https://rafaexcusas.vercel.app/logo.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://rafaexcusas.vercel.app/">
+    <meta property="twitter:title" content="IE Rafael Uribe Uribe - RafaConecta">
+    <meta property="twitter:description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Mantente al día con nuestra comunidad.">
+    <meta property="twitter:image" content="https://rafaexcusas.vercel.app/logo.png">
     <!-- Módulos de Firebase y Lógica -->
     <script type="module" src="app.js"></script>
     <!-- Estilos y Fuentes -->
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body data-theme="dark">
+
+    <!-- Initial Auth Loading Screen -->
+    <div id="auth-loading-screen" class="auth-loading-overlay active">
+        <div class="auth-loading-card">
+            <img src="logo.png" alt="Logo IE" class="school-logo large" style="width: 76px; height: 76px; object-fit: contain; margin: 0 auto 18px; display: block;">
+            <div class="auth-loading-spinner" aria-hidden="true"></div>
+            <h2>RafaConecta</h2>
+            <p>Comprobando sesión...</p>
+        </div>
+    </div>
 
     <!-- Login Screen -->
-    <div id="login-screen" class="login-overlay active">
+    <div id="login-screen" class="login-overlay">
         <div class="login-card">
-            <i class='bx bxs-graduation logo-icon large'></i>
-            <h2>Red Social Institucional</h2>
+            <img src="logo.png" alt="Logo IE" class="school-logo large" style="width: 80px; height: 80px; object-fit: contain; margin: 0 auto 16px; display: block;">
+            <h2>RafaConecta</h2>
             <p>IE Rafael Uribe Uribe</p>
             <button id="login-google-btn" class="btn-primary login-btn">
                 <i class='bx bxl-google'></i> Continuar con Google
@@ -29,7 +60,7 @@
         <!-- Top Header -->
         <header class="header">
             <div class="logo-container">
-                <i class='bx bxs-graduation logo-icon'></i>
+                <img src="logo.png" alt="Logo IE" class="school-logo" style="width: 40px; height: 40px; object-fit: contain;">
                 <h1 class="logo-text">IE Rafael Uribe Uribe</h1>
             </div>
             <div class="search-bar">
@@ -38,7 +69,7 @@
             </div>
             <div class="header-actions">
                 <button class="theme-toggle-btn" id="theme-toggle-btn" title="Cambiar Tema">
-                    <i class='bx bx-moon'></i>
+                    <i class='bx bx-sun'></i>
                 </button>
                 <div class="user-profile-header" id="profile-btn">
                     <img src="" alt="Avatar" id="header-avatar" class="avatar-small">
@@ -85,7 +116,8 @@
                     <a href="#" class="nav-item"><i class='bx bx-news'></i><span>Noticias</span></a>
                     <a href="#" class="nav-item"><i class='bx bx-file'></i><span>Reportes</span></a>
                     <a href="#" class="nav-item" id="nav-events-btn"><i class='bx bx-calendar-event'></i><span>Eventos</span></a>
-                    <a href="#" class="nav-item student-hidden" id="nav-chat-btn"><i class='bx bx-chat'></i><span>Chat Directo</span></a>
+                    <a href="#" class="nav-item" id="nav-games-btn"><i class='bx bx-joystick'></i><span>Juegos y Retos</span></a>
+                    <a href="#" class="nav-item teacher-chat-only" id="nav-chat-btn"><i class='bx bx-chat'></i><span>Chat Maestro/Acudiente</span></a>
                     <a href="#" class="nav-item admin-only" id="nav-users-btn" style="display: none;"><i class='bx bx-group'></i><span>Usuarios</span></a>
                 </nav>
                 <button class="btn-primary create-post-btn" id="open-modal-btn">
@@ -95,6 +127,12 @@
 
             <!-- Center Feed -->
             <section class="feed-section">
+                <!-- Inline Create Post Widget -->
+                <div class="glass-card inline-create-post" id="open-modal-btn-feed" style="display: flex; align-items: center; gap: 16px; cursor: pointer;">
+                    <img src="https://i.pravatar.cc/150?img=68" id="inline-avatar" class="avatar-small">
+                    <div class="inline-post-input" style="flex: 1; background: var(--input-bg); padding: 12px 20px; border-radius: 24px; color: var(--text-muted); font-size: 14px; border: 1px solid var(--border-color);">¿Qué está pasando en la institución?</div>
+                    <button class="icon-btn" style="color:var(--primary-blue);"><i class='bx bx-image-add'></i></button>
+                </div>
                 <div id="posts-container">
                     <div class="glass-card loading-spinner">Cargando publicaciones...</div>
                 </div>
@@ -135,6 +173,32 @@
                 </div>
             </aside>
         </main>
+
+        <!-- Mobile Bottom Navigation -->
+        <div class="mobile-bottom-bar">
+            <nav>
+                <button class="mobile-nav-item" id="mobile-home-btn" type="button">
+                    <i class='bx bxs-home'></i>
+                    <span>Inicio</span>
+                </button>
+                <button class="mobile-nav-item teacher-chat-only" id="mobile-chat-btn" type="button">
+                    <i class='bx bx-chat'></i>
+                    <span>Chats</span>
+                </button>
+                <button class="mobile-nav-item create-btn" id="mobile-open-modal-btn" type="button" title="Crear publicación">
+                    <i class='bx bx-plus'></i>
+                    <span>Crear</span>
+                </button>
+                <button class="mobile-nav-item" id="mobile-events-btn" type="button">
+                    <i class='bx bx-calendar-event'></i>
+                    <span>Eventos</span>
+                </button>
+                <button class="mobile-nav-item admin-only" id="mobile-users-btn" type="button" style="display: none;">
+                    <i class='bx bx-user-check'></i>
+                    <span>Roles</span>
+                </button>
+            </nav>
+        </div>
 
         <!-- Create Post Modal -->
         <div class="modal-overlay" id="post-modal">
@@ -233,6 +297,24 @@
                 </div>
             </div>
         </div>
+
+        <!-- Games Modal -->
+        <div class="modal-overlay" id="games-modal">
+            <div class="modal-content" style="max-width: 500px; text-align: center;">
+                <div class="modal-header">
+                    <h2>Juegos y Retos</h2>
+                    <button class="close-modal-btn" id="close-games-modal-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body" style="padding-top: 10px;">
+                    <p style="color: var(--text-muted); margin-bottom: 20px;">¡Tres en Raya! Juega contra ti mismo o un amigo a tu lado.</p>
+                    <div id="tic-tac-toe-board" style="display: grid; grid-template-columns: repeat(3, 100px); gap: 10px; justify-content: center; margin: 0 auto 20px auto;">
+                        <!-- JS will populate the grid -->
+                    </div>
+                    <h3 id="game-status-text" style="color: var(--primary-blue); min-height: 24px; margin-bottom: 20px;">Tu turno (X)</h3>
+                    <button class="btn-primary" id="reset-game-btn" style="margin: 0 auto;">Reiniciar Juego</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Role Selection Screen -->
@@ -251,7 +333,12 @@
                     <div class="role-card" data-role="profesor">
                         <div class="role-icon-bg teacher"><i class='bx bxs-chalkboard'></i></div>
                         <h3>Profesor</h3>
-                        <p>Interactúa y chatea</p>
+                        <p>Publica y chatea</p>
+                    </div>
+                    <div class="role-card" data-role="maestro">
+                        <div class="role-icon-bg mentor"><i class='bx bxs-book-reader'></i></div>
+                        <h3>Maestro</h3>
+                        <p>Chat docente</p>
                     </div>
                     <div class="role-card" data-role="padre">
                         <div class="role-icon-bg parent"><i class='bx bxs-group'></i></div>
@@ -272,12 +359,12 @@
             <!-- Sidebar with contacts -->
             <div class="chat-sidebar">
                 <div class="chat-header">
-                    <h2>Mensajes Directos</h2>
+                    <h2>Chat Maestro/Acudiente</h2>
                     <button class="close-chat-btn" id="close-chat-btn"><i class='bx bx-x'></i></button>
                 </div>
                 <div class="chat-search">
                     <i class='bx bx-search'></i>
-                    <input type="text" id="chat-search-input" placeholder="Buscar contacto...">
+                    <input type="text" id="chat-search-input" placeholder="Buscar maestro, profesor o acudiente...">
                 </div>
                 <div class="contacts-list" id="chat-contacts-list">
                     <div class="loading-spinner small">Cargando contactos...</div>
@@ -304,8 +391,8 @@
             <!-- Empty state -->
             <div class="chat-empty-state" id="chat-empty-state">
                 <i class='bx bx-chat'></i>
-                <h3>Selecciona un chat</h3>
-                <p>Elige un contacto de la lista para empezar a conversar.</p>
+                <h3>Selecciona un contacto</h3>
+                <p>Elige un maestro, profesor o acudiente para empezar a conversar.</p>
             </div>
         </div>
 
@@ -317,6 +404,10 @@
                     <button class="close-modal-btn" id="close-users-modal-btn"><i class='bx bx-x'></i></button>
                 </div>
                 <div class="modal-body" style="flex: 1; overflow-y: auto;">
+                    <div class="admin-users-search">
+                        <i class='bx bx-search'></i>
+                        <input type="text" id="admin-user-search-input" placeholder="Buscar usuario por nombre, correo o rol...">
+                    </div>
                     <div class="users-list-table">
                         <div class="users-table-header">
                             <div class="col-user">Usuario</div>
