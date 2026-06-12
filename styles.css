@@ -84,7 +84,7 @@ body {
     transition: background-color 0.35s ease, color 0.35s ease;
 }
 
-#login-screen, #app-container { position: relative; z-index: 1; }
+#auth-loading-screen, #login-screen, #app-container { position: relative; z-index: 1; }
 
 /* ===== TARJETA BASE (sin transparencia) ===== */
 .glass-card {
@@ -101,13 +101,50 @@ body {
     box-shadow: var(--shadow-hover);
 }
 
-/* ===== LOGIN ===== */
+/* ===== AUTH LOADING & LOGIN ===== */
+.auth-loading-overlay,
 .login-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
-    background-color: var(--bg-color);
+    background: linear-gradient(180deg, var(--bg-color) 0%, var(--bg-secondary) 100%);
     display: none; align-items: center; justify-content: center; z-index: 9999;
 }
+.auth-loading-overlay.active,
 .login-overlay.active { display: flex; }
+
+.auth-loading-card {
+    background: var(--surface);
+    border: 1px solid var(--border-color);
+    padding: 44px 38px;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-hover);
+    text-align: center;
+    max-width: 380px; width: 90%;
+}
+.auth-loading-card h2 {
+    margin: 18px 0 8px;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.4px;
+}
+.auth-loading-card p {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+.auth-loading-spinner {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 3px solid var(--surface-3);
+    border-top-color: var(--primary);
+    margin: 0 auto;
+    animation: authSpin 0.85s linear infinite;
+    box-shadow: 0 0 18px rgba(20,184,166,0.16);
+}
+
+@keyframes authSpin {
+    to { transform: rotate(360deg); }
+}
 
 .login-card {
     background: var(--surface);
@@ -315,6 +352,18 @@ body {
 }
 .btn-primary:hover { transform: translateY(-3px); filter: brightness(1.08); box-shadow: 0 12px 30px rgba(20,184,166,0.32); }
 .btn-primary:active { transform: scale(0.96); }
+.btn-primary:disabled {
+    cursor: not-allowed;
+    opacity: 0.72;
+    transform: none;
+    filter: none;
+    box-shadow: none;
+}
+.btn-primary:disabled:hover {
+    transform: none;
+    filter: none;
+    box-shadow: none;
+}
 .create-post-btn { width: 100%; }
 
 /* ===== FEED ===== */

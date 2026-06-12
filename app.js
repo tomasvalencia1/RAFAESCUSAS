@@ -19,6 +19,7 @@ const db = getDatabase(app);
 const provider = new GoogleAuthProvider();
 
 // DOM Elements
+const authLoadingScreen = document.getElementById('auth-loading-screen');
 const loginScreen = document.getElementById('login-screen');
 const appContainer = document.getElementById('app-container');
 const loginGoogleBtn = document.getElementById('login-google-btn');
@@ -93,6 +94,8 @@ let allPostsCache = [];
 let activeChatId = null;
 let activeChatListener = null;
 let allContactsCache = [];
+let hasResolvedInitialAuth = false;
+let isLoginInProgress = false;
 const TEACHER_CHAT_ROLES = ['maestro', 'profesor'];
 
 function normalizeRole(role) {
@@ -187,9 +190,36 @@ function updateProfileStats() {
 }
 
 // === AUTHENTICATION ===
+function setLoginButtonLoading(isLoading) {
+    isLoginInProgress = isLoading;
+    loginGoogleBtn.disabled = isLoading;
+    loginGoogleBtn.innerHTML = isLoading
+        ? "<i class='bx bx-loader-alt bx-spin'></i> Conectando..."
+        : "<i class='bx bxl-google'></i> Continuar con Google";
+}
+
+function finishInitialAuthCheck() {
+    if (hasResolvedInitialAuth) return;
+    hasResolvedInitialAuth = true;
+    authLoadingScreen.classList.remove('active');
+}
+
+function showLoginScreen() {
+    finishInitialAuthCheck();
+    setLoginButtonLoading(false);
+    loginScreen.classList.add('active');
+    appContainer.style.display = 'none';
+}
+
 loginGoogleBtn.addEventListener('click', async () => {
+    if (isLoginInProgress || !hasResolvedInitialAuth) return;
+    setLoginButtonLoading(true);
+
     try { await signInWithRedirect(auth, provider); } 
-    catch (error) { alert("Hubo un error al iniciar sesión."); }
+    catch (error) { 
+        setLoginButtonLoading(false);
+        alert("Hubo un error al iniciar sesión."); 
+    }
 });
 logoutBtn.addEventListener('click', () => signOut(auth));
 
@@ -204,6 +234,7 @@ onAuthStateChanged(auth, async (user) => {
             userRole = userSnap.val().role;
             completeLogin();
         } else {
+            finishInitialAuthCheck();
             loginScreen.classList.remove('active');
             roleSelectionScreen.classList.add('active');
             
@@ -216,13 +247,15 @@ onAuthStateChanged(auth, async (user) => {
         }
     } else {
         currentUser = null; isAdmin = false; userRole = null; allPostsCache = [];
-        loginScreen.classList.add('active'); appContainer.style.display = 'none';
+        showLoginScreen();
         roleSelectionScreen.classList.remove('active');
         profilePopover.classList.remove('active');
     }
 });
 
 async function completeLogin() {
+    finishInitialAuthCheck();
+    setLoginButtonLoading(false);
     roleSelectionScreen.classList.remove('active');
     loginScreen.classList.remove('active');
     appContainer.style.display = 'block';

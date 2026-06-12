@@ -33,8 +33,18 @@
 </head>
 <body data-theme="dark">
 
+    <!-- Initial Auth Loading Screen -->
+    <div id="auth-loading-screen" class="auth-loading-overlay active">
+        <div class="auth-loading-card">
+            <img src="logo.png" alt="Logo IE" class="school-logo large" style="width: 76px; height: 76px; object-fit: contain; margin: 0 auto 18px; display: block;">
+            <div class="auth-loading-spinner" aria-hidden="true"></div>
+            <h2>RafaConecta</h2>
+            <p>Comprobando sesión...</p>
+        </div>
+    </div>
+
     <!-- Login Screen -->
-    <div id="login-screen" class="login-overlay active">
+    <div id="login-screen" class="login-overlay">
         <div class="login-card">
             <img src="logo.png" alt="Logo IE" class="school-logo large" style="width: 80px; height: 80px; object-fit: contain; margin: 0 auto 16px; display: block;">
             <h2>RafaConecta</h2>
