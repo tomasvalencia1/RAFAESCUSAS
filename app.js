@@ -110,7 +110,7 @@ function normalizeRole(role) {
 }
 
 function getRoleClass(role) {
-    return normalizeRole(role).replace(/\s+/g, '-') || 'sin-rol';
+    return normalizeRole(role).replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'sin-rol';
 }
 
 function canUseTeacherChat(role = userRole) {
@@ -135,8 +135,37 @@ function formatRoleLabel(role) {
 
 function escapeHTML(value) {
     const div = document.createElement('div');
-    div.textContent = value || '';
+    div.textContent = value == null ? '' : String(value);
     return div.innerHTML;
+}
+
+function escapeAttribute(value) {
+    return (value == null ? '' : String(value))
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function safeImageSrc(value, fallback = "https://i.pravatar.cc/150?img=68") {
+    const src = (value || '').toString().trim();
+    if (!src) return fallback;
+    if (/^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(src)) return src;
+
+    try {
+        const url = new URL(src, window.location.origin);
+        if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+    } catch (error) {
+        if (/^[a-z0-9_./-]+\.(png|jpe?g|gif|webp|svg)$/i.test(src) && !src.includes('..')) return src;
+    }
+
+    return fallback;
+}
+
+function escapeSelector(value) {
+    const text = value == null ? '' : String(value);
+    return window.CSS && CSS.escape ? CSS.escape(text) : text.replace(/["\\]/g, '\\$&');
 }
 
 // === THEME LOGIC ===
@@ -185,13 +214,13 @@ function updateProfileStats() {
     let userLikesCount = 0;
     
     allPostsCache.forEach(post => {
-        if (post.author.uid === currentUser.uid) {
+        if (post.author?.uid === currentUser.uid) {
             userPostsCount++;
             userLikesCount += (post.likes ? Object.keys(post.likes).length : 0);
         }
     });
 
-    document.getElementById('popover-avatar').src = currentUser.photoURL || "https://i.pravatar.cc/150?img=68";
+    document.getElementById('popover-avatar').src = safeImageSrc(currentUser.photoURL);
     document.getElementById('popover-name').textContent = currentUser.displayName;
     document.getElementById('popover-email').textContent = currentUser.email;
     document.getElementById('popover-posts-count').textContent = userPostsCount;
@@ -272,11 +301,11 @@ async function completeLogin() {
     loginScreen.classList.remove('active');
     appContainer.style.display = 'block';
 
-    headerAvatar.src = currentUser.photoURL || "https://i.pravatar.cc/150?img=68";
+    headerAvatar.src = safeImageSrc(currentUser.photoURL);
     headerUsername.textContent = currentUser.displayName;
     
     const inlineAvatar = document.getElementById('inline-avatar');
-    if (inlineAvatar) inlineAvatar.src = currentUser.photoURL || "https://i.pravatar.cc/150?img=68";
+    if (inlineAvatar) inlineAvatar.src = safeImageSrc(currentUser.photoURL);
 
     adminBtns.forEach(btn => btn.style.display = isAdmin ? (btn.id==='add-event-btn'?'inline-flex': (btn.id==='nav-users-btn' ? 'flex' : 'flex')) : 'none');
     
@@ -426,19 +455,28 @@ function loadPosts() {
             
             const likesCount = post.likes ? Object.keys(post.likes).length : 0;
             const myLike = post.likes && post.likes[currentUser.uid] ? true : false;
+            const postId = escapeAttribute(post.id);
+            const authorName = escapeHTML(post.author?.name || 'Usuario');
+            const authorAvatar = escapeAttribute(safeImageSrc(post.author?.avatar));
+            const postContent = escapeHTML(post.content);
+            const postImageSrc = safeImageSrc(post.imageBase64, '');
             
-            const imageHtml = post.imageBase64 ? `<img src="${post.imageBase64}" alt="Imagen adjunta" class="post-image-full">` : '';
+            const imageHtml = postImageSrc ? `<img src="${escapeAttribute(postImageSrc)}" alt="Imagen adjunta" class="post-image-full">` : '';
             
             const commentsHtml = post.comments ? Object.values(post.comments).map(c => {
                 const commentId = Object.keys(post.comments).find(key => post.comments[key] === c);
+                const safeCommentId = escapeAttribute(commentId);
+                const commentAvatar = escapeAttribute(safeImageSrc(c.authorAvatar));
+                const commentAuthor = escapeHTML(c.authorName || 'Usuario');
+                const commentText = escapeHTML(c.text);
                 return `
                 <div class="comment">
-                    <img src="${c.authorAvatar}" class="avatar" alt="Avatar">
+                    <img src="${commentAvatar}" class="avatar" alt="Avatar">
                     <div class="comment-content">
                         <div class="comment-text-group">
-                            <strong>${c.authorName}</strong>${c.text}
+                            <strong>${commentAuthor}</strong>${commentText}
                         </div>
-                        ${isAdmin ? `<button class="action-btn delete-comment-btn" data-post-id="${post.id}" data-comment-id="${commentId}"><i class='bx bx-x'></i></button>` : ''}
+                        ${isAdmin ? `<button class="action-btn delete-comment-btn" data-post-id="${postId}" data-comment-id="${safeCommentId}"><i class='bx bx-x'></i></button>` : ''}
                     </div>
                 </div>`;
             }).join('') : '';
@@ -448,22 +486,22 @@ function loadPosts() {
             postEl.innerHTML = `
                 <div class="post-header">
                     <div class="user-info">
-                        <img src="${post.author.avatar}" alt="Avatar" class="avatar">
-                        <div class="user-details"><span class="username">${post.author.name}</span><span class="post-meta">${timeStr}</span></div>
+                        <img src="${authorAvatar}" alt="Avatar" class="avatar">
+                        <div class="user-details"><span class="username">${authorName}</span><span class="post-meta">${timeStr}</span></div>
                     </div>
-                    ${isAdmin ? `<button class="action-btn delete-post-btn" data-id="${post.id}"><i class='bx bx-trash'></i></button>` : ''}
+                    ${isAdmin ? `<button class="action-btn delete-post-btn" data-id="${postId}"><i class='bx bx-trash'></i></button>` : ''}
                 </div>
-                ${post.content ? `<div class="post-content">${post.content}</div>` : ''}
+                ${post.content ? `<div class="post-content">${postContent}</div>` : ''}
                 ${imageHtml}
                 <div class="post-actions">
-                    <button class="action-btn like-btn ${myLike?'liked':''}" data-id="${post.id}"><i class='bx ${myLike?'bxs-heart':'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button>
-                    <button class="action-btn comment-btn" data-id="${post.id}"><i class='bx bx-message-rounded'></i>${post.comments ? Object.keys(post.comments).length : 0}</button>
+                    <button class="action-btn like-btn ${myLike?'liked':''}" data-id="${postId}"><i class='bx ${myLike?'bxs-heart':'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button>
+                    <button class="action-btn comment-btn" data-id="${postId}"><i class='bx bx-message-rounded'></i>${post.comments ? Object.keys(post.comments).length : 0}</button>
                 </div>
-                <div class="comments-section" id="comments-${post.id}">
+                <div class="comments-section" id="comments-${postId}">
                     <div class="comments-list">${commentsHtml}</div>
                     <div class="comment-input-area">
-                        <input type="text" placeholder="Escribe un comentario..." class="new-comment-input" data-id="${post.id}">
-                        <button class="comment-submit-btn" data-id="${post.id}"><i class='bx bxs-send'></i></button>
+                        <input type="text" placeholder="Escribe un comentario..." class="new-comment-input" data-id="${postId}">
+                        <button class="comment-submit-btn" data-id="${postId}"><i class='bx bxs-send'></i></button>
                     </div>
                 </div>
             `;
@@ -500,7 +538,7 @@ postsContainer.addEventListener('click', async (e) => {
     if (commentBtn) document.getElementById(`comments-${commentBtn.dataset.id}`).classList.toggle('visible');
     
     const submitBtn = e.target.closest('.comment-submit-btn');
-    if (submitBtn) await submitComment(submitBtn.dataset.id, document.querySelector(`.new-comment-input[data-id="${submitBtn.dataset.id}"]`));
+    if (submitBtn) await submitComment(submitBtn.dataset.id, document.querySelector(`.new-comment-input[data-id="${escapeSelector(submitBtn.dataset.id)}"]`));
 });
 
 postsContainer.addEventListener('keypress', async (e) => {
@@ -532,7 +570,10 @@ function loadNews() {
         const arr = Object.entries(snapshot.val()).map(([id, d]) => ({id, ...d})).sort((a,b)=>b.timestamp-a.timestamp);
         arr.forEach(item => {
             const el = document.createElement('div'); el.className = 'news-item';
-            el.innerHTML = `${isAdmin ? `<button class="delete-news-btn" data-id="${item.id}"><i class='bx bx-trash'></i></button>` : ''}<h3>${item.title}</h3><p>${item.desc}</p>`;
+            const itemId = escapeAttribute(item.id);
+            const title = escapeHTML(item.title);
+            const desc = escapeHTML(item.desc);
+            el.innerHTML = `${isAdmin ? `<button class="delete-news-btn" data-id="${itemId}"><i class='bx bx-trash'></i></button>` : ''}<h3>${title}</h3><p>${desc}</p>`;
             newsContainer.appendChild(el);
         });
         if(isAdmin) document.querySelectorAll('.delete-news-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar noticia?")) await remove(ref(db, `news/${e.currentTarget.dataset.id}`)); });
@@ -556,10 +597,13 @@ function loadReports() {
         arr.forEach(item => {
             const statusClass = item.status === 'Disponible' ? 'success' : 'warning';
             const el = document.createElement('div'); el.className = 'report-item';
-            el.innerHTML = `<div class="report-info"><i class='bx bx-check-square'></i><span>${item.title}</span></div>
+            const itemId = escapeAttribute(item.id);
+            const title = escapeHTML(item.title);
+            const status = escapeHTML(item.status);
+            el.innerHTML = `<div class="report-info"><i class='bx bx-check-square'></i><span>${title}</span></div>
                             <div style="display:flex;align-items:center;gap:10px;">
-                                <span class="badge ${statusClass}">${item.status}</span>
-                                ${isAdmin ? `<i class='bx bx-trash delete-report-btn' data-id="${item.id}" style="color:red;cursor:pointer;font-size:18px;"></i>` : ''}
+                                <span class="badge ${statusClass}">${status}</span>
+                                ${isAdmin ? `<i class='bx bx-trash delete-report-btn' data-id="${itemId}" style="color:red;cursor:pointer;font-size:18px;"></i>` : ''}
                             </div>`;
             reportsContainer.appendChild(el);
         });
@@ -584,9 +628,12 @@ function loadEvents() {
         arr.forEach(item => {
             const el = document.createElement('div'); el.className = 'event-item';
             const formattedDate = new Date(item.date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'long' });
+            const itemId = escapeAttribute(item.id);
+            const title = escapeHTML(item.title);
+            const dateText = escapeHTML(formattedDate);
             el.innerHTML = `
-                <div class="event-info"><h3>${item.title}</h3><span class="event-date"><i class='bx bx-calendar'></i> ${formattedDate}</span></div>
-                ${isAdmin ? `<button class="action-btn delete-event-btn" data-id="${item.id}" style="color:red;"><i class='bx bx-trash'></i></button>` : ''}
+                <div class="event-info"><h3>${title}</h3><span class="event-date"><i class='bx bx-calendar'></i> ${dateText}</span></div>
+                ${isAdmin ? `<button class="action-btn delete-event-btn" data-id="${itemId}" style="color:red;"><i class='bx bx-trash'></i></button>` : ''}
             `;
             eventsListContainer.appendChild(el);
         });
@@ -708,13 +755,15 @@ function loadChatContacts() {
             allContactsCache.push({ uid, ...userData });
             const role = getRoleClass(userData.role);
             const roleLabel = formatRoleLabel(userData.role);
-            const avatar = userData.avatar || "https://i.pravatar.cc/150?img=68";
+            const avatar = escapeAttribute(safeImageSrc(userData.avatar));
+            const safeUid = escapeAttribute(uid);
+            const safeName = escapeHTML(userData.name || 'Usuario');
 
             contactsHtml += `
-                <div class="contact-item" data-uid="${uid}">
+                <div class="contact-item" data-uid="${safeUid}">
                     <img src="${avatar}" class="avatar-small" alt="Avatar">
                     <div class="contact-info">
-                        <div class="contact-name">${escapeHTML(userData.name)} <span class="badge ${role}">${roleLabel}</span></div>
+                        <div class="contact-name">${safeName} <span class="badge ${role}">${roleLabel}</span></div>
                     </div>
                 </div>
             `;
@@ -753,14 +802,14 @@ async function openChat(targetUid) {
     if (!targetUser || !isTeacherChatContactRole(targetUser.role)) return;
 
     document.querySelectorAll('.contact-item').forEach(item => item.classList.remove('active'));
-    const contactItem = document.querySelector(`.contact-item[data-uid="${targetUid}"]`);
+    const contactItem = document.querySelector(`.contact-item[data-uid="${escapeSelector(targetUid)}"]`);
     if(contactItem) contactItem.classList.add('active');
 
     chatEmptyState.style.display = 'none';
     chatConversation.style.display = 'flex';
     chatConversation.classList.add('active');
 
-    chatActiveAvatar.src = targetUser.avatar || "https://i.pravatar.cc/150?img=68";
+    chatActiveAvatar.src = safeImageSrc(targetUser.avatar);
     chatActiveName.textContent = targetUser.name || 'Docente';
     chatActiveRole.textContent = formatRoleLabel(targetUser.role);
     chatActiveRole.className = `badge ${getRoleClass(targetUser.role)}`;
@@ -886,9 +935,11 @@ function renderAdminUsers(filter = '') {
     users.forEach(user => {
         const role = user.role || 'Sin rol';
         const roleKey = getRoleClass(role);
-        const avatar = user.avatar || "https://i.pravatar.cc/150?img=68";
+        const avatar = escapeAttribute(safeImageSrc(user.avatar));
         const name = escapeHTML(user.name || 'Usuario');
         const email = escapeHTML(user.email || 'Sin correo');
+        const safeUid = escapeAttribute(user.uid);
+        const safeRole = escapeAttribute(role);
         const el = document.createElement('div');
         el.className = 'admin-user-item';
         el.innerHTML = `
@@ -903,7 +954,7 @@ function renderAdminUsers(filter = '') {
                 <span class="badge ${roleKey}">${formatRoleLabel(role)}</span>
             </div>
             <div class="admin-user-action">
-                <select class="text-input role-select" data-uid="${user.uid}" data-current-role="${role}">
+                <select class="text-input role-select" data-uid="${safeUid}" data-current-role="${safeRole}">
                     <option value="estudiante" ${role === 'estudiante' ? 'selected' : ''}>Estudiante</option>
                     <option value="maestro" ${role === 'maestro' ? 'selected' : ''}>Maestro</option>
                     <option value="profesor" ${role === 'profesor' ? 'selected' : ''}>Profesor</option>
