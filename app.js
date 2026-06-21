@@ -174,6 +174,39 @@ function renderInlineStatus(container, message) {
     container.innerHTML = `<p style="color:var(--text-muted);text-align:center;margin:20px 14px;font-size:13px;line-height:1.45;">${escapeHTML(message)}</p>`;
 }
 
+function formatChatDate(timestamp) {
+    const date = new Date(timestamp || Date.now());
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) return 'Hoy';
+    if (date.toDateString() === yesterday.toDateString()) return 'Ayer';
+
+    return date.toLocaleDateString('es-CO', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    });
+}
+
+function formatChatTime(timestamp) {
+    return new Date(timestamp || Date.now()).toLocaleTimeString('es-CO', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+}
+
+function getChatSenderName(message, targetUser, isMe) {
+    if (message.senderName) return message.senderName;
+    if (isMe) return currentUser?.displayName || 'TÃº';
+    if (message.sender === targetUser?.uid) return targetUser.name || 'Contacto';
+    const cachedUser = allContactsCache.find(user => user.uid === message.sender);
+    return cachedUser?.name || 'Contacto';
+}
+
 // === THEME LOGIC ===
 function initTheme() {
     const savedTheme = localStorage.getItem('theme');
@@ -903,15 +936,24 @@ async function openChat(targetUid) {
         
         const msgs = Object.values(snapshot.val()).sort((a,b) => a.timestamp - b.timestamp);
         const messagesHtml = [];
+        let lastDateLabel = '';
 
         msgs.forEach(msg => {
             const isMe = msg.sender === currentUser.uid;
-            const dateObj = new Date(msg.timestamp);
-            const timeStr = dateObj.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            const dateLabel = formatChatDate(msg.timestamp);
+            const timeStr = formatChatTime(msg.timestamp);
+            const senderName = getChatSenderName(msg, targetUser, isMe);
+            const safeSender = escapeHTML(isMe ? 'TÃº' : senderName);
             const safeText = escapeHTML(msg.text);
+
+            if (dateLabel !== lastDateLabel) {
+                messagesHtml.push(`<div class="chat-date-divider"><span>${escapeHTML(dateLabel)}</span></div>`);
+                lastDateLabel = dateLabel;
+            }
             
             messagesHtml.push(`
                 <div class="chat-msg ${isMe ? 'sent' : 'received'}">
+                    <span class="msg-sender">${safeSender}</span>
                     <div class="msg-bubble">${safeText}</div>
                     <span class="msg-time">${timeStr}</span>
                 </div>
@@ -946,6 +988,8 @@ async function sendChatMessage() {
     sendMessageBtn.disabled = true;
     const msgData = {
         sender: currentUser.uid,
+        senderName: currentUser.displayName || 'Usuario',
+        senderRole: userRole || (isAdmin ? 'admin' : ''),
         text: text,
         timestamp: Date.now()
     };
