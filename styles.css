@@ -666,7 +666,7 @@ body {
     display: flex;
 }
 .chat-panel.active { right: 0; }
-.chat-sidebar { width: 100%; display: flex; flex-direction: column; }
+.chat-sidebar { width: 100%; flex: 0 0 100%; display: flex; flex-direction: column; }
 .chat-header {
     padding: 18px; border-bottom: 1px solid var(--border-color);
     display: flex; justify-content: space-between; align-items: center;
@@ -727,6 +727,7 @@ body {
 }
 .send-message-btn:hover { transform: scale(1.08); box-shadow: var(--primary-glow-btn); }
 .send-message-btn:active { transform: scale(0.92); }
+.send-message-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
 
 .chat-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; flex: 1; color: var(--text-muted); }
 .chat-empty-state i  { font-size: 44px; opacity: 0.25; }

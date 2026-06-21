@@ -99,11 +99,12 @@ let userRole = null;
 let allPostsCache = []; 
 let activeChatId = null;
 let activeChatListener = null;
+let chatContactsListener = null;
 let allContactsCache = [];
 let allAdminUsersCache = [];
 let hasResolvedInitialAuth = false;
 let isLoginInProgress = false;
-const TEACHER_CHAT_ROLES = ['maestro', 'profesor', 'padre', 'acudiente'];
+const TEACHER_CHAT_ROLES = ['maestro', 'profesor', 'padre', 'acudiente', 'directivo'];
 
 function normalizeRole(role) {
     return (role || '').toString().toLowerCase();
@@ -166,6 +167,11 @@ function safeImageSrc(value, fallback = "https://i.pravatar.cc/150?img=68") {
 function escapeSelector(value) {
     const text = value == null ? '' : String(value);
     return window.CSS && CSS.escape ? CSS.escape(text) : text.replace(/["\\]/g, '\\$&');
+}
+
+function renderInlineStatus(container, message) {
+    if (!container) return;
+    container.innerHTML = `<p style="color:var(--text-muted);text-align:center;margin:20px 14px;font-size:13px;line-height:1.45;">${escapeHTML(message)}</p>`;
 }
 
 // === THEME LOGIC ===
@@ -288,6 +294,10 @@ onAuthStateChanged(auth, async (user) => {
         }
     } else {
         currentUser = null; isAdmin = false; userRole = null; allPostsCache = [];
+        if (activeChatListener) { activeChatListener(); activeChatListener = null; }
+        if (chatContactsListener) { chatContactsListener(); chatContactsListener = null; }
+        activeChatId = null;
+        allContactsCache = [];
         showLoginScreen();
         roleSelectionScreen.classList.remove('active');
         profilePopover.classList.remove('active');
@@ -320,6 +330,10 @@ async function completeLogin() {
         loadChatContacts();
     } else {
         teacherChatEls.forEach(el => el.style.display = 'none');
+        if (chatContactsListener) { chatContactsListener(); chatContactsListener = null; }
+        if (activeChatListener) { activeChatListener(); activeChatListener = null; }
+        activeChatId = null;
+        allContactsCache = [];
         chatPanel.classList.remove('active');
         chatContactsList.innerHTML = '';
     }
@@ -726,22 +740,57 @@ function openTeacherChatPanel() {
         return;
     }
     chatPanel.classList.add('active');
+    loadChatContacts();
 }
 
 if (navChatBtn) navChatBtn.onclick = (e) => {
     e.preventDefault();
     openTeacherChatPanel();
 };
-if (mobileChatBtn) mobileChatBtn.onclick = openTeacherChatPanel;
-if (closeChatBtn) closeChatBtn.onclick = () => { chatPanel.classList.remove('active'); };
-if (backToContactsBtn) backToContactsBtn.onclick = () => { chatConversation.classList.remove('active'); };
+if (mobileChatBtn) mobileChatBtn.onclick = (e) => {
+    e.preventDefault();
+    openTeacherChatPanel();
+};
+if (closeChatBtn) closeChatBtn.onclick = () => {
+    chatPanel.classList.remove('active');
+    closeActiveChat();
+};
+if (backToContactsBtn) backToContactsBtn.onclick = () => closeActiveChat();
+
+function closeActiveChat() {
+    if (activeChatListener) {
+        activeChatListener();
+        activeChatListener = null;
+    }
+    activeChatId = null;
+    conversationMessages.innerHTML = '';
+    chatMessageInput.value = '';
+    chatConversation.classList.remove('active');
+    chatConversation.style.display = 'none';
+    chatEmptyState.style.display = 'flex';
+    document.querySelectorAll('.contact-item').forEach(item => item.classList.remove('active'));
+}
 
 function loadChatContacts() {
-    if (!canUseTeacherChat()) return;
+    if (!canUseTeacherChat()) {
+        renderInlineStatus(chatContactsList, 'El chat no estÃ¡ disponible para tu rol.');
+        return;
+    }
 
-    onValue(ref(db, 'users'), (snapshot) => {
+    if (chatContactsListener) {
+        chatContactsListener();
+        chatContactsListener = null;
+    }
+
+    chatContactsList.innerHTML = '<div class="loading-spinner small">Cargando contactos...</div>';
+
+    chatContactsListener = onValue(ref(db, 'users'), (snapshot) => {
         chatContactsList.innerHTML = '';
-        if (!snapshot.exists()) return;
+        if (!snapshot.exists()) {
+            allContactsCache = [];
+            renderInlineStatus(chatContactsList, 'No hay usuarios registrados para iniciar un chat.');
+            return;
+        }
         
         const users = snapshot.val();
         let contactsHtml = '';
@@ -770,23 +819,33 @@ function loadChatContacts() {
         });
         
         if (contactsHtml === '') {
-            chatContactsList.innerHTML = '<p style="color:var(--text-muted);text-align:center;margin-top:20px;">No hay maestros, profesores o acudientes disponibles.</p>';
+            renderInlineStatus(chatContactsList, 'No hay maestros, profesores, acudientes o directivos disponibles.');
         } else {
             chatContactsList.innerHTML = contactsHtml;
-            document.querySelectorAll('.contact-item').forEach(item => {
-                item.addEventListener('click', () => openChat(item.dataset.uid));
-            });
         }
+    }, (error) => {
+        console.error('No se pudieron cargar los contactos del chat:', error);
+        allContactsCache = [];
+        renderInlineStatus(chatContactsList, 'No se pudieron cargar los contactos. Revisa las reglas de Firebase para permitir leer users.');
     });
 }
 
-chatSearchInput.addEventListener('input', (e) => {
-    const term = e.target.value.toLowerCase();
-    document.querySelectorAll('.contact-item').forEach(item => {
-        const name = item.querySelector('.contact-name').textContent.toLowerCase();
-        item.style.display = name.includes(term) ? 'flex' : 'none';
+if (chatContactsList) {
+    chatContactsList.addEventListener('click', (e) => {
+        const item = e.target.closest('.contact-item');
+        if (item && item.dataset.uid) openChat(item.dataset.uid);
     });
-});
+}
+
+if (chatSearchInput) {
+    chatSearchInput.addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase();
+        document.querySelectorAll('.contact-item').forEach(item => {
+            const name = item.querySelector('.contact-name').textContent.toLowerCase();
+            item.style.display = name.includes(term) ? 'flex' : 'none';
+        });
+    });
+}
 
 function getChatId(uid1, uid2) {
     return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
@@ -799,7 +858,10 @@ async function openChat(targetUid) {
     }
 
     const targetUser = allContactsCache.find(u => u.uid === targetUid);
-    if (!targetUser || !isTeacherChatContactRole(targetUser.role)) return;
+    if (!targetUser || !isTeacherChatContactRole(targetUser.role)) {
+        alert('No se pudo abrir este contacto. Actualiza la lista e intÃ©ntalo de nuevo.');
+        return;
+    }
 
     document.querySelectorAll('.contact-item').forEach(item => item.classList.remove('active'));
     const contactItem = document.querySelector(`.contact-item[data-uid="${escapeSelector(targetUid)}"]`);
@@ -808,6 +870,7 @@ async function openChat(targetUid) {
     chatEmptyState.style.display = 'none';
     chatConversation.style.display = 'flex';
     chatConversation.classList.add('active');
+    conversationMessages.innerHTML = '<div class="loading-spinner small">Cargando mensajes...</div>';
 
     chatActiveAvatar.src = safeImageSrc(targetUser.avatar);
     chatActiveName.textContent = targetUser.name || 'Docente';
@@ -818,18 +881,28 @@ async function openChat(targetUid) {
     
     if (activeChatListener) activeChatListener();
     
-    const participantsRef = ref(db, `chats/${activeChatId}/participants`);
-    const pSnap = await get(participantsRef);
-    if (!pSnap.exists()) {
-        await set(participantsRef, { [currentUser.uid]: true, [targetUid]: true });
+    try {
+        const participantsRef = ref(db, `chats/${activeChatId}/participants`);
+        const pSnap = await get(participantsRef);
+        if (!pSnap.exists()) {
+            await set(participantsRef, { [currentUser.uid]: true, [targetUid]: true });
+        }
+    } catch (error) {
+        console.error('No se pudo preparar el chat:', error);
+        renderInlineStatus(conversationMessages, 'No se pudo abrir el chat. Revisa las reglas de Firebase para permitir leer y escribir chats.');
+        return;
     }
 
     const messagesRef = ref(db, `chats/${activeChatId}/messages`);
     activeChatListener = onValue(messagesRef, (snapshot) => {
         conversationMessages.innerHTML = '';
-        if (!snapshot.exists()) return;
+        if (!snapshot.exists()) {
+            renderInlineStatus(conversationMessages, 'TodavÃ­a no hay mensajes. Escribe el primero.');
+            return;
+        }
         
         const msgs = Object.values(snapshot.val()).sort((a,b) => a.timestamp - b.timestamp);
+        const messagesHtml = [];
 
         msgs.forEach(msg => {
             const isMe = msg.sender === currentUser.uid;
@@ -837,40 +910,58 @@ async function openChat(targetUid) {
             const timeStr = dateObj.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
             const safeText = escapeHTML(msg.text);
             
-            conversationMessages.innerHTML += `
+            messagesHtml.push(`
                 <div class="chat-msg ${isMe ? 'sent' : 'received'}">
                     <div class="msg-bubble">${safeText}</div>
                     <span class="msg-time">${timeStr}</span>
                 </div>
-            `;
+            `);
         });
+        conversationMessages.innerHTML = messagesHtml.join('');
         
         setTimeout(() => {
             conversationMessages.scrollTop = conversationMessages.scrollHeight;
         }, 100);
+    }, (error) => {
+        console.error('No se pudieron cargar los mensajes:', error);
+        renderInlineStatus(conversationMessages, 'No se pudieron cargar los mensajes. Revisa las reglas de Firebase para chats.');
     });
 }
 
-sendMessageBtn.addEventListener('click', sendChatMessage);
-chatMessageInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendChatMessage();
-});
+if (sendMessageBtn) sendMessageBtn.addEventListener('click', sendChatMessage);
+if (chatMessageInput) {
+    chatMessageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            sendChatMessage();
+        }
+    });
+}
 
 async function sendChatMessage() {
     const text = chatMessageInput.value.trim();
     if (!text || !activeChatId || !canUseTeacherChat()) return;
     
     chatMessageInput.value = '';
+    sendMessageBtn.disabled = true;
     const msgData = {
         sender: currentUser.uid,
         text: text,
         timestamp: Date.now()
     };
     
-    await set(push(ref(db, `chats/${activeChatId}/messages`)), msgData);
-    
-    await set(ref(db, `chats/${activeChatId}/lastMessage`), text);
-    await set(ref(db, `chats/${activeChatId}/lastTimestamp`), Date.now());
+    try {
+        await set(push(ref(db, `chats/${activeChatId}/messages`)), msgData);
+        await set(ref(db, `chats/${activeChatId}/lastMessage`), text);
+        await set(ref(db, `chats/${activeChatId}/lastTimestamp`), Date.now());
+    } catch (error) {
+        console.error('No se pudo enviar el mensaje:', error);
+        chatMessageInput.value = text;
+        alert('No se pudo enviar el mensaje. Revisa la conexiÃ³n o las reglas de Firebase para chats.');
+    } finally {
+        sendMessageBtn.disabled = false;
+        chatMessageInput.focus();
+    }
 }
 
 // === ADMIN USERS MANAGEMENT ===
