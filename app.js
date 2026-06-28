@@ -169,6 +169,15 @@ function escapeAttribute(value) {
         .replace(/>/g, '&gt;');
 }
 
+function sanitizeName(name) {
+    if (!name) return 'Usuario';
+    try {
+        return decodeURIComponent(escape(name));
+    } catch (e) {
+        return name;
+    }
+}
+
 function safeImageSrc(value, fallback = "https://i.pravatar.cc/150?img=68") {
     const src = (value || '').toString().trim();
     if (!src) return fallback;
@@ -219,12 +228,17 @@ function formatChatTime(timestamp) {
     });
 }
 
+function getChatMessageSenderId(message) {
+    return message?.senderId || message?.sender || message?.uid || message?.userId || message?.authorUid || message?.authorId || message?.from || '';
+}
+
 function getChatSenderName(message, targetUser, isMe) {
-    if (message.senderName) return message.senderName;
-    if (isMe) return currentUser?.displayName || 'TÃº';
-    if (message.sender === targetUser?.uid) return targetUser.name || 'Contacto';
-    const cachedUser = allContactsCache.find(user => user.uid === message.sender);
-    return cachedUser?.name || 'Contacto';
+    if (message.senderName) return sanitizeName(message.senderName);
+    if (isMe) return sanitizeName(auth.currentUser?.displayName || currentUser?.displayName || 'Usuario');
+    const senderId = getChatMessageSenderId(message);
+    if (senderId === targetUser?.uid) return sanitizeName(targetUser.name || 'Contacto');
+    const cachedUser = allContactsCache.find(user => user.uid === senderId);
+    return sanitizeName(cachedUser?.name || 'Contacto');
 }
 
 // === THEME LOGIC ===
@@ -950,11 +964,13 @@ async function openChat(targetUid) {
         let lastDateLabel = '';
 
         msgs.forEach(msg => {
-            const isMe = msg.sender === currentUser.uid;
+            const messageSenderId = getChatMessageSenderId(msg);
+            const isMine = messageSenderId === auth.currentUser?.uid;
+            const msgClass = isMine ? 'sent' : 'received';
             const dateLabel = formatChatDate(msg.timestamp);
             const timeStr = formatChatTime(msg.timestamp);
-            const senderName = getChatSenderName(msg, targetUser, isMe);
-            const safeSender = escapeHTML(isMe ? 'TÃº' : senderName);
+            const senderName = isMine ? '' : getChatSenderName(msg, targetUser, isMine);
+            const senderHtml = isMine ? '' : `<span class="msg-sender">${escapeHTML(senderName)}</span>`;
             const safeText = escapeHTML(msg.text);
 
             if (dateLabel !== lastDateLabel) {
@@ -963,8 +979,8 @@ async function openChat(targetUid) {
             }
             
             messagesHtml.push(`
-                <div class="chat-msg ${isMe ? 'sent' : 'received'}">
-                    <span class="msg-sender">${safeSender}</span>
+                <div class="chat-msg ${msgClass}">
+                    ${senderHtml}
                     <div class="msg-bubble">${safeText}</div>
                     <span class="msg-time">${timeStr}</span>
                 </div>
