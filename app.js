@@ -18,6 +18,11 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 const provider = new GoogleAuthProvider();
 
+// WebView Detection for Android Status Bar
+if (navigator.userAgent.includes('wv') || navigator.userAgent.includes('WebView')) {
+    document.body.classList.add('is-webview');
+}
+
 // DOM Elements
 const authLoadingScreen = document.getElementById('auth-loading-screen');
 const loginScreen = document.getElementById('login-screen');
