@@ -295,8 +295,16 @@ loginGoogleBtn.addEventListener('click', async () => {
     if (isLoginInProgress || !hasResolvedInitialAuth) return;
     setLoginButtonLoading(true);
 
-    try { await signInWithRedirect(auth, provider); } 
+    try { 
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobile) {
+            await signInWithRedirect(auth, provider); 
+        } else {
+            await signInWithPopup(auth, provider);
+        }
+    } 
     catch (error) { 
+        console.error(error);
         setLoginButtonLoading(false);
         alert("Hubo un error al iniciar sesión."); 
     }
