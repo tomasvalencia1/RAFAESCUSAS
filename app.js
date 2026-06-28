@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getAuth, signInWithPopup, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
-import { getDatabase, ref, onValue, push, set, remove, get } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
+import { getDatabase, ref, onValue, push, set, remove, get, update } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAeUsf3QGFT3_J-k_KmvdJk61AMSiizOvI",
@@ -940,11 +940,10 @@ async function openChat(targetUid) {
     if (activeChatListener) activeChatListener();
     
     try {
-        const participantsRef = ref(db, `chats/${activeChatId}/participants`);
-        const pSnap = await get(participantsRef);
-        if (!pSnap.exists()) {
-            await set(participantsRef, { [currentUser.uid]: true, [targetUid]: true });
-        }
+        await update(ref(db, `chats/${activeChatId}/participants`), {
+            [currentUser.uid]: true,
+            [targetUid]: true
+        });
     } catch (error) {
         console.error('No se pudo preparar el chat:', error);
         renderInlineStatus(conversationMessages, 'No se pudo abrir el chat. Revisa las reglas de Firebase para permitir leer y escribir chats.');
@@ -1013,18 +1012,24 @@ async function sendChatMessage() {
     
     chatMessageInput.value = '';
     sendMessageBtn.disabled = true;
+    const timestamp = Date.now();
+    const messageRef = push(ref(db, `chats/${activeChatId}/messages`));
     const msgData = {
+        senderId: currentUser.uid,
         sender: currentUser.uid,
         senderName: currentUser.displayName || 'Usuario',
         senderRole: userRole || (isAdmin ? 'admin' : ''),
         text: text,
-        timestamp: Date.now()
+        timestamp
     };
-    
+
     try {
-        await set(push(ref(db, `chats/${activeChatId}/messages`)), msgData);
-        await set(ref(db, `chats/${activeChatId}/lastMessage`), text);
-        await set(ref(db, `chats/${activeChatId}/lastTimestamp`), Date.now());
+        await update(ref(db), {
+            [`chats/${activeChatId}/participants/${currentUser.uid}`]: true,
+            [`chats/${activeChatId}/messages/${messageRef.key}`]: msgData,
+            [`chats/${activeChatId}/lastMessage`]: text,
+            [`chats/${activeChatId}/lastTimestamp`]: timestamp
+        });
     } catch (error) {
         console.error('No se pudo enviar el mensaje:', error);
         chatMessageInput.value = text;
