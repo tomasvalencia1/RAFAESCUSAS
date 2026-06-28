@@ -48,8 +48,7 @@ const logoutBtn = document.getElementById('logout-btn');
 const headerAvatar = document.getElementById('header-avatar');
 const headerUsername = document.getElementById('header-username');
 
-// Theme & Profile
-const themeToggleBtn = document.getElementById('theme-toggle-btn');
+// Profile
 const profileBtn = document.getElementById('profile-btn');
 const profilePopover = document.getElementById('profile-popover');
 
@@ -229,30 +228,9 @@ function getChatSenderName(message, targetUser, isMe) {
 }
 
 // === THEME LOGIC ===
-function initTheme() {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        themeToggleBtn.innerHTML = "<i class='bx bx-sun'></i>";
-    } else {
-        document.documentElement.removeAttribute('data-theme');
-        themeToggleBtn.innerHTML = "<i class='bx bx-moon'></i>";
-    }
-}
-initTheme();
-
-themeToggleBtn.addEventListener('click', () => {
-    const currentTheme = document.documentElement.getAttribute('data-theme');
-    if (currentTheme === 'dark') {
-        document.documentElement.removeAttribute('data-theme');
-        localStorage.setItem('theme', 'light');
-        themeToggleBtn.innerHTML = "<i class='bx bx-moon'></i>";
-    } else {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        localStorage.setItem('theme', 'dark');
-        themeToggleBtn.innerHTML = "<i class='bx bx-sun'></i>";
-    }
-});
+// Hardcoded to dark mode per new design aesthetic
+document.documentElement.setAttribute('data-theme', 'dark');
+localStorage.setItem('theme', 'dark');
 
 // === PROFILE POPOVER LOGIC ===
 profileBtn.addEventListener('click', (e) => {
