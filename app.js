@@ -407,6 +407,10 @@ document.getElementById('close-modal-btn').onclick = () => {
     postModal.classList.remove('active');
     resetImagePreview();
 };
+document.getElementById('cancel-post-btn').onclick = () => {
+    postModal.classList.remove('active');
+    resetImagePreview();
+};
 
 addNewsBtn.onclick = () => newsModal.classList.add('active');
 document.getElementById('close-news-modal-btn').onclick = () => newsModal.classList.remove('active');

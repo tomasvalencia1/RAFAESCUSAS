@@ -212,12 +212,15 @@
                     </div>
                 </div>
                 <div class="modal-footer" style="justify-content: space-between; align-items: center;">
-                    <label for="post-image-input" class="action-btn" style="cursor: pointer; color: var(--primary-blue); background: var(--hover-bg); margin: 0;">
-                        <i class='bx bx-image-add'></i> <span style="font-size: 14px;">Foto</span>
-                    </label>
-                    <input type="file" id="post-image-input" accept="image/*" style="display: none;">
-                    
-                    <button class="btn-primary" id="publish-post-btn">Publicar</button>
+                    <button class="action-btn cancel-btn" id="cancel-post-btn" style="background: var(--surface-3); border: 1px solid var(--border-color); color: var(--text-primary);">Regresar</button>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <label for="post-image-input" class="action-btn" style="cursor: pointer; color: var(--primary-2); background: var(--surface-2); margin: 0; padding: 10px 14px;">
+                            <i class='bx bx-image-add'></i> <span style="font-size: 14px;">Foto</span>
+                        </label>
+                        <input type="file" id="post-image-input" accept="image/*" style="display: none;">
+                        
+                        <button class="btn-primary" id="publish-post-btn">Publicar</button>
+                    </div>
                 </div>
             </div>
         </div>
