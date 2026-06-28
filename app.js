@@ -909,6 +909,17 @@ function getChatId(uid1, uid2) {
     return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
 }
 
+function getFallbackChatId(uid1, uid2) {
+    return `v2_${getChatId(uid1, uid2)}`;
+}
+
+async function prepareChatParticipants(chatId, targetUid) {
+    await update(ref(db, `chats/${chatId}/participants`), {
+        [currentUser.uid]: true,
+        [targetUid]: true
+    });
+}
+
 async function openChat(targetUid) {
     if (!canUseTeacherChat()) {
         alert('El chat está disponible solo para maestros, profesores, acudientes y administradores.');
@@ -936,18 +947,21 @@ async function openChat(targetUid) {
     chatActiveRole.className = `badge ${getRoleClass(targetUser.role)}`;
 
     activeChatId = getChatId(currentUser.uid, targetUid);
-    
+
     if (activeChatListener) activeChatListener();
-    
+
     try {
-        await update(ref(db, `chats/${activeChatId}/participants`), {
-            [currentUser.uid]: true,
-            [targetUid]: true
-        });
+        await prepareChatParticipants(activeChatId, targetUid);
     } catch (error) {
-        console.error('No se pudo preparar el chat:', error);
-        renderInlineStatus(conversationMessages, 'No se pudo abrir el chat. Revisa las reglas de Firebase para permitir leer y escribir chats.');
-        return;
+        console.warn('No se pudo preparar el chat principal, intentando chat alterno:', error);
+        activeChatId = getFallbackChatId(currentUser.uid, targetUid);
+        try {
+            await prepareChatParticipants(activeChatId, targetUid);
+        } catch (fallbackError) {
+            console.error('No se pudo preparar el chat:', fallbackError);
+            renderInlineStatus(conversationMessages, 'No se pudo abrir el chat. Revisa las reglas de Firebase para permitir leer y escribir chats.');
+            return;
+        }
     }
 
     const messagesRef = ref(db, `chats/${activeChatId}/messages`);
@@ -1025,7 +1039,6 @@ async function sendChatMessage() {
 
     try {
         await update(ref(db), {
-            [`chats/${activeChatId}/participants/${currentUser.uid}`]: true,
             [`chats/${activeChatId}/messages/${messageRef.key}`]: msgData,
             [`chats/${activeChatId}/lastMessage`]: text,
             [`chats/${activeChatId}/lastTimestamp`]: timestamp
