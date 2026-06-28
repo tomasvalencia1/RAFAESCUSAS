@@ -19,7 +19,23 @@ const db = getDatabase(app);
 const provider = new GoogleAuthProvider();
 
 // WebView Detection for Android Status Bar
-if (navigator.userAgent.includes('wv') || navigator.userAgent.includes('WebView')) {
+// WebView Detection for Android Status Bar (AVANZADO)
+let isApp = false;
+const ua = navigator.userAgent;
+
+// 1. Detectar webviews de Android comunes y antiguos
+if (/Android/i.test(ua) && (/wv|WebView|Version\//i.test(ua))) {
+    isApp = true;
+}
+// 2. Detectar si la web fue instalada como aplicación (PWA)
+if (window.matchMedia('(display-mode: standalone)').matches) {
+    isApp = true;
+}
+// 3. Forzar el margen en CUALQUIER dispositivo Android (infalible)
+// Si prefieres que el margen se aplique a todos los celulares Android, descomenta la siguiente línea:
+isApp = /Android/i.test(ua);
+
+if (isApp) {
     document.body.classList.add('is-webview');
 }
 
