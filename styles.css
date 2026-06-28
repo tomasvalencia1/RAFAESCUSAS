@@ -162,6 +162,9 @@ body {
 .login-card p {
     color: var(--text-secondary); margin-bottom: 36px; font-size: 14px;
 }
+.login-btn {
+    margin: 0 auto;
+}
 
 /* ===== HEADER — EN FLUJO NORMAL (no sticky, no fixed) ===== */
 .header {
