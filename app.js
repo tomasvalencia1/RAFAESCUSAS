@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-import { getAuth, signInWithPopup, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+import { getAuth, signInWithPopup, signInWithRedirect, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 import { getDatabase, ref, onValue, push, set, remove, get, update } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
 
 const firebaseConfig = {
@@ -124,6 +124,7 @@ let allContactsCache = [];
 let allAdminUsersCache = [];
 let hasResolvedInitialAuth = false;
 let isLoginInProgress = false;
+let pendingAndroidFcmToken = null;
 const TEACHER_CHAT_ROLES = ['maestro', 'profesor', 'padre', 'acudiente', 'directivo'];
 
 function normalizeRole(role) {
@@ -159,6 +160,47 @@ function escapeHTML(value) {
     div.textContent = value == null ? '' : String(value);
     return div.innerHTML;
 }
+
+function tokenToFirebaseKey(token) {
+    return btoa(token).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+async function saveAndroidFcmToken(token) {
+    if (!token) return;
+    pendingAndroidFcmToken = token;
+    if (!currentUser || !currentUser.uid) return;
+
+    try {
+        await set(ref(db, `fcmTokens/${currentUser.uid}/${tokenToFirebaseKey(token)}`), token);
+        pendingAndroidFcmToken = null;
+    } catch (error) {
+        console.error('No se pudo guardar el token FCM:', error);
+    }
+}
+
+window.registerAndroidFcmToken = saveAndroidFcmToken;
+window.addEventListener('androidFcmToken', (event) => {
+    saveAndroidFcmToken(event.detail);
+});
+
+async function signInWithAndroidGoogle(idToken) {
+    if (!idToken || isLoginInProgress) return;
+    setLoginButtonLoading(true);
+
+    try {
+        const credential = GoogleAuthProvider.credential(idToken);
+        await signInWithCredential(auth, credential);
+    } catch (error) {
+        console.error('No se pudo iniciar sesion con Google nativo:', error);
+        setLoginButtonLoading(false);
+        alert('No se pudo iniciar sesion con Google.');
+    }
+}
+
+window.signInWithAndroidGoogle = signInWithAndroidGoogle;
+window.addEventListener('androidGoogleSignInFailed', () => {
+    setLoginButtonLoading(false);
+});
 
 function escapeAttribute(value) {
     return (value == null ? '' : String(value))
@@ -309,6 +351,11 @@ loginGoogleBtn.addEventListener('click', async () => {
     setLoginButtonLoading(true);
 
     try { 
+        if (window.AndroidFCM && typeof window.AndroidFCM.signInWithGoogle === 'function') {
+            window.AndroidFCM.signInWithGoogle();
+            return;
+        }
+
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         if (isMobile) {
             await signInWithRedirect(auth, provider); 
@@ -329,6 +376,7 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = user;
         const adminSnap = await get(ref(db, `admins/${user.uid}`));
         isAdmin = adminSnap.exists() && adminSnap.val() === true;
+        if (pendingAndroidFcmToken) saveAndroidFcmToken(pendingAndroidFcmToken);
         
         const userSnap = await get(ref(db, `users/${user.uid}`));
         if (userSnap.exists() && userSnap.val().role) {
