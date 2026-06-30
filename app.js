@@ -125,6 +125,7 @@ let allAdminUsersCache = [];
 let hasResolvedInitialAuth = false;
 let isLoginInProgress = false;
 let pendingAndroidFcmToken = null;
+let androidGoogleSignInTimeout = null;
 const TEACHER_CHAT_ROLES = ['maestro', 'profesor', 'padre', 'acudiente', 'directivo'];
 
 function normalizeRole(role) {
@@ -186,11 +187,18 @@ window.addEventListener('androidFcmToken', (event) => {
 async function signInWithAndroidGoogle(idToken) {
     if (!idToken || isLoginInProgress) return;
     setLoginButtonLoading(true);
+    clearTimeout(androidGoogleSignInTimeout);
+    androidGoogleSignInTimeout = setTimeout(() => {
+        setLoginButtonLoading(false);
+        alert('El inicio de sesion tardo demasiado. Revisa tu conexion e intenta de nuevo.');
+    }, 20000);
 
     try {
         const credential = GoogleAuthProvider.credential(idToken);
         await signInWithCredential(auth, credential);
+        clearTimeout(androidGoogleSignInTimeout);
     } catch (error) {
+        clearTimeout(androidGoogleSignInTimeout);
         console.error('No se pudo iniciar sesion con Google nativo:', error);
         setLoginButtonLoading(false);
         alert('No se pudo iniciar sesion con Google.');
@@ -199,6 +207,7 @@ async function signInWithAndroidGoogle(idToken) {
 
 window.signInWithAndroidGoogle = signInWithAndroidGoogle;
 window.addEventListener('androidGoogleSignInFailed', () => {
+    clearTimeout(androidGoogleSignInTimeout);
     setLoginButtonLoading(false);
 });
 
