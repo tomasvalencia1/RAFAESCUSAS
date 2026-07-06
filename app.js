@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-import { getAuth, signInWithPopup, signInWithRedirect, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
-import { getDatabase, ref, onValue, push, set, remove, get, update } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
+import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+import { getDatabase, ref, onValue, push, set, remove, get } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
+import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-messaging.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAeUsf3QGFT3_J-k_KmvdJk61AMSiizOvI",
@@ -17,6 +18,29 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 const provider = new GoogleAuthProvider();
+
+// Initialize Firebase Cloud Messaging
+let messaging = null;
+try {
+    messaging = getMessaging(app);
+} catch (e) {
+    console.log("Messaging not supported in this environment", e);
+}
+
+// Check for redirect result to fix infinite loading on APK/Mobile WebViews
+getRedirectResult(auth)
+    .then((result) => {
+        if (result) {
+            console.log("Sesión iniciada con éxito tras redirección.");
+        }
+    })
+    .catch((error) => {
+        console.error("Error al iniciar sesión tras redirección:", error);
+        alert("Hubo un error al iniciar sesión en la aplicación. Asegúrate de tener una conexión estable.");
+        if (typeof setLoginButtonLoading === 'function') {
+            setLoginButtonLoading(false);
+        }
+    });
 
 // WebView Detection for Android Status Bar
 // WebView Detection for Android Status Bar (AVANZADO)
@@ -124,8 +148,6 @@ let allContactsCache = [];
 let allAdminUsersCache = [];
 let hasResolvedInitialAuth = false;
 let isLoginInProgress = false;
-let pendingAndroidFcmToken = null;
-let androidGoogleSignInTimeout = null;
 const TEACHER_CHAT_ROLES = ['maestro', 'profesor', 'padre', 'acudiente', 'directivo'];
 
 function normalizeRole(role) {
@@ -162,55 +184,6 @@ function escapeHTML(value) {
     return div.innerHTML;
 }
 
-function tokenToFirebaseKey(token) {
-    return btoa(token).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-}
-
-async function saveAndroidFcmToken(token) {
-    if (!token) return;
-    pendingAndroidFcmToken = token;
-    if (!currentUser || !currentUser.uid) return;
-
-    try {
-        await set(ref(db, `fcmTokens/${currentUser.uid}/${tokenToFirebaseKey(token)}`), token);
-        pendingAndroidFcmToken = null;
-    } catch (error) {
-        console.error('No se pudo guardar el token FCM:', error);
-    }
-}
-
-window.registerAndroidFcmToken = saveAndroidFcmToken;
-window.addEventListener('androidFcmToken', (event) => {
-    saveAndroidFcmToken(event.detail);
-});
-
-async function signInWithAndroidGoogle(idToken) {
-    if (!idToken || isLoginInProgress) return;
-    setLoginButtonLoading(true);
-    clearTimeout(androidGoogleSignInTimeout);
-    androidGoogleSignInTimeout = setTimeout(() => {
-        setLoginButtonLoading(false);
-        alert('El inicio de sesion tardo demasiado. Revisa tu conexion e intenta de nuevo.');
-    }, 20000);
-
-    try {
-        const credential = GoogleAuthProvider.credential(idToken);
-        await signInWithCredential(auth, credential);
-        clearTimeout(androidGoogleSignInTimeout);
-    } catch (error) {
-        clearTimeout(androidGoogleSignInTimeout);
-        console.error('No se pudo iniciar sesion con Google nativo:', error);
-        setLoginButtonLoading(false);
-        alert('No se pudo iniciar sesion con Google.');
-    }
-}
-
-window.signInWithAndroidGoogle = signInWithAndroidGoogle;
-window.addEventListener('androidGoogleSignInFailed', () => {
-    clearTimeout(androidGoogleSignInTimeout);
-    setLoginButtonLoading(false);
-});
-
 function escapeAttribute(value) {
     return (value == null ? '' : String(value))
         .replace(/&/g, '&amp;')
@@ -218,15 +191,6 @@ function escapeAttribute(value) {
         .replace(/'/g, '&#39;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
-}
-
-function sanitizeName(name) {
-    if (!name) return 'Usuario';
-    try {
-        return decodeURIComponent(escape(name));
-    } catch (e) {
-        return name;
-    }
 }
 
 function safeImageSrc(value, fallback = "https://i.pravatar.cc/150?img=68") {
@@ -279,17 +243,12 @@ function formatChatTime(timestamp) {
     });
 }
 
-function getChatMessageSenderId(message) {
-    return message?.senderId || message?.sender || message?.uid || message?.userId || message?.authorUid || message?.authorId || message?.from || '';
-}
-
 function getChatSenderName(message, targetUser, isMe) {
-    if (message.senderName) return sanitizeName(message.senderName);
-    if (isMe) return sanitizeName(auth.currentUser?.displayName || currentUser?.displayName || 'Usuario');
-    const senderId = getChatMessageSenderId(message);
-    if (senderId === targetUser?.uid) return sanitizeName(targetUser.name || 'Contacto');
-    const cachedUser = allContactsCache.find(user => user.uid === senderId);
-    return sanitizeName(cachedUser?.name || 'Contacto');
+    if (message.senderName) return message.senderName;
+    if (isMe) return currentUser?.displayName || 'TÃº';
+    if (message.sender === targetUser?.uid) return targetUser.name || 'Contacto';
+    const cachedUser = allContactsCache.find(user => user.uid === message.sender);
+    return cachedUser?.name || 'Contacto';
 }
 
 // === THEME LOGIC ===
@@ -360,11 +319,6 @@ loginGoogleBtn.addEventListener('click', async () => {
     setLoginButtonLoading(true);
 
     try { 
-        if (window.AndroidFCM && typeof window.AndroidFCM.signInWithGoogle === 'function') {
-            window.AndroidFCM.signInWithGoogle();
-            return;
-        }
-
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         if (isMobile) {
             await signInWithRedirect(auth, provider); 
@@ -385,7 +339,6 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = user;
         const adminSnap = await get(ref(db, `admins/${user.uid}`));
         isAdmin = adminSnap.exists() && adminSnap.val() === true;
-        if (pendingAndroidFcmToken) saveAndroidFcmToken(pendingAndroidFcmToken);
         
         const userSnap = await get(ref(db, `users/${user.uid}`));
         if (userSnap.exists() && userSnap.val().role) {
@@ -453,6 +406,48 @@ async function completeLogin() {
     loadNews(); 
     loadReports(); 
     loadEvents();
+
+    // Configurar notificaciones Push después del inicio de sesión
+    if (messaging) {
+        setupPushNotifications();
+    }
+}
+
+// === PUSH NOTIFICATIONS (FCM) ===
+async function setupPushNotifications() {
+    try {
+        console.log('Solicitando permiso para notificaciones...');
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            console.log('Permiso de notificación concedido.');
+            // NOTA: Si en tu consola de Firebase creaste un Key Pair (VAPID Key) para Web Push,
+            // puedes pasarlo aquí: getToken(messaging, { vapidKey: 'TU_LLAVE_VAPID_AQUI' })
+            const currentToken = await getToken(messaging);
+            
+            if (currentToken) {
+                console.log('Token obtenido:', currentToken);
+                // Guardar token en Firebase Database asociado al usuario
+                if (currentUser) {
+                    await set(ref(db, `fcmTokens/${currentUser.uid}/${currentToken}`), true);
+                }
+            } else {
+                console.log('No se pudo obtener el token de registro FCM.');
+            }
+        } else {
+            console.log('Permiso de notificación denegado por el usuario.');
+        }
+    } catch (error) {
+        console.error('Error al configurar notificaciones:', error);
+    }
+}
+
+// Escuchar mensajes en primer plano (cuando la app web está abierta)
+if (messaging) {
+    onMessage(messaging, (payload) => {
+        console.log('Mensaje recibido en primer plano:', payload);
+        // Mostrar una alerta nativa cuando llega una notificación y la app está en pantalla
+        alert(`¡Novedad!\n${payload.notification?.title}\n${payload.notification?.body}`);
+    });
 }
 
 // Role Selection Event Listeners
@@ -966,17 +961,6 @@ function getChatId(uid1, uid2) {
     return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
 }
 
-function getFallbackChatId(uid1, uid2) {
-    return `v2_${getChatId(uid1, uid2)}`;
-}
-
-async function prepareChatParticipants(chatId, targetUid) {
-    await update(ref(db, `chats/${chatId}/participants`), {
-        [currentUser.uid]: true,
-        [targetUid]: true
-    });
-}
-
 async function openChat(targetUid) {
     if (!canUseTeacherChat()) {
         alert('El chat está disponible solo para maestros, profesores, acudientes y administradores.');
@@ -1004,21 +988,19 @@ async function openChat(targetUid) {
     chatActiveRole.className = `badge ${getRoleClass(targetUser.role)}`;
 
     activeChatId = getChatId(currentUser.uid, targetUid);
-
+    
     if (activeChatListener) activeChatListener();
-
+    
     try {
-        await prepareChatParticipants(activeChatId, targetUid);
-    } catch (error) {
-        console.warn('No se pudo preparar el chat principal, intentando chat alterno:', error);
-        activeChatId = getFallbackChatId(currentUser.uid, targetUid);
-        try {
-            await prepareChatParticipants(activeChatId, targetUid);
-        } catch (fallbackError) {
-            console.error('No se pudo preparar el chat:', fallbackError);
-            renderInlineStatus(conversationMessages, 'No se pudo abrir el chat. Revisa las reglas de Firebase para permitir leer y escribir chats.');
-            return;
+        const participantsRef = ref(db, `chats/${activeChatId}/participants`);
+        const pSnap = await get(participantsRef);
+        if (!pSnap.exists()) {
+            await set(participantsRef, { [currentUser.uid]: true, [targetUid]: true });
         }
+    } catch (error) {
+        console.error('No se pudo preparar el chat:', error);
+        renderInlineStatus(conversationMessages, 'No se pudo abrir el chat. Revisa las reglas de Firebase para permitir leer y escribir chats.');
+        return;
     }
 
     const messagesRef = ref(db, `chats/${activeChatId}/messages`);
@@ -1034,13 +1016,11 @@ async function openChat(targetUid) {
         let lastDateLabel = '';
 
         msgs.forEach(msg => {
-            const messageSenderId = getChatMessageSenderId(msg);
-            const isMine = messageSenderId === auth.currentUser?.uid;
-            const msgClass = isMine ? 'sent' : 'received';
+            const isMe = msg.sender === currentUser.uid;
             const dateLabel = formatChatDate(msg.timestamp);
             const timeStr = formatChatTime(msg.timestamp);
-            const senderName = isMine ? '' : getChatSenderName(msg, targetUser, isMine);
-            const senderHtml = isMine ? '' : `<span class="msg-sender">${escapeHTML(senderName)}</span>`;
+            const senderName = getChatSenderName(msg, targetUser, isMe);
+            const safeSender = escapeHTML(isMe ? 'TÃº' : senderName);
             const safeText = escapeHTML(msg.text);
 
             if (dateLabel !== lastDateLabel) {
@@ -1049,8 +1029,8 @@ async function openChat(targetUid) {
             }
             
             messagesHtml.push(`
-                <div class="chat-msg ${msgClass}">
-                    ${senderHtml}
+                <div class="chat-msg ${isMe ? 'sent' : 'received'}">
+                    <span class="msg-sender">${safeSender}</span>
                     <div class="msg-bubble">${safeText}</div>
                     <span class="msg-time">${timeStr}</span>
                 </div>
@@ -1083,23 +1063,18 @@ async function sendChatMessage() {
     
     chatMessageInput.value = '';
     sendMessageBtn.disabled = true;
-    const timestamp = Date.now();
-    const messageRef = push(ref(db, `chats/${activeChatId}/messages`));
     const msgData = {
-        senderId: currentUser.uid,
         sender: currentUser.uid,
         senderName: currentUser.displayName || 'Usuario',
         senderRole: userRole || (isAdmin ? 'admin' : ''),
         text: text,
-        timestamp
+        timestamp: Date.now()
     };
-
+    
     try {
-        await update(ref(db), {
-            [`chats/${activeChatId}/messages/${messageRef.key}`]: msgData,
-            [`chats/${activeChatId}/lastMessage`]: text,
-            [`chats/${activeChatId}/lastTimestamp`]: timestamp
-        });
+        await set(push(ref(db, `chats/${activeChatId}/messages`)), msgData);
+        await set(ref(db, `chats/${activeChatId}/lastMessage`), text);
+        await set(ref(db, `chats/${activeChatId}/lastTimestamp`), Date.now());
     } catch (error) {
         console.error('No se pudo enviar el mensaje:', error);
         chatMessageInput.value = text;
@@ -1231,23 +1206,9 @@ document.querySelectorAll('.btn-primary').forEach(btn => {
     });
 });
 
-let lastScrollY = window.scrollY;
-
 window.addEventListener('scroll', () => {
     const header = document.querySelector('.header');
-    if (!header) return;
-
-    const currentScrollY = window.scrollY;
-    const isScrollingDown = currentScrollY > lastScrollY + 6;
-    const isScrollingUp = currentScrollY < lastScrollY - 6;
-
-    header.classList.toggle('scrolled', currentScrollY > 20);
-
-    if (currentScrollY <= 20 || isScrollingUp) {
-        header.classList.remove('header-hidden');
-    } else if (isScrollingDown && currentScrollY > 80) {
-        header.classList.add('header-hidden');
+    if (header) {
+        header.classList.toggle('scrolled', window.scrollY > 20);
     }
-
-    lastScrollY = Math.max(currentScrollY, 0);
-}, { passive: true });
+});
