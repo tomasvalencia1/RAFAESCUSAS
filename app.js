@@ -318,37 +318,18 @@ loginGoogleBtn.addEventListener('click', async () => {
     if (isLoginInProgress || !hasResolvedInitialAuth) return;
     setLoginButtonLoading(true);
 
-    // Timeout de seguridad de 15 segundos por si el WebView de Android se queda colgado
-    // o no puede resolver la ventana emergente/redirección.
-    const loginTimeout = setTimeout(() => {
-        if (isLoginInProgress && !currentUser) {
-            setLoginButtonLoading(false);
-            alert("El inicio de sesión está tardando demasiado o la ventana se cerró sin respuesta. Tu aplicación (APK) podría estar bloqueando la comunicación de Google.");
-        }
-    }, 15000);
-
     try { 
-        // Intentaremos siempre con Popup primero. Si la APK intercepta los popups hacia Chrome, 
-        // permitirá usar las cuentas guardadas del dispositivo sin el Error 403.
-        await signInWithPopup(auth, provider);
-        clearTimeout(loginTimeout);
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobile) {
+            await signInWithRedirect(auth, provider); 
+        } else {
+            await signInWithPopup(auth, provider);
+        }
     } 
     catch (error) { 
         console.error(error);
-        clearTimeout(loginTimeout);
-        
-        // Si el popup falla (ej. bloqueado por el navegador/APK), intentamos redirección como plan B
-        if (error.code === 'auth/popup-blocked' || error.code === 'auth/unsupported-browser') {
-            try {
-                await signInWithRedirect(auth, provider);
-            } catch (redirectError) {
-                setLoginButtonLoading(false);
-                alert("Error crítico al iniciar sesión: " + redirectError.message);
-            }
-        } else {
-            setLoginButtonLoading(false);
-            alert("Hubo un error al iniciar sesión: " + error.message); 
-        }
+        setLoginButtonLoading(false);
+        alert("Hubo un error al iniciar sesión: " + error.message); 
     }
 });
 logoutBtn.addEventListener('click', () => signOut(auth));
