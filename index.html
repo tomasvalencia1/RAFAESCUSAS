@@ -149,6 +149,8 @@
             </div>
         </header>
 
+        <div id="pending-role-banner" class="pending-role-banner" style="display:none;"></div>
+
         <!-- Main Content Layout -->
         <main class="main-layout">
             <!-- Left Sidebar -->
@@ -364,11 +366,15 @@
 
     <!-- Role Selection Screen -->
         <div id="role-selection-screen" class="modal-overlay">
-            <div class="modal-content" style="max-width: 800px;">
-                <div class="modal-header" style="justify-content: center; margin-bottom: 40px; text-align: center; flex-direction: column; gap: 10px;">
+            <div class="modal-content" style="max-width: 640px;">
+                <div class="modal-header" style="justify-content: center; margin-bottom: 8px; text-align: center; flex-direction: column; gap: 10px;">
                     <h2>¡Bienvenido a la red!</h2>
-                    <p style="color: var(--text-muted);">Por favor, selecciona tu rol en la institución para continuar</p>
+                    <p style="color: var(--text-muted);">Selecciona tu rol en la institución para continuar</p>
                 </div>
+                <p class="role-selection-hint">
+                    <i class='bx bxs-shield-alt-2'></i>
+                    Profesor, Padre de familia y Directivo requieren aprobación de un administrador. Mientras se aprueba, entrarás con acceso de Estudiante.
+                </p>
                 <div class="role-cards-container">
                     <div class="role-card" data-role="estudiante">
                         <div class="role-icon-bg student"><i class='bx bxs-graduation'></i></div>
@@ -379,21 +385,19 @@
                         <div class="role-icon-bg teacher"><i class='bx bxs-chalkboard'></i></div>
                         <h3>Profesor</h3>
                         <p>Publica y chatea</p>
-                    </div>
-                    <div class="role-card" data-role="maestro">
-                        <div class="role-icon-bg mentor"><i class='bx bxs-book-reader'></i></div>
-                        <h3>Maestro</h3>
-                        <p>Chat docente</p>
+                        <span class="role-card-tag">Requiere aprobación</span>
                     </div>
                     <div class="role-card" data-role="padre">
                         <div class="role-icon-bg parent"><i class='bx bxs-group'></i></div>
                         <h3>Padre de Familia</h3>
                         <p>Mantente informado</p>
+                        <span class="role-card-tag">Requiere aprobación</span>
                     </div>
                     <div class="role-card" data-role="directivo">
                         <div class="role-icon-bg director"><i class='bx bxs-briefcase'></i></div>
                         <h3>Directivo</h3>
                         <p>Gestión y noticias</p>
+                        <span class="role-card-tag">Requiere aprobación</span>
                     </div>
                 </div>
             </div>
