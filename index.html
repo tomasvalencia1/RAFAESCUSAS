@@ -75,11 +75,21 @@
                 
                 <!-- Profile Popover -->
                 <div class="profile-popover" id="profile-popover">
+                    <div class="profile-panel-topbar">
+                        <button class="profile-back-btn" id="profile-back-btn" type="button" aria-label="Volver">
+                            <i class='bx bx-arrow-back'></i>
+                        </button>
+                        <div>
+                            <span class="profile-panel-kicker">Cuenta institucional</span>
+                            <h2>Mi perfil</h2>
+                        </div>
+                    </div>
                     <div class="popover-header">
                         <img src="" alt="Avatar" id="popover-avatar" class="avatar">
                         <div class="popover-header-info">
                             <h3 id="popover-name">Usuario</h3>
                             <p id="popover-email">correo@ejemplo.com</p>
+                            <span class="badge sin-rol" id="popover-role">Sin rol</span>
                         </div>
                     </div>
                     <div class="popover-stats">
@@ -92,12 +102,47 @@
                             <span class="stat-label">Me gusta</span>
                         </div>
                     </div>
-                    <div class="popover-date-container">
-                        <span class="stat-label">Miembro desde: <span id="popover-date">...</span></span>
+                    <div class="profile-info-list">
+                        <div class="profile-info-row">
+                            <i class='bx bx-calendar-check'></i>
+                            <div>
+                                <span>Miembro desde</span>
+                                <strong id="popover-date">...</strong>
+                            </div>
+                        </div>
+                        <div class="profile-info-row">
+                            <i class='bx bx-time-five'></i>
+                            <div>
+                                <span>Ultimo acceso</span>
+                                <strong id="popover-last-login">...</strong>
+                            </div>
+                        </div>
+                        <div class="profile-info-row">
+                            <i class='bx bx-shield-quarter'></i>
+                            <div>
+                                <span>Permisos</span>
+                                <strong id="popover-admin-state">Usuario</strong>
+                            </div>
+                        </div>
+                        <div class="profile-info-row">
+                            <i class='bx bx-chat'></i>
+                            <div>
+                                <span>Chat institucional</span>
+                                <strong id="popover-chat-access">No disponible</strong>
+                            </div>
+                        </div>
+                        <div class="profile-info-row">
+                            <i class='bx bx-id-card'></i>
+                            <div>
+                                <span>ID de cuenta</span>
+                                <strong id="popover-uid">...</strong>
+                            </div>
+                        </div>
                     </div>
+                    <p class="profile-note">Manten tu rol correcto para ver las herramientas disponibles. Si algo no coincide, solicita ajuste a un administrador.</p>
                     <div class="popover-actions">
                         <button class="logout-btn" id="logout-btn">
-                            <i class='bx bx-log-out'></i> Cerrar Sesión
+                            <i class='bx bx-log-out'></i> Cerrar Sesion
                         </button>
                     </div>
                 </div>
@@ -334,6 +379,11 @@
                         <div class="role-icon-bg teacher"><i class='bx bxs-chalkboard'></i></div>
                         <h3>Profesor</h3>
                         <p>Publica y chatea</p>
+                    </div>
+                    <div class="role-card" data-role="maestro">
+                        <div class="role-icon-bg mentor"><i class='bx bxs-book-reader'></i></div>
+                        <h3>Maestro</h3>
+                        <p>Chat docente</p>
                     </div>
                     <div class="role-card" data-role="padre">
                         <div class="role-icon-bg parent"><i class='bx bxs-group'></i></div>
