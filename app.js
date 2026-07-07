@@ -221,7 +221,12 @@ window.addEventListener('androidFcmToken', (event) => {
 });
 
 async function signInWithAndroidGoogle(idToken) {
-    if (!idToken || isLoginInProgress) return;
+    if (!idToken) {
+        setLoginButtonLoading(false);
+        alert('No se recibio el token de Google. Intenta iniciar sesion de nuevo.');
+        return;
+    }
+
     setLoginButtonLoading(true);
     clearTimeout(androidGoogleSignInTimeout);
     androidGoogleSignInTimeout = setTimeout(() => {
