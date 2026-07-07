@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-import { getAuth, signInWithPopup, signInWithRedirect, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
-import { getDatabase, ref, onValue, push, set, remove, get, update } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
+import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+import { getDatabase, ref, onValue, push, set, remove, get } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
+import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-messaging.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAeUsf3QGFT3_J-k_KmvdJk61AMSiizOvI",
@@ -17,7 +18,29 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 const provider = new GoogleAuthProvider();
-const isAndroidDevice = /Android/i.test(navigator.userAgent);
+
+// Initialize Firebase Cloud Messaging
+let messaging = null;
+try {
+    messaging = getMessaging(app);
+} catch (e) {
+    console.log("Messaging not supported in this environment", e);
+}
+
+// Check for redirect result to fix infinite loading on APK/Mobile WebViews
+getRedirectResult(auth)
+    .then((result) => {
+        if (result) {
+            console.log("Sesión iniciada con éxito tras redirección.");
+        }
+    })
+    .catch((error) => {
+        console.error("Error al iniciar sesión tras redirección:", error);
+        alert("Hubo un error al iniciar sesión en la aplicación. Asegúrate de tener una conexión estable.");
+        if (typeof setLoginButtonLoading === 'function') {
+            setLoginButtonLoading(false);
+        }
+    });
 
 // WebView Detection for Android Status Bar
 // WebView Detection for Android Status Bar (AVANZADO)
@@ -40,41 +63,6 @@ if (isApp) {
     document.body.classList.add('is-webview');
 }
 
-function isAndroidWebView() {
-    return /Android/i.test(navigator.userAgent) && (
-        /wv|WebView|Version\//i.test(navigator.userAgent) ||
-        typeof window.AndroidFCM !== 'undefined'
-    );
-}
-
-function getAndroidBridge() {
-    return window.AndroidFCM && typeof window.AndroidFCM.signInWithGoogle === 'function'
-        ? window.AndroidFCM
-        : null;
-}
-
-function waitForAndroidBridge(timeout = 1200) {
-    return new Promise((resolve) => {
-        const startedAt = Date.now();
-        const check = () => {
-            const bridge = getAndroidBridge();
-            if (bridge) {
-                resolve(bridge);
-                return;
-            }
-
-            if (Date.now() - startedAt >= timeout) {
-                resolve(null);
-                return;
-            }
-
-            setTimeout(check, 100);
-        };
-
-        check();
-    });
-}
-
 // DOM Elements
 const authLoadingScreen = document.getElementById('auth-loading-screen');
 const loginScreen = document.getElementById('login-screen');
@@ -87,7 +75,6 @@ const headerUsername = document.getElementById('header-username');
 // Profile
 const profileBtn = document.getElementById('profile-btn');
 const profilePopover = document.getElementById('profile-popover');
-const profileBackBtn = document.getElementById('profile-back-btn');
 
 const postsContainer = document.getElementById('posts-container');
 const newsContainer = document.getElementById('news-container');
@@ -153,7 +140,7 @@ const rightSidebar = document.querySelector('.right-sidebar');
 let currentUser = null;
 let isAdmin = false;
 let userRole = null;
-let allPostsCache = [];
+let allPostsCache = []; 
 let activeChatId = null;
 let activeChatListener = null;
 let chatContactsListener = null;
@@ -161,9 +148,7 @@ let allContactsCache = [];
 let allAdminUsersCache = [];
 let hasResolvedInitialAuth = false;
 let isLoginInProgress = false;
-let pendingAndroidFcmToken = null;
-let androidGoogleSignInTimeout = null;
-const TEACHER_CHAT_ROLES = ['maestro', 'profesor', 'padre', 'acudiente', 'directivo'];
+const TEACHER_CHAT_ROLES = ['profesor', 'padre', 'acudiente', 'directivo'];
 
 function normalizeRole(role) {
     return (role || '').toString().toLowerCase();
@@ -184,7 +169,6 @@ function isTeacherChatContactRole(role) {
 function formatRoleLabel(role) {
     const labels = {
         estudiante: 'Estudiante',
-        maestro: 'Maestro',
         profesor: 'Profesor',
         padre: 'Padre',
         acudiente: 'Acudiente',
@@ -199,60 +183,6 @@ function escapeHTML(value) {
     return div.innerHTML;
 }
 
-function tokenToFirebaseKey(token) {
-    return btoa(token).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-}
-
-async function saveAndroidFcmToken(token) {
-    if (!token) return;
-    pendingAndroidFcmToken = token;
-    if (!currentUser || !currentUser.uid) return;
-
-    try {
-        await set(ref(db, `fcmTokens/${currentUser.uid}/${tokenToFirebaseKey(token)}`), token);
-        pendingAndroidFcmToken = null;
-    } catch (error) {
-        console.error('No se pudo guardar el token FCM:', error);
-    }
-}
-
-window.registerAndroidFcmToken = saveAndroidFcmToken;
-window.addEventListener('androidFcmToken', (event) => {
-    saveAndroidFcmToken(event.detail);
-});
-
-async function signInWithAndroidGoogle(idToken) {
-    if (!idToken) {
-        setLoginButtonLoading(false);
-        alert('No se recibio el token de Google. Intenta iniciar sesion de nuevo.');
-        return;
-    }
-
-    setLoginButtonLoading(true);
-    clearTimeout(androidGoogleSignInTimeout);
-    androidGoogleSignInTimeout = setTimeout(() => {
-        setLoginButtonLoading(false);
-        alert('El inicio de sesion tardo demasiado. Revisa tu conexion e intenta de nuevo.');
-    }, 20000);
-
-    try {
-        const credential = GoogleAuthProvider.credential(idToken);
-        await signInWithCredential(auth, credential);
-        clearTimeout(androidGoogleSignInTimeout);
-    } catch (error) {
-        clearTimeout(androidGoogleSignInTimeout);
-        console.error('No se pudo iniciar sesion con Google nativo:', error);
-        setLoginButtonLoading(false);
-        alert('No se pudo iniciar sesion con Google.');
-    }
-}
-
-window.signInWithAndroidGoogle = signInWithAndroidGoogle;
-window.addEventListener('androidGoogleSignInFailed', () => {
-    clearTimeout(androidGoogleSignInTimeout);
-    setLoginButtonLoading(false);
-});
-
 function escapeAttribute(value) {
     return (value == null ? '' : String(value))
         .replace(/&/g, '&amp;')
@@ -260,15 +190,6 @@ function escapeAttribute(value) {
         .replace(/'/g, '&#39;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
-}
-
-function sanitizeName(name) {
-    if (!name) return 'Usuario';
-    try {
-        return decodeURIComponent(escape(name));
-    } catch (e) {
-        return name;
-    }
 }
 
 function safeImageSrc(value, fallback = "https://i.pravatar.cc/150?img=68") {
@@ -321,17 +242,12 @@ function formatChatTime(timestamp) {
     });
 }
 
-function getChatMessageSenderId(message) {
-    return message?.senderId || message?.sender || message?.uid || message?.userId || message?.authorUid || message?.authorId || message?.from || '';
-}
-
 function getChatSenderName(message, targetUser, isMe) {
-    if (message.senderName) return sanitizeName(message.senderName);
-    if (isMe) return sanitizeName(auth.currentUser?.displayName || currentUser?.displayName || 'Usuario');
-    const senderId = getChatMessageSenderId(message);
-    if (senderId === targetUser?.uid) return sanitizeName(targetUser.name || 'Contacto');
-    const cachedUser = allContactsCache.find(user => user.uid === senderId);
-    return sanitizeName(cachedUser?.name || 'Contacto');
+    if (message.senderName) return message.senderName;
+    if (isMe) return currentUser?.displayName || 'TÃº';
+    if (message.sender === targetUser?.uid) return targetUser.name || 'Contacto';
+    const cachedUser = allContactsCache.find(user => user.uid === message.sender);
+    return cachedUser?.name || 'Contacto';
 }
 
 // === THEME LOGIC ===
@@ -340,51 +256,24 @@ document.documentElement.setAttribute('data-theme', 'dark');
 localStorage.setItem('theme', 'dark');
 
 // === PROFILE POPOVER LOGIC ===
-function openProfilePopover() {
-    profilePopover.classList.add('active');
-    document.body.classList.add('profile-menu-open');
-    updateProfileStats();
-}
-
-function closeProfilePopover() {
-    profilePopover.classList.remove('active');
-    document.body.classList.remove('profile-menu-open');
-}
-
 profileBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (profilePopover.classList.contains('active')) {
-        closeProfilePopover();
-    } else {
-        openProfilePopover();
-    }
+    profilePopover.classList.toggle('active');
+    updateProfileStats();
 });
-
-if (profileBackBtn) {
-    profileBackBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        closeProfilePopover();
-    });
-}
 
 document.addEventListener('click', (e) => {
     if (!profilePopover.contains(e.target) && !profileBtn.contains(e.target)) {
-        closeProfilePopover();
-    }
-});
-
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && profilePopover.classList.contains('active')) {
-        closeProfilePopover();
+        profilePopover.classList.remove('active');
     }
 });
 
 function updateProfileStats() {
     if (!currentUser) return;
-
+    
     let userPostsCount = 0;
     let userLikesCount = 0;
-
+    
     allPostsCache.forEach(post => {
         if (post.author?.uid === currentUser.uid) {
             userPostsCount++;
@@ -397,27 +286,9 @@ function updateProfileStats() {
     document.getElementById('popover-email').textContent = currentUser.email;
     document.getElementById('popover-posts-count').textContent = userPostsCount;
     document.getElementById('popover-likes-count').textContent = userLikesCount;
-
+    
     const creationTime = new Date(currentUser.metadata.creationTime);
     document.getElementById('popover-date').textContent = creationTime.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
-    const lastLogin = currentUser.metadata.lastSignInTime ? new Date(currentUser.metadata.lastSignInTime) : null;
-    const roleEl = document.getElementById('popover-role');
-    if (roleEl) {
-        roleEl.textContent = formatRoleLabel(userRole);
-        roleEl.className = `badge ${getRoleClass(userRole)}`;
-    }
-    const lastLoginEl = document.getElementById('popover-last-login');
-    if (lastLoginEl) {
-        lastLoginEl.textContent = lastLogin
-            ? lastLogin.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })
-            : 'No disponible';
-    }
-    const adminStateEl = document.getElementById('popover-admin-state');
-    if (adminStateEl) adminStateEl.textContent = isAdmin ? 'Administrador' : 'Usuario regular';
-    const chatAccessEl = document.getElementById('popover-chat-access');
-    if (chatAccessEl) chatAccessEl.textContent = canUseTeacherChat() ? 'Disponible' : 'No disponible para tu rol';
-    const uidEl = document.getElementById('popover-uid');
-    if (uidEl) uidEl.textContent = currentUser.uid;
 }
 
 // === AUTHENTICATION ===
@@ -446,30 +317,18 @@ loginGoogleBtn.addEventListener('click', async () => {
     if (isLoginInProgress || !hasResolvedInitialAuth) return;
     setLoginButtonLoading(true);
 
-    try {
-        const androidBridge = getAndroidBridge() || (isAndroidDevice ? await waitForAndroidBridge() : null);
-        if (androidBridge) {
-            androidBridge.signInWithGoogle();
-            return;
-        }
-
-        if (isAndroidWebView()) {
-            setLoginButtonLoading(false);
-            alert('Esta version de la app necesita actualizarse para iniciar sesion con Google. Instala la APK nueva o abre RafaExcusas desde un navegador.');
-            return;
-        }
-
+    try { 
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         if (isMobile) {
-            await signInWithRedirect(auth, provider);
+            await signInWithRedirect(auth, provider); 
         } else {
             await signInWithPopup(auth, provider);
         }
-    }
-    catch (error) {
+    } 
+    catch (error) { 
         console.error(error);
         setLoginButtonLoading(false);
-        alert("Hubo un error al iniciar sesión.");
+        alert("Hubo un error al iniciar sesión: " + error.message); 
     }
 });
 logoutBtn.addEventListener('click', () => signOut(auth));
@@ -479,8 +338,7 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = user;
         const adminSnap = await get(ref(db, `admins/${user.uid}`));
         isAdmin = adminSnap.exists() && adminSnap.val() === true;
-        if (pendingAndroidFcmToken) saveAndroidFcmToken(pendingAndroidFcmToken);
-
+        
         const userSnap = await get(ref(db, `users/${user.uid}`));
         if (userSnap.exists() && userSnap.val().role) {
             userRole = userSnap.val().role;
@@ -489,7 +347,7 @@ onAuthStateChanged(auth, async (user) => {
             finishInitialAuthCheck();
             loginScreen.classList.remove('active');
             roleSelectionScreen.classList.add('active');
-
+            
             await set(ref(db, `users/${user.uid}`), {
                 name: user.displayName,
                 email: user.email,
@@ -505,7 +363,7 @@ onAuthStateChanged(auth, async (user) => {
         allContactsCache = [];
         showLoginScreen();
         roleSelectionScreen.classList.remove('active');
-        closeProfilePopover();
+        profilePopover.classList.remove('active');
     }
 });
 
@@ -518,12 +376,12 @@ async function completeLogin() {
 
     headerAvatar.src = safeImageSrc(currentUser.photoURL);
     headerUsername.textContent = currentUser.displayName;
-
+    
     const inlineAvatar = document.getElementById('inline-avatar');
     if (inlineAvatar) inlineAvatar.src = safeImageSrc(currentUser.photoURL);
 
     adminBtns.forEach(btn => btn.style.display = isAdmin ? (btn.id==='add-event-btn'?'inline-flex': (btn.id==='nav-users-btn' ? 'flex' : 'flex')) : 'none');
-
+    
     if (userRole === 'estudiante') {
         studentHiddenEls.forEach(el => el.style.display = 'none');
     } else {
@@ -543,16 +401,88 @@ async function completeLogin() {
         chatContactsList.innerHTML = '';
     }
 
-    loadPosts();
-    loadNews();
-    loadReports();
+    loadPosts(); 
+    loadNews(); 
+    loadReports(); 
     loadEvents();
+
+    // Configurar notificaciones Push después del inicio de sesión
+    if (messaging) {
+        setupPushNotifications();
+    }
+}
+
+// === PUSH NOTIFICATIONS (FCM) ===
+async function setupPushNotifications() {
+    try {
+        console.log('Solicitando permiso para notificaciones...');
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            console.log('Permiso de notificación concedido.');
+            // NOTA: Si en tu consola de Firebase creaste un Key Pair (VAPID Key) para Web Push,
+            // puedes pasarlo aquí: getToken(messaging, { vapidKey: 'TU_LLAVE_VAPID_AQUI' })
+            const currentToken = await getToken(messaging);
+            
+            if (currentToken) {
+                console.log('Token obtenido:', currentToken);
+                // Guardar token en Firebase Database asociado al usuario
+                if (currentUser) {
+                    await set(ref(db, `fcmTokens/${currentUser.uid}/${currentToken}`), true);
+                }
+            } else {
+                console.log('No se pudo obtener el token de registro FCM.');
+            }
+        } else {
+            console.log('Permiso de notificación denegado por el usuario.');
+        }
+    } catch (error) {
+        console.error('Error al configurar notificaciones:', error);
+    }
+}
+
+// Escuchar mensajes en primer plano (cuando la app web está abierta)
+if (messaging) {
+    onMessage(messaging, (payload) => {
+        console.log('Mensaje recibido en primer plano:', payload);
+        // Mostrar una alerta nativa cuando llega una notificación y la app está en pantalla
+        alert(`¡Novedad!\n${payload.notification?.title}\n${payload.notification?.body}`);
+    });
 }
 
 // Role Selection Event Listeners
 document.querySelectorAll('.role-card').forEach(card => {
     card.addEventListener('click', async () => {
         const selectedRole = card.dataset.role;
+
+        const protectedRoles = ['profesor', 'padre', 'directivo'];
+        if (protectedRoles.includes(selectedRole)) {
+            let validCode = '';
+            try {
+                const codesSnap = await get(ref(db, 'settings/role_codes'));
+                if (codesSnap.exists() && codesSnap.val()[selectedRole]) {
+                    validCode = codesSnap.val()[selectedRole];
+                }
+            } catch(e) {
+                console.warn('Could not fetch role codes, using defaults');
+            }
+
+            if (!validCode) {
+                const defaultCodes = {
+                    'profesor': 'X7B9K2M4P1',
+                    'padre': 'L3V8N5Q2R9',
+                    'directivo': 'W1Y6C4F8T0'
+                };
+                validCode = defaultCodes[selectedRole];
+            }
+
+            const userCode = prompt(`El rol de ${formatRoleLabel(selectedRole)} requiere un código de seguridad. Ingresa el código de 10 caracteres:`);
+            
+            if (userCode !== validCode) {
+                alert('Código incorrecto. Acceso denegado.');
+                return;
+            }
+        }
+
         await set(ref(db, `users/${currentUser.uid}/role`), selectedRole);
         userRole = selectedRole;
         completeLogin();
@@ -594,7 +524,7 @@ document.getElementById('close-event-create-btn').onclick = () => eventCreateMod
 postImageInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
+    
     const reader = new FileReader();
     reader.onload = (event) => {
         const img = new Image();
@@ -610,13 +540,13 @@ postImageInput.addEventListener('change', (e) => {
             } else {
                 if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
             }
-
+            
             canvas.width = width; canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
-
+            
             currentPostImageBase64 = canvas.toDataURL('image/jpeg', 0.7);
-
+            
             postImagePreview.src = currentPostImageBase64;
             imagePreviewContainer.style.display = 'block';
         };
@@ -640,42 +570,42 @@ function resetImagePreview() {
 document.getElementById('publish-post-btn').addEventListener('click', async (e) => {
     const text = document.getElementById('post-textarea').value.trim();
     if ((!text && !currentPostImageBase64) || !currentUser) return;
-
+    
     const btn = e.target; btn.textContent = 'Publicando...'; btn.disabled = true;
     try {
         const postData = {
             author: { uid: currentUser.uid, name: currentUser.displayName, avatar: currentUser.photoURL },
-            content: text,
+            content: text, 
             timestamp: Date.now()
         };
         if (currentPostImageBase64) {
             postData.imageBase64 = currentPostImageBase64;
         }
-
+        
         await set(push(ref(db, 'posts')), postData);
-        postModal.classList.remove('active');
+        postModal.classList.remove('active'); 
         document.getElementById('post-textarea').value = '';
         resetImagePreview();
-    } catch (error) { console.error(error); }
+    } catch (error) { console.error(error); } 
     finally { btn.textContent = 'Publicar'; btn.disabled = false; }
 });
 
 function loadPosts() {
     onValue(ref(db, 'posts'), (snapshot) => {
         postsContainer.innerHTML = '';
-        if (!snapshot.exists()) {
-            postsContainer.innerHTML = '<div class="glass-card loading-spinner">No hay publicaciones aún.</div>';
+        if (!snapshot.exists()) { 
+            postsContainer.innerHTML = '<div class="glass-card loading-spinner">No hay publicaciones aún.</div>'; 
             allPostsCache = [];
-            return;
+            return; 
         }
-
+        
         const postsArray = Object.entries(snapshot.val()).map(([id, data]) => ({id, ...data})).sort((a,b) => b.timestamp - a.timestamp);
         allPostsCache = postsArray;
 
         postsArray.forEach(post => {
             const minutesAgo = Math.floor((Date.now() - post.timestamp) / 60000);
             const timeStr = minutesAgo < 60 ? `Hace ${minutesAgo} min` : (minutesAgo < 1440 ? `Hace ${Math.floor(minutesAgo/60)} horas` : `Hace ${Math.floor(minutesAgo/1440)} días`);
-
+            
             const likesCount = post.likes ? Object.keys(post.likes).length : 0;
             const myLike = post.likes && post.likes[currentUser.uid] ? true : false;
             const postId = escapeAttribute(post.id);
@@ -683,9 +613,9 @@ function loadPosts() {
             const authorAvatar = escapeAttribute(safeImageSrc(post.author?.avatar));
             const postContent = escapeHTML(post.content);
             const postImageSrc = safeImageSrc(post.imageBase64, '');
-
+            
             const imageHtml = postImageSrc ? `<img src="${escapeAttribute(postImageSrc)}" alt="Imagen adjunta" class="post-image-full">` : '';
-
+            
             const commentsHtml = post.comments ? Object.values(post.comments).map(c => {
                 const commentId = Object.keys(post.comments).find(key => post.comments[key] === c);
                 const safeCommentId = escapeAttribute(commentId);
@@ -751,15 +681,15 @@ postsContainer.addEventListener('click', async (e) => {
         const id = likeBtn.dataset.id;
         const likeRef = ref(db, `posts/${id}/likes/${currentUser.uid}`);
         const snap = await get(likeRef);
-        if (snap.exists()) {
-            await remove(likeRef);
-        } else {
-            await set(likeRef, true);
+        if (snap.exists()) { 
+            await remove(likeRef); 
+        } else { 
+            await set(likeRef, true); 
         }
     }
     const commentBtn = e.target.closest('.comment-btn');
     if (commentBtn) document.getElementById(`comments-${commentBtn.dataset.id}`).classList.toggle('visible');
-
+    
     const submitBtn = e.target.closest('.comment-submit-btn');
     if (submitBtn) await submitComment(submitBtn.dataset.id, document.querySelector(`.new-comment-input[data-id="${escapeSelector(submitBtn.dataset.id)}"]`));
 });
@@ -861,7 +791,7 @@ function loadEvents() {
             eventsListContainer.appendChild(el);
         });
         if(isAdmin) document.querySelectorAll('.delete-event-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar evento?")) await remove(ref(db, `events/${e.target.closest('.delete-event-btn').dataset.id}`)); });
-    });
+    }); 
 }
 
 // === GAMES & CHALLENGES (TIC TAC TOE) ===
@@ -891,7 +821,7 @@ function initGame() {
     gameActive = true;
     statusText.textContent = "Tu turno (X)";
     boardEl.innerHTML = '';
-
+    
     for (let i = 0; i < 9; i++) {
         const cell = document.createElement('div');
         cell.className = 'tic-tac-toe-cell';
@@ -1000,7 +930,7 @@ function loadChatContacts() {
             renderInlineStatus(chatContactsList, 'No hay usuarios registrados para iniciar un chat.');
             return;
         }
-
+        
         const users = snapshot.val();
         let contactsHtml = '';
         allContactsCache = [];
@@ -1026,7 +956,7 @@ function loadChatContacts() {
                 </div>
             `;
         });
-
+        
         if (contactsHtml === '') {
             renderInlineStatus(chatContactsList, 'No hay maestros, profesores, acudientes o directivos disponibles.');
         } else {
@@ -1060,17 +990,6 @@ function getChatId(uid1, uid2) {
     return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
 }
 
-function getFallbackChatId(uid1, uid2) {
-    return `v2_${getChatId(uid1, uid2)}`;
-}
-
-async function prepareChatParticipants(chatId, targetUid) {
-    await update(ref(db, `chats/${chatId}/participants`), {
-        [currentUser.uid]: true,
-        [targetUid]: true
-    });
-}
-
 async function openChat(targetUid) {
     if (!canUseTeacherChat()) {
         alert('El chat está disponible solo para maestros, profesores, acudientes y administradores.');
@@ -1098,21 +1017,19 @@ async function openChat(targetUid) {
     chatActiveRole.className = `badge ${getRoleClass(targetUser.role)}`;
 
     activeChatId = getChatId(currentUser.uid, targetUid);
-
+    
     if (activeChatListener) activeChatListener();
-
+    
     try {
-        await prepareChatParticipants(activeChatId, targetUid);
-    } catch (error) {
-        console.warn('No se pudo preparar el chat principal, intentando chat alterno:', error);
-        activeChatId = getFallbackChatId(currentUser.uid, targetUid);
-        try {
-            await prepareChatParticipants(activeChatId, targetUid);
-        } catch (fallbackError) {
-            console.error('No se pudo preparar el chat:', fallbackError);
-            renderInlineStatus(conversationMessages, 'No se pudo abrir el chat. Revisa las reglas de Firebase para permitir leer y escribir chats.');
-            return;
+        const participantsRef = ref(db, `chats/${activeChatId}/participants`);
+        const pSnap = await get(participantsRef);
+        if (!pSnap.exists()) {
+            await set(participantsRef, { [currentUser.uid]: true, [targetUid]: true });
         }
+    } catch (error) {
+        console.error('No se pudo preparar el chat:', error);
+        renderInlineStatus(conversationMessages, 'No se pudo abrir el chat. Revisa las reglas de Firebase para permitir leer y escribir chats.');
+        return;
     }
 
     const messagesRef = ref(db, `chats/${activeChatId}/messages`);
@@ -1122,36 +1039,34 @@ async function openChat(targetUid) {
             renderInlineStatus(conversationMessages, 'TodavÃ­a no hay mensajes. Escribe el primero.');
             return;
         }
-
+        
         const msgs = Object.values(snapshot.val()).sort((a,b) => a.timestamp - b.timestamp);
         const messagesHtml = [];
         let lastDateLabel = '';
 
         msgs.forEach(msg => {
-            const messageSenderId = getChatMessageSenderId(msg);
-            const isMine = messageSenderId === auth.currentUser?.uid;
-            const msgClass = isMine ? 'sent' : 'received';
+            const isMe = msg.sender === currentUser.uid;
             const dateLabel = formatChatDate(msg.timestamp);
             const timeStr = formatChatTime(msg.timestamp);
-            const senderName = isMine ? '' : getChatSenderName(msg, targetUser, isMine);
-            const senderHtml = isMine ? '' : `<span class="msg-sender">${escapeHTML(senderName)}</span>`;
+            const senderName = getChatSenderName(msg, targetUser, isMe);
+            const safeSender = escapeHTML(isMe ? 'TÃº' : senderName);
             const safeText = escapeHTML(msg.text);
 
             if (dateLabel !== lastDateLabel) {
                 messagesHtml.push(`<div class="chat-date-divider"><span>${escapeHTML(dateLabel)}</span></div>`);
                 lastDateLabel = dateLabel;
             }
-
+            
             messagesHtml.push(`
-                <div class="chat-msg ${msgClass}">
-                    ${senderHtml}
+                <div class="chat-msg ${isMe ? 'sent' : 'received'}">
+                    <span class="msg-sender">${safeSender}</span>
                     <div class="msg-bubble">${safeText}</div>
                     <span class="msg-time">${timeStr}</span>
                 </div>
             `);
         });
         conversationMessages.innerHTML = messagesHtml.join('');
-
+        
         setTimeout(() => {
             conversationMessages.scrollTop = conversationMessages.scrollHeight;
         }, 100);
@@ -1174,26 +1089,21 @@ if (chatMessageInput) {
 async function sendChatMessage() {
     const text = chatMessageInput.value.trim();
     if (!text || !activeChatId || !canUseTeacherChat()) return;
-
+    
     chatMessageInput.value = '';
     sendMessageBtn.disabled = true;
-    const timestamp = Date.now();
-    const messageRef = push(ref(db, `chats/${activeChatId}/messages`));
     const msgData = {
-        senderId: currentUser.uid,
         sender: currentUser.uid,
         senderName: currentUser.displayName || 'Usuario',
         senderRole: userRole || (isAdmin ? 'admin' : ''),
         text: text,
-        timestamp
+        timestamp: Date.now()
     };
-
+    
     try {
-        await update(ref(db), {
-            [`chats/${activeChatId}/messages/${messageRef.key}`]: msgData,
-            [`chats/${activeChatId}/lastMessage`]: text,
-            [`chats/${activeChatId}/lastTimestamp`]: timestamp
-        });
+        await set(push(ref(db, `chats/${activeChatId}/messages`)), msgData);
+        await set(ref(db, `chats/${activeChatId}/lastMessage`), text);
+        await set(ref(db, `chats/${activeChatId}/lastTimestamp`), Date.now());
     } catch (error) {
         console.error('No se pudo enviar el mensaje:', error);
         chatMessageInput.value = text;
@@ -1287,7 +1197,6 @@ function renderAdminUsers(filter = '') {
             <div class="admin-user-action">
                 <select class="text-input role-select" data-uid="${safeUid}" data-current-role="${safeRole}">
                     <option value="estudiante" ${role === 'estudiante' ? 'selected' : ''}>Estudiante</option>
-                    <option value="maestro" ${role === 'maestro' ? 'selected' : ''}>Maestro</option>
                     <option value="profesor" ${role === 'profesor' ? 'selected' : ''}>Profesor</option>
                     <option value="padre" ${role === 'padre' ? 'selected' : ''}>Padre</option>
                     <option value="acudiente" ${role === 'acudiente' ? 'selected' : ''}>Acudiente</option>
@@ -1325,23 +1234,9 @@ document.querySelectorAll('.btn-primary').forEach(btn => {
     });
 });
 
-let lastScrollY = window.scrollY;
-
 window.addEventListener('scroll', () => {
     const header = document.querySelector('.header');
-    if (!header) return;
-
-    const currentScrollY = window.scrollY;
-    const isScrollingDown = currentScrollY > lastScrollY + 6;
-    const isScrollingUp = currentScrollY < lastScrollY - 6;
-
-    header.classList.toggle('scrolled', currentScrollY > 20);
-
-    if (currentScrollY <= 20 || isScrollingUp) {
-        header.classList.remove('header-hidden');
-    } else if (isScrollingDown && currentScrollY > 80) {
-        header.classList.add('header-hidden');
+    if (header) {
+        header.classList.toggle('scrolled', window.scrollY > 20);
     }
-
-    lastScrollY = Math.max(currentScrollY, 0);
-}, { passive: true });
+});
