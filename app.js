@@ -159,18 +159,28 @@ let activeChatListener = null;
 let chatContactsListener = null;
 let allContactsCache = [];
 let allAdminUsersCache = [];
+let allRoleRequestsCache = {};
 let hasResolvedInitialAuth = false;
 let isLoginInProgress = false;
 let pendingAndroidFcmToken = null;
 let androidGoogleSignInTimeout = null;
+// 'maestro' se mantiene aquí solo por compatibilidad con cuentas antiguas que ya
+// tenían ese rol guardado en la base de datos. Ya no se puede elegir desde el menú.
 const TEACHER_CHAT_ROLES = ['maestro', 'profesor', 'padre', 'acudiente', 'directivo'];
+// Roles que un usuario puede elegir sin aprobación (autoservicio, riesgo bajo).
+const SELF_SERVICE_ROLES = ['estudiante'];
+// Roles que requieren aprobación de un administrador antes de activarse.
+const RESTRICTED_ROLES = ['profesor', 'padre', 'directivo'];
 
 function normalizeRole(role) {
     return (role || '').toString().toLowerCase();
 }
 
 function getRoleClass(role) {
-    return normalizeRole(role).replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'sin-rol';
+    const normalized = normalizeRole(role);
+    // Cuentas antiguas con rol "maestro" se muestran/agrupan visualmente como "profesor".
+    const merged = normalized === 'maestro' ? 'profesor' : normalized;
+    return merged.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'sin-rol';
 }
 
 function canUseTeacherChat(role = userRole) {
@@ -184,9 +194,9 @@ function isTeacherChatContactRole(role) {
 function formatRoleLabel(role) {
     const labels = {
         estudiante: 'Estudiante',
-        maestro: 'Maestro',
+        maestro: 'Profesor', // alias heredado: se etiqueta igual que "profesor"
         profesor: 'Profesor',
-        padre: 'Padre',
+        padre: 'Padre de familia',
         acudiente: 'Acudiente',
         directivo: 'Directivo'
     };
@@ -547,15 +557,69 @@ async function completeLogin() {
     loadNews();
     loadReports();
     loadEvents();
+
+    checkPendingRoleRequest();
+}
+
+async function checkPendingRoleRequest() {
+    const banner = document.getElementById('pending-role-banner');
+    if (!banner || !currentUser) return;
+    try {
+        const snap = await get(ref(db, `roleRequests/${currentUser.uid}`));
+        if (snap.exists() && snap.val().status === 'pending') {
+            banner.textContent = `Tu solicitud para ser ${formatRoleLabel(snap.val().requestedRole)} está pendiente de aprobación por un administrador.`;
+            banner.style.display = 'flex';
+        } else {
+            banner.style.display = 'none';
+        }
+    } catch (error) {
+        // Si no hay permisos o no existe, simplemente no se muestra el aviso.
+        banner.style.display = 'none';
+    }
 }
 
 // Role Selection Event Listeners
 document.querySelectorAll('.role-card').forEach(card => {
     card.addEventListener('click', async () => {
         const selectedRole = card.dataset.role;
-        await set(ref(db, `users/${currentUser.uid}/role`), selectedRole);
-        userRole = selectedRole;
-        completeLogin();
+        const originalHTML = card.innerHTML;
+        card.style.pointerEvents = 'none';
+        card.style.opacity = '0.6';
+
+        try {
+            if (SELF_SERVICE_ROLES.includes(selectedRole)) {
+                // Estudiante: bajo riesgo, se activa al instante.
+                await set(ref(db, `users/${currentUser.uid}/role`), selectedRole);
+                userRole = selectedRole;
+                completeLogin();
+                return;
+            }
+
+            if (RESTRICTED_ROLES.includes(selectedRole)) {
+                // Profesor / Padre de familia / Directivo: requieren aprobación de un admin.
+                // Mientras tanto, la cuenta queda como Estudiante (acceso mínimo) y
+                // las reglas de Firebase solo permiten que el propio usuario se
+                // asigne 'estudiante', nunca un rol elevado directamente.
+                await set(ref(db, `users/${currentUser.uid}/role`), 'estudiante');
+                await set(ref(db, `roleRequests/${currentUser.uid}`), {
+                    name: currentUser.displayName || '',
+                    email: currentUser.email || '',
+                    requestedRole: selectedRole,
+                    status: 'pending',
+                    requestedAt: Date.now()
+                });
+                userRole = 'estudiante';
+                alert(`Tu solicitud para ser ${formatRoleLabel(selectedRole)} fue enviada. Mientras un administrador la aprueba, tendrás acceso como Estudiante.`);
+                completeLogin();
+                return;
+            }
+        } catch (error) {
+            console.error(error);
+            alert('No se pudo procesar tu selección de rol. Intenta de nuevo.');
+            card.innerHTML = originalHTML;
+            card.style.pointerEvents = '';
+            card.style.opacity = '';
+        }
     });
 });
 
@@ -1227,6 +1291,10 @@ if (adminUserSearchInput) {
 
 function loadAllUsersForAdmin() {
     if (!isAdmin) return;
+    onValue(ref(db, 'roleRequests'), (snapshot) => {
+        allRoleRequestsCache = snapshot.exists() ? snapshot.val() : {};
+        renderAdminUsers(adminUserSearchInput ? adminUserSearchInput.value : '');
+    });
     onValue(ref(db, 'users'), (snapshot) => {
         if (!snapshot.exists()) {
             allAdminUsersCache = [];
@@ -1271,6 +1339,10 @@ function renderAdminUsers(filter = '') {
         const email = escapeHTML(user.email || 'Sin correo');
         const safeUid = escapeAttribute(user.uid);
         const safeRole = escapeAttribute(role);
+        const pendingRequest = allRoleRequestsCache && allRoleRequestsCache[user.uid] && allRoleRequestsCache[user.uid].status === 'pending'
+            ? allRoleRequestsCache[user.uid]
+            : null;
+
         const el = document.createElement('div');
         el.className = 'admin-user-item';
         el.innerHTML = `
@@ -1283,17 +1355,23 @@ function renderAdminUsers(filter = '') {
             </div>
             <div class="admin-user-role">
                 <span class="badge ${roleKey}">${formatRoleLabel(role)}</span>
+                ${role === 'maestro' ? '<p class="admin-legacy-hint">Rol antiguo "Maestro": vuelve a asignarlo como Profesor cuando puedas.</p>' : ''}
             </div>
             <div class="admin-user-action">
                 <select class="text-input role-select" data-uid="${safeUid}" data-current-role="${safeRole}">
                     <option value="estudiante" ${role === 'estudiante' ? 'selected' : ''}>Estudiante</option>
-                    <option value="maestro" ${role === 'maestro' ? 'selected' : ''}>Maestro</option>
-                    <option value="profesor" ${role === 'profesor' ? 'selected' : ''}>Profesor</option>
-                    <option value="padre" ${role === 'padre' ? 'selected' : ''}>Padre</option>
+                    <option value="profesor" ${(role === 'profesor' || role === 'maestro') ? 'selected' : ''}>Profesor</option>
+                    <option value="padre" ${role === 'padre' ? 'selected' : ''}>Padre de familia</option>
                     <option value="acudiente" ${role === 'acudiente' ? 'selected' : ''}>Acudiente</option>
                     <option value="directivo" ${role === 'directivo' ? 'selected' : ''}>Directivo</option>
                 </select>
             </div>
+            ${pendingRequest ? `
+            <div class="admin-user-request">
+                <span class="badge warning">Solicita: ${formatRoleLabel(pendingRequest.requestedRole)}</span>
+                <button class="btn-small btn-approve" data-uid="${safeUid}" data-role="${escapeAttribute(pendingRequest.requestedRole)}">Aprobar</button>
+                <button class="btn-small btn-reject" data-uid="${safeUid}">Rechazar</button>
+            </div>` : ''}
         `;
         adminUsersList.appendChild(el);
     });
@@ -1305,9 +1383,29 @@ function renderAdminUsers(filter = '') {
             const previousRole = e.target.dataset.currentRole;
             if(confirm(`¿Cambiar rol a ${formatRoleLabel(newRole)}?`)) {
                 await set(ref(db, `users/${uid}/role`), newRole);
+                // Si tenía una solicitud pendiente, queda resuelta al cambiar el rol manualmente.
+                await set(ref(db, `roleRequests/${uid}/status`), 'approved').catch(() => {});
             } else {
                 e.target.value = previousRole;
             }
+        });
+    });
+
+    document.querySelectorAll('.btn-approve').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const uid = btn.dataset.uid;
+            const requestedRole = btn.dataset.role;
+            if (!confirm(`¿Aprobar a este usuario como ${formatRoleLabel(requestedRole)}?`)) return;
+            await set(ref(db, `users/${uid}/role`), requestedRole);
+            await set(ref(db, `roleRequests/${uid}/status`), 'approved');
+        });
+    });
+
+    document.querySelectorAll('.btn-reject').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const uid = btn.dataset.uid;
+            if (!confirm('¿Rechazar esta solicitud? El usuario seguirá como Estudiante.')) return;
+            await set(ref(db, `roleRequests/${uid}/status`), 'rejected');
         });
     });
 }
