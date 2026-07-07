@@ -87,6 +87,7 @@ const headerUsername = document.getElementById('header-username');
 // Profile
 const profileBtn = document.getElementById('profile-btn');
 const profilePopover = document.getElementById('profile-popover');
+const profileBackBtn = document.getElementById('profile-back-btn');
 
 const postsContainer = document.getElementById('posts-container');
 const newsContainer = document.getElementById('news-container');
@@ -339,15 +340,42 @@ document.documentElement.setAttribute('data-theme', 'dark');
 localStorage.setItem('theme', 'dark');
 
 // === PROFILE POPOVER LOGIC ===
+function openProfilePopover() {
+    profilePopover.classList.add('active');
+    document.body.classList.add('profile-menu-open');
+    updateProfileStats();
+}
+
+function closeProfilePopover() {
+    profilePopover.classList.remove('active');
+    document.body.classList.remove('profile-menu-open');
+}
+
 profileBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    profilePopover.classList.toggle('active');
-    updateProfileStats();
+    if (profilePopover.classList.contains('active')) {
+        closeProfilePopover();
+    } else {
+        openProfilePopover();
+    }
 });
+
+if (profileBackBtn) {
+    profileBackBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeProfilePopover();
+    });
+}
 
 document.addEventListener('click', (e) => {
     if (!profilePopover.contains(e.target) && !profileBtn.contains(e.target)) {
-        profilePopover.classList.remove('active');
+        closeProfilePopover();
+    }
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && profilePopover.classList.contains('active')) {
+        closeProfilePopover();
     }
 });
 
@@ -372,6 +400,24 @@ function updateProfileStats() {
 
     const creationTime = new Date(currentUser.metadata.creationTime);
     document.getElementById('popover-date').textContent = creationTime.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+    const lastLogin = currentUser.metadata.lastSignInTime ? new Date(currentUser.metadata.lastSignInTime) : null;
+    const roleEl = document.getElementById('popover-role');
+    if (roleEl) {
+        roleEl.textContent = formatRoleLabel(userRole);
+        roleEl.className = `badge ${getRoleClass(userRole)}`;
+    }
+    const lastLoginEl = document.getElementById('popover-last-login');
+    if (lastLoginEl) {
+        lastLoginEl.textContent = lastLogin
+            ? lastLogin.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })
+            : 'No disponible';
+    }
+    const adminStateEl = document.getElementById('popover-admin-state');
+    if (adminStateEl) adminStateEl.textContent = isAdmin ? 'Administrador' : 'Usuario regular';
+    const chatAccessEl = document.getElementById('popover-chat-access');
+    if (chatAccessEl) chatAccessEl.textContent = canUseTeacherChat() ? 'Disponible' : 'No disponible para tu rol';
+    const uidEl = document.getElementById('popover-uid');
+    if (uidEl) uidEl.textContent = currentUser.uid;
 }
 
 // === AUTHENTICATION ===
@@ -459,7 +505,7 @@ onAuthStateChanged(auth, async (user) => {
         allContactsCache = [];
         showLoginScreen();
         roleSelectionScreen.classList.remove('active');
-        profilePopover.classList.remove('active');
+        closeProfilePopover();
     }
 });
 
