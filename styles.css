@@ -891,6 +891,35 @@ body.profile-menu-open { overflow: hidden; }
 .admin-legacy-hint { font-size: 10.5px; color: var(--text-muted); margin-top: 4px; }
 .role-card p { font-size: 10px; color: var(--text-muted); line-height: 1.3; }
 
+/* ===== ROLE REQUEST CONFIRMATION MODAL ===== */
+.role-request-modal-content {
+    max-width: 380px;
+    text-align: center;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 34px 26px 26px;
+}
+.role-request-icon {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: var(--primary-gradient);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px; color: white; margin-bottom: 18px;
+    box-shadow: var(--primary-glow-btn);
+    animation: role-request-pop 0.4s cubic-bezier(0.175,0.885,0.32,1.275);
+}
+@keyframes role-request-pop {
+    from { transform: scale(0.5); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+.role-request-title {
+    font-size: 18px; font-weight: 700; color: var(--text-primary);
+    letter-spacing: -0.3px; margin-bottom: 10px;
+}
+.role-request-message {
+    font-size: 13.5px; line-height: 1.55; color: var(--text-secondary);
+    margin-bottom: 22px;
+}
+.role-request-btn { width: 100%; padding: 13px 22px; }
+
 /* ===== CHAT PANEL ===== */
 .chat-panel {
     position: fixed; top: var(--safe-area-top, 0px); right: -420px; width: 400px; max-width: 100%;
