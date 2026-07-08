@@ -101,6 +101,9 @@ const reportModal = document.getElementById('report-modal');
 const eventsViewModal = document.getElementById('events-view-modal');
 const eventCreateModal = document.getElementById('event-create-modal');
 const roleSelectionScreen = document.getElementById('role-selection-screen');
+const roleRequestModal = document.getElementById('role-request-modal');
+const roleRequestModalMessage = document.getElementById('role-request-modal-message');
+const roleRequestModalBtn = document.getElementById('role-request-modal-btn');
 const chatPanel = document.getElementById('chat-panel');
 const adminUsersModal = document.getElementById('admin-users-modal');
 
@@ -578,6 +581,19 @@ async function checkPendingRoleRequest() {
     }
 }
 
+// Muestra el modal de confirmación de solicitud de rol (reemplaza al alert() nativo)
+function showRoleRequestModal(message, onClose) {
+    if (!roleRequestModal) { if (onClose) onClose(); return; }
+    roleRequestModalMessage.textContent = message;
+    roleRequestModal.classList.add('active');
+    const handleClose = () => {
+        roleRequestModal.classList.remove('active');
+        roleRequestModalBtn.removeEventListener('click', handleClose);
+        if (onClose) onClose();
+    };
+    roleRequestModalBtn.addEventListener('click', handleClose);
+}
+
 // Role Selection Event Listeners
 document.querySelectorAll('.role-card').forEach(card => {
     card.addEventListener('click', async () => {
@@ -609,8 +625,7 @@ document.querySelectorAll('.role-card').forEach(card => {
                     requestedAt: Date.now()
                 });
                 userRole = 'estudiante';
-                alert(`Tu solicitud para ser ${formatRoleLabel(selectedRole)} fue enviada. Mientras un administrador la aprueba, tendrás acceso como Estudiante.`);
-                completeLogin();
+                showRoleRequestModal(`Tu solicitud para ser ${formatRoleLabel(selectedRole)} fue enviada. Mientras un administrador la aprueba, tendrás acceso como Estudiante.`, completeLogin);
                 return;
             }
         } catch (error) {
