@@ -615,7 +615,10 @@ document.querySelectorAll('.role-card').forEach(card => {
             }
         } catch (error) {
             console.error(error);
-            alert('No se pudo procesar tu selección de rol. Intenta de nuevo.');
+            const isPermissionError = (error && (error.code === 'PERMISSION_DENIED' || /permission_denied/i.test(error.message || '')));
+            alert(isPermissionError
+                ? 'Firebase rechazó el guardado por permisos (PERMISSION_DENIED). Esto pasa si las reglas de Realtime Database en Firebase todavía no incluyen el nodo "roleRequests". Actualiza las reglas en la consola de Firebase y vuelve a intentar.'
+                : `No se pudo procesar tu selección de rol: ${error && error.message ? error.message : 'error desconocido'}. Intenta de nuevo.`);
             card.innerHTML = originalHTML;
             card.style.pointerEvents = '';
             card.style.opacity = '';
