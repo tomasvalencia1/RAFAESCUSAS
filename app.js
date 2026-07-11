@@ -744,7 +744,6 @@ document.getElementById('publish-post-btn').addEventListener('click', async (e) 
 
 function loadPosts() {
     onValue(ref(db, 'posts'), (snapshot) => {
-        postsContainer.innerHTML = '';
         if (!snapshot.exists()) {
             postsContainer.innerHTML = '<div class="glass-card loading-spinner">No hay publicaciones aún.</div>';
             allPostsCache = [];
@@ -754,7 +753,13 @@ function loadPosts() {
         const postsArray = Object.entries(snapshot.val()).map(([id, data]) => ({id, ...data})).sort((a,b) => b.timestamp - a.timestamp);
         allPostsCache = postsArray;
 
-        postsArray.forEach(post => {
+        const loadingSpinner = postsContainer.querySelector('.loading-spinner');
+        if (loadingSpinner) loadingSpinner.remove();
+
+        const currentIds = new Set();
+
+        postsArray.forEach((post, index) => {
+            currentIds.add(post.id);
             const minutesAgo = Math.floor((Date.now() - post.timestamp) / 60000);
             const timeStr = minutesAgo < 60 ? `Hace ${minutesAgo} min` : (minutesAgo < 1440 ? `Hace ${Math.floor(minutesAgo/60)} horas` : `Hace ${Math.floor(minutesAgo/1440)} días`);
 
@@ -766,7 +771,7 @@ function loadPosts() {
             const postContent = escapeHTML(post.content);
             const postImageSrc = safeImageSrc(post.imageBase64, '');
 
-            const imageHtml = postImageSrc ? `<img src="${escapeAttribute(postImageSrc)}" alt="Imagen adjunta" class="post-image-full">` : '';
+            const imageHtml = postImageSrc ? `<img src="${escapeAttribute(postImageSrc)}" loading="lazy" alt="Imagen adjunta" class="h-full w-full object-cover transition duration-500 hover:scale-105">` : '';
 
             const commentsHtml = post.comments ? Object.values(post.comments).map(c => {
                 const commentId = Object.keys(post.comments).find(key => post.comments[key] === c);
@@ -775,43 +780,117 @@ function loadPosts() {
                 const commentAuthor = escapeHTML(c.authorName || 'Usuario');
                 const commentText = escapeHTML(c.text);
                 return `
-                <div class="comment">
-                    <img src="${commentAvatar}" class="avatar" alt="Avatar">
-                    <div class="comment-content">
-                        <div class="comment-text-group">
-                            <strong>${commentAuthor}</strong>${commentText}
+                <div class="flex gap-3 group/comment">
+                    <img src="${commentAvatar}" class="w-8 h-8 rounded-full object-cover shrink-0 ring-1 ring-border/50" alt="Avatar">
+                    <div class="flex-1">
+                        <div class="bg-muted/50 rounded-2xl rounded-tl-sm px-4 py-2 text-[14px] shadow-sm">
+                            <strong class="block font-semibold mb-0.5 text-foreground text-xs">${commentAuthor}</strong>
+                            <span class="text-foreground/90 leading-relaxed">${commentText}</span>
                         </div>
-                        ${isAdmin ? `<button class="action-btn delete-comment-btn" data-post-id="${postId}" data-comment-id="${safeCommentId}"><i class='bx bx-x'></i></button>` : ''}
                     </div>
+                    ${isAdmin ? `<button class="delete-comment-btn opacity-0 group-hover/comment:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted" data-post-id="${postId}" data-comment-id="${safeCommentId}"><i data-lucide="x" class="w-4 h-4"></i></button>` : ''}
                 </div>`;
             }).join('') : '';
 
-            const postEl = document.createElement('article');
-            postEl.className = 'post-card';
-            postEl.innerHTML = `
-                <div class="post-header">
-                    <div class="user-info">
-                        <img src="${authorAvatar}" alt="Avatar" class="avatar">
-                        <div class="user-details"><span class="username">${authorName}</span><span class="post-meta">${timeStr}</span></div>
+            let postEl = postsContainer.querySelector(`article[data-id="${postId}"]`);
+            
+            if (postEl) {
+                // Actualizar elementos existentes para evitar parpadeo
+                const likeBtn = postEl.querySelector('.like-btn');
+                if (likeBtn) {
+                    likeBtn.className = `like-btn inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 px-3 gap-2 ${myLike ? 'text-rose-500' : 'text-muted-foreground'}`;
+                    const heartIcon = likeBtn.querySelector('i');
+                    if (heartIcon) heartIcon.className = `w-4 h-4 ${myLike ? 'fill-current' : ''} transition-transform duration-300`;
+                    const likesCountEl = likeBtn.querySelector('.likes-count');
+                    if (likesCountEl) likesCountEl.textContent = likesCount;
+                }
+                
+                const commentBtn = postEl.querySelector('.comment-btn');
+                if (commentBtn) {
+                    commentBtn.innerHTML = `<i data-lucide="message-circle" class="w-4 h-4"></i> ${post.comments ? Object.keys(post.comments).length : 0}`;
+                }
+
+                const commentsSec = postEl.querySelector('.comments-section');
+                if (commentsSec) {
+                    const commentsContainer = commentsSec.querySelector('.flex.flex-col');
+                    if (commentsContainer && commentsContainer.innerHTML !== commentsHtml) {
+                        commentsContainer.innerHTML = commentsHtml;
+                    }
+                }
+                
+                const timeEl = postEl.querySelector('.text-\\[11px\\]\\.text-muted-foreground');
+                if (timeEl) timeEl.textContent = timeStr;
+
+                if (postsContainer.children[index] !== postEl) {
+                    postsContainer.insertBefore(postEl, postsContainer.children[index]);
+                }
+            } else {
+                // Crear nueva publicacion
+                postEl = document.createElement('article');
+                postEl.dataset.id = postId;
+                postEl.className = 'glass rounded-xl overflow-hidden mb-4 shadow-sm hover:shadow-xl transition-all duration-500 ease-out translate-y-4 opacity-0 border-transparent';
+                
+                setTimeout(() => {
+                    postEl.classList.remove('translate-y-4', 'opacity-0');
+                    postEl.classList.add('translate-y-0', 'opacity-100');
+                }, 50);
+
+                postEl.innerHTML = `
+                    <div class="p-4">
+                        <header class="flex items-center gap-3">
+                            <img src="${authorAvatar}" alt="Avatar" class="h-10 w-10 rounded-full object-cover ring-2 ring-primary/20">
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="truncate text-sm font-semibold text-foreground">${authorName}</span>
+                                    ${post.author && post.author.role ? `<span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 capitalize">${escapeHTML(post.author.role)}</span>` : ''}
+                                </div>
+                                <div class="text-[11px] text-muted-foreground">
+                                    ${timeStr}
+                                </div>
+                            </div>
+                            ${isAdmin ? `<button class="delete-post-btn inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-destructive h-9 w-9 text-muted-foreground" data-id="${postId}"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                        </header>
+                        
+                        ${post.content ? `<p class="mt-3 whitespace-pre-wrap text-[15px] leading-relaxed text-foreground/90">${postContent}</p>` : ''}
+                        
+                        ${postImageSrc ? `<div class="mt-3 overflow-hidden rounded-2xl bg-muted/20 ring-1 ring-border"><img src="${escapeAttribute(postImageSrc)}" loading="lazy" alt="Imagen adjunta" class="h-full w-full object-cover transition duration-500 hover:scale-105"></div>` : ''}
+                        
+                        <div class="mt-4 flex items-center gap-1 border-t border-border pt-2">
+                            <button class="like-btn inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 px-3 gap-2 ${myLike ? 'text-rose-500' : 'text-muted-foreground'}" data-id="${postId}">
+                                <i data-lucide="heart" class="w-4 h-4 ${myLike ? 'fill-current' : ''} transition-transform duration-300"></i>
+                                <span class="likes-count">${likesCount}</span>
+                            </button>
+                            <button class="comment-btn inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 px-3 gap-2 text-muted-foreground" data-id="${postId}">
+                                <i data-lucide="message-circle" class="w-4 h-4"></i>
+                                ${post.comments ? Object.keys(post.comments).length : 0}
+                            </button>
+                        </div>
+
+                        <div class="comments-section overflow-hidden transition-all duration-300 mt-0 max-h-0 opacity-0" id="comments-${postId}">
+                            <div class="flex flex-col gap-4 mt-4 mb-4">${commentsHtml}</div>
+                            <div class="flex items-center gap-2 mt-2">
+                                <input type="text" placeholder="Escribe un comentario..." class="new-comment-input flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" data-id="${postId}">
+                                <button class="comment-submit-btn inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 shrink-0" data-id="${postId}"><i data-lucide="send" class="w-4 h-4"></i></button>
+                            </div>
+                        </div>
                     </div>
-                    ${isAdmin ? `<button class="action-btn delete-post-btn" data-id="${postId}"><i class='bx bx-trash'></i></button>` : ''}
-                </div>
-                ${post.content ? `<div class="post-content">${postContent}</div>` : ''}
-                ${imageHtml}
-                <div class="post-actions">
-                    <button class="action-btn like-btn ${myLike?'liked':''}" data-id="${postId}"><i class='bx ${myLike?'bxs-heart':'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button>
-                    <button class="action-btn comment-btn" data-id="${postId}"><i class='bx bx-message-rounded'></i>${post.comments ? Object.keys(post.comments).length : 0}</button>
-                </div>
-                <div class="comments-section" id="comments-${postId}">
-                    <div class="comments-list">${commentsHtml}</div>
-                    <div class="comment-input-area">
-                        <input type="text" placeholder="Escribe un comentario..." class="new-comment-input" data-id="${postId}">
-                        <button class="comment-submit-btn" data-id="${postId}"><i class='bx bxs-send'></i></button>
-                    </div>
-                </div>
-            `;
-            postsContainer.appendChild(postEl);
+                `;
+                
+                if (postsContainer.children[index]) {
+                    postsContainer.insertBefore(postEl, postsContainer.children[index]);
+                } else {
+                    postsContainer.appendChild(postEl);
+                }
+            }
         });
+
+        Array.from(postsContainer.children).forEach(child => {
+            if (child.dataset && child.dataset.id && !currentIds.has(child.dataset.id)) {
+                child.remove();
+            }
+        });
+
+        if (window.lucide) window.lucide.createIcons();
     });
 }
 
@@ -840,7 +919,16 @@ postsContainer.addEventListener('click', async (e) => {
         }
     }
     const commentBtn = e.target.closest('.comment-btn');
-    if (commentBtn) document.getElementById(`comments-${commentBtn.dataset.id}`).classList.toggle('visible');
+    if (commentBtn) {
+        const commentsSec = document.getElementById(`comments-${commentBtn.dataset.id}`);
+        if(commentsSec.classList.contains('max-h-0')) {
+            commentsSec.classList.remove('max-h-0', 'opacity-0');
+            commentsSec.classList.add('max-h-[1000px]', 'opacity-100', 'mt-4');
+        } else {
+            commentsSec.classList.add('max-h-0', 'opacity-0');
+            commentsSec.classList.remove('max-h-[1000px]', 'opacity-100', 'mt-4');
+        }
+    }
 
     const submitBtn = e.target.closest('.comment-submit-btn');
     if (submitBtn) await submitComment(submitBtn.dataset.id, document.querySelector(`.new-comment-input[data-id="${escapeSelector(submitBtn.dataset.id)}"]`));
@@ -874,11 +962,20 @@ function loadNews() {
         if (!snapshot.exists()) { newsContainer.innerHTML = '<p style="color:var(--text-muted);font-size:14px;">No hay noticias.</p>'; return; }
         const arr = Object.entries(snapshot.val()).map(([id, d]) => ({id, ...d})).sort((a,b)=>b.timestamp-a.timestamp);
         arr.forEach(item => {
-            const el = document.createElement('div'); el.className = 'news-item';
+            const el = document.createElement('div'); el.className = 'group flex gap-3 pb-3 border-b border-border/50 last:border-0 last:pb-0';
             const itemId = escapeAttribute(item.id);
             const title = escapeHTML(item.title);
             const desc = escapeHTML(item.desc);
-            el.innerHTML = `${isAdmin ? `<button class="delete-news-btn" data-id="${itemId}"><i class='bx bx-trash'></i></button>` : ''}<h3>${title}</h3><p>${desc}</p>`;
+            el.innerHTML = `
+                <div class="w-1 h-auto gradient-brand rounded-full shrink-0"></div>
+                <div class="flex-1">
+                    <h3 class="font-bold text-sm text-foreground mb-0.5 pr-6 relative">
+                        ${title}
+                        ${isAdmin ? `<button class="delete-news-btn absolute right-0 top-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity" data-id="${itemId}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>` : ''}
+                    </h3>
+                    <p class="text-xs text-muted-foreground line-clamp-2 leading-relaxed">${desc}</p>
+                </div>
+            `;
             newsContainer.appendChild(el);
         });
         if(isAdmin) document.querySelectorAll('.delete-news-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar noticia?")) await remove(ref(db, `news/${e.currentTarget.dataset.id}`)); });
@@ -900,15 +997,15 @@ function loadReports() {
         if (!snapshot.exists()) { reportsContainer.innerHTML = '<p style="color:var(--text-muted);font-size:14px;">Sin reportes.</p>'; return; }
         const arr = Object.entries(snapshot.val()).map(([id, d]) => ({id, ...d})).sort((a,b)=>b.timestamp-a.timestamp);
         arr.forEach(item => {
-            const statusClass = item.status === 'Disponible' ? 'success' : 'warning';
-            const el = document.createElement('div'); el.className = 'report-item';
+            const statusClass = item.status === 'Disponible' ? 'bg-emerald-500/15 text-emerald-600' : 'bg-warning-amber/15 text-warning-amber';
+            const el = document.createElement('div'); el.className = 'flex items-center justify-between bg-muted/50 rounded-xl p-3 hover:bg-muted transition-colors group';
             const itemId = escapeAttribute(item.id);
             const title = escapeHTML(item.title);
             const status = escapeHTML(item.status);
-            el.innerHTML = `<div class="report-info"><i class='bx bx-check-square'></i><span>${title}</span></div>
-                            <div style="display:flex;align-items:center;gap:10px;">
-                                <span class="badge ${statusClass}">${status}</span>
-                                ${isAdmin ? `<i class='bx bx-trash delete-report-btn' data-id="${itemId}" style="color:red;cursor:pointer;font-size:18px;"></i>` : ''}
+            el.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i data-lucide="file-text" class="w-4 h-4 text-muted-foreground shrink-0"></i><span class="text-sm font-medium text-foreground truncate">${title}</span></div>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide uppercase ${statusClass}">${status}</span>
+                                ${isAdmin ? `<button class="delete-report-btn text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity" data-id="${itemId}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>` : ''}
                             </div>`;
             reportsContainer.appendChild(el);
         });
@@ -931,18 +1028,27 @@ function loadEvents() {
         if (!snapshot.exists()) { eventsListContainer.innerHTML = '<p style="color:var(--text-muted);text-align:center;">No hay próximos eventos programados.</p>'; return; }
         const arr = Object.entries(snapshot.val()).map(([id, d]) => ({id, ...d})).sort((a,b)=> new Date(a.date) - new Date(b.date));
         arr.forEach(item => {
-            const el = document.createElement('div'); el.className = 'event-item';
-            const formattedDate = new Date(item.date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'long' });
+            const el = document.createElement('div'); el.className = 'flex gap-3 group items-center';
+            const dObj = new Date(item.date);
+            const day = dObj.getDate();
+            const monthStr = dObj.toLocaleString('es-ES', { month: 'short' }).toUpperCase();
+            
             const itemId = escapeAttribute(item.id);
             const title = escapeHTML(item.title);
-            const dateText = escapeHTML(formattedDate);
             el.innerHTML = `
-                <div class="event-info"><h3>${title}</h3><span class="event-date"><i class='bx bx-calendar'></i> ${dateText}</span></div>
-                ${isAdmin ? `<button class="action-btn delete-event-btn" data-id="${itemId}" style="color:red;"><i class='bx bx-trash'></i></button>` : ''}
+                <div class="w-12 h-12 rounded-xl gradient-brand text-white flex flex-col items-center justify-center shrink-0 shadow-md">
+                    <span class="text-[10px] font-bold opacity-90">${monthStr}</span>
+                    <span class="text-lg font-black leading-none">${day}</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="font-bold text-sm text-foreground truncate">${title}</h3>
+                </div>
+                ${isAdmin ? `<button class="delete-event-btn w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:text-destructive hover:bg-muted opacity-0 group-hover:opacity-100 transition-all shrink-0" data-id="${itemId}"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
             `;
             eventsListContainer.appendChild(el);
         });
         if(isAdmin) document.querySelectorAll('.delete-event-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar evento?")) await remove(ref(db, `events/${e.target.closest('.delete-event-btn').dataset.id}`)); });
+        if (window.lucide) window.lucide.createIcons();
     });
 }
 
@@ -1030,7 +1136,13 @@ function openTeacherChatPanel() {
         alert('El chat está disponible solo para maestros, profesores, acudientes y administradores.');
         return;
     }
-    chatPanel.classList.add('active');
+    chatPanel.classList.remove('opacity-0', 'pointer-events-none');
+    chatPanel.classList.add('opacity-100', 'pointer-events-auto');
+    const inner = document.getElementById('chat-panel-inner');
+    if (inner) {
+        inner.classList.remove('translate-y-8');
+        inner.classList.add('translate-y-0');
+    }
     loadChatContacts();
 }
 
@@ -1056,11 +1168,21 @@ function closeActiveChat() {
     activeChatId = null;
     conversationMessages.innerHTML = '';
     chatMessageInput.value = '';
-    chatConversation.classList.remove('active');
-    chatConversation.style.display = 'none';
-    chatEmptyState.style.display = 'flex';
-    document.querySelectorAll('.contact-item').forEach(item => item.classList.remove('active'));
+    chatConversation.classList.add('hidden', 'md:flex');
+    chatEmptyState.classList.remove('hidden'); chatEmptyState.classList.add('md:flex');
+    document.querySelectorAll('.contact-item').forEach(item => item.classList.remove('bg-muted/50'));
 }
+
+if (closeChatBtn) closeChatBtn.onclick = () => {
+    chatPanel.classList.remove('opacity-100', 'pointer-events-auto');
+    chatPanel.classList.add('opacity-0', 'pointer-events-none');
+    const inner = document.getElementById('chat-panel-inner');
+    if (inner) {
+        inner.classList.remove('translate-y-0');
+        inner.classList.add('translate-y-8');
+    }
+    closeActiveChat();
+};
 
 function loadChatContacts() {
     if (!canUseTeacherChat()) {
@@ -1100,10 +1222,16 @@ function loadChatContacts() {
             const safeName = escapeHTML(userData.name || 'Usuario');
 
             contactsHtml += `
-                <div class="contact-item" data-uid="${safeUid}">
-                    <img src="${avatar}" class="avatar-small" alt="Avatar">
-                    <div class="contact-info">
-                        <div class="contact-name">${safeName} <span class="badge ${role}">${roleLabel}</span></div>
+                <div class="contact-item flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 cursor-pointer transition-colors group" data-uid="${safeUid}">
+                    <div class="relative shrink-0">
+                        <img src="${avatar}" class="w-12 h-12 rounded-full object-cover ring-2 ring-transparent group-hover:ring-primary/20 transition-all" alt="Avatar">
+                        <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 ring-2 ring-background rounded-full"></div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between mb-0.5">
+                            <span class="font-bold text-sm text-foreground truncate">${safeName}</span>
+                        </div>
+                        <span class="text-[11px] text-muted-foreground truncate block">${roleLabel}</span>
                     </div>
                 </div>
             `;
@@ -1165,14 +1293,14 @@ async function openChat(targetUid) {
         return;
     }
 
-    document.querySelectorAll('.contact-item').forEach(item => item.classList.remove('active'));
+    document.querySelectorAll('.contact-item').forEach(item => item.classList.remove('bg-muted/50'));
     const contactItem = document.querySelector(`.contact-item[data-uid="${escapeSelector(targetUid)}"]`);
-    if(contactItem) contactItem.classList.add('active');
+    if(contactItem) contactItem.classList.add('bg-muted/50');
 
-    chatEmptyState.style.display = 'none';
-    chatConversation.style.display = 'flex';
-    chatConversation.classList.add('active');
-    conversationMessages.innerHTML = '<div class="loading-spinner small">Cargando mensajes...</div>';
+    chatEmptyState.classList.add('hidden'); chatEmptyState.classList.remove('md:flex');
+    chatConversation.classList.remove('hidden'); chatConversation.classList.add('flex');
+    conversationMessages.innerHTML = '<div class="flex justify-center p-4 text-primary"><i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i></div>';
+    if (window.lucide) window.lucide.createIcons();
 
     chatActiveAvatar.src = safeImageSrc(targetUser.avatar);
     chatActiveName.textContent = targetUser.name || 'Docente';
@@ -1220,15 +1348,22 @@ async function openChat(targetUid) {
             const safeText = escapeHTML(msg.text);
 
             if (dateLabel !== lastDateLabel) {
-                messagesHtml.push(`<div class="chat-date-divider"><span>${escapeHTML(dateLabel)}</span></div>`);
+                messagesHtml.push(`<div class="flex justify-center my-4"><span class="bg-muted/50 text-muted-foreground px-3 py-1 rounded-full text-[11px] font-medium tracking-wide uppercase shadow-sm">${escapeHTML(dateLabel)}</span></div>`);
                 lastDateLabel = dateLabel;
             }
 
+            const wrapperClass = isMine ? 'flex justify-end' : 'flex justify-start';
+            const bubbleClass = isMine ? 'gradient-brand text-white rounded-2xl rounded-br-sm' : 'bg-muted rounded-2xl rounded-bl-sm';
+            
             messagesHtml.push(`
-                <div class="chat-msg ${msgClass}">
-                    ${senderHtml}
-                    <div class="msg-bubble">${safeText}</div>
-                    <span class="msg-time">${timeStr}</span>
+                <div class="${wrapperClass} mb-2 group/msg">
+                    <div class="flex flex-col max-w-[75%] md:max-w-[65%]">
+                        ${!isMine && senderName ? `<span class="text-[11px] text-muted-foreground ml-2 mb-1">${escapeHTML(senderName)}</span>` : ''}
+                        <div class="px-4 py-2 ${bubbleClass} shadow-sm relative group-hover/msg:shadow-md transition-shadow">
+                            <p class="text-[14px] leading-relaxed whitespace-pre-wrap">${safeText}</p>
+                            <span class="text-[10px] ${isMine ? 'text-white/70' : 'text-muted-foreground/70'} block text-right mt-1.5 opacity-80">${timeStr}</span>
+                        </div>
+                    </div>
                 </div>
             `);
         });
