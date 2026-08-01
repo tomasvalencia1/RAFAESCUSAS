@@ -1461,6 +1461,16 @@ window.addEventListener('scroll', () => {
     if (!header) return;
 
     const currentScrollY = window.scrollY;
+
+    // En Android el encabezado se mantiene siempre anclado bajo la barra de
+    // estado. Evita que reaparezca sobre las publicaciones al deslizar hacia arriba.
+    if (document.body.classList.contains('is-webview')) {
+        header.classList.remove('header-hidden');
+        header.classList.toggle('scrolled', currentScrollY > 20);
+        lastScrollY = Math.max(currentScrollY, 0);
+        return;
+    }
+
     const isScrollingDown = currentScrollY > lastScrollY + 6;
     const isScrollingUp = currentScrollY < lastScrollY - 6;
 
