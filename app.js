@@ -18,6 +18,8 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 const provider = new GoogleAuthProvider();
 const isAndroidDevice = /Android/i.test(navigator.userAgent);
+const isIOSDevice = /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 // WebView Detection for Android Status Bar
 // WebView Detection for Android Status Bar (AVANZADO)
@@ -485,11 +487,18 @@ loginGoogleBtn.addEventListener('click', async () => {
             return;
         }
 
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        if (isMobile) {
-            await signInWithRedirect(auth, provider);
-        } else {
+        // Safari bloquea el almacenamiento de terceros que requiere el flujo
+        // con redirección entre Vercel y firebaseapp.com. El popup se abre
+        // directamente desde el toque del usuario y conserva la sesión al volver.
+        if (isIOSDevice) {
             await signInWithPopup(auth, provider);
+        } else {
+            const isMobile = /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            if (isMobile) {
+                await signInWithRedirect(auth, provider);
+            } else {
+                await signInWithPopup(auth, provider);
+            }
         }
     }
     catch (error) {
