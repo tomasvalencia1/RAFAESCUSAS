@@ -163,7 +163,9 @@ let chatContactsListener = null;
 let allContactsCache = [];
 let allAdminUsersCache = [];
 let allRoleRequestsCache = {};
+const initialAuthLoadingStartedAt = Date.now();
 let hasResolvedInitialAuth = false;
+let initialAuthFinishPromise = null;
 let isLoginInProgress = false;
 let pendingAndroidFcmToken = null;
 let androidGoogleSignInTimeout = null;
@@ -443,13 +445,24 @@ function setLoginButtonLoading(isLoading) {
 }
 
 function finishInitialAuthCheck() {
-    if (hasResolvedInitialAuth) return;
-    hasResolvedInitialAuth = true;
-    authLoadingScreen.classList.remove('active');
+    if (initialAuthFinishPromise) return initialAuthFinishPromise;
+
+    // La comprobación de sesión sigue ocurriendo de inmediato. Este retardo solo
+    // garantiza que la pantalla inicial permanezca visible por cinco segundos.
+    const remainingLoadingTime = Math.max(0, 5000 - (Date.now() - initialAuthLoadingStartedAt));
+    initialAuthFinishPromise = new Promise((resolve) => {
+        setTimeout(() => {
+            hasResolvedInitialAuth = true;
+            authLoadingScreen.classList.remove('active');
+            resolve();
+        }, remainingLoadingTime);
+    });
+
+    return initialAuthFinishPromise;
 }
 
-function showLoginScreen() {
-    finishInitialAuthCheck();
+async function showLoginScreen() {
+    await finishInitialAuthCheck();
     setLoginButtonLoading(false);
     loginScreen.classList.add('active');
     appContainer.style.display = 'none';
@@ -499,7 +512,7 @@ onAuthStateChanged(auth, async (user) => {
             userRole = userSnap.val().role;
             completeLogin();
         } else {
-            finishInitialAuthCheck();
+            await finishInitialAuthCheck();
             loginScreen.classList.remove('active');
             roleSelectionScreen.classList.add('active');
 
@@ -523,7 +536,7 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 async function completeLogin() {
-    finishInitialAuthCheck();
+    await finishInitialAuthCheck();
     setLoginButtonLoading(false);
     roleSelectionScreen.classList.remove('active');
     loginScreen.classList.remove('active');

@@ -26,10 +26,10 @@
     <meta property="twitter:description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Mantente al día con nuestra comunidad.">
     <meta property="twitter:image" content="https://rafaexcusas.vercel.app/logo.png">
     <!-- Módulos de Firebase y Lógica -->
-    <script type="module" src="app.js?v=2"></script>
+    <script type="module" src="app.js?v=3"></script>
     <!-- Estilos y Fuentes -->
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-    <link rel="stylesheet" href="styles.css?v=2">
+    <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body data-theme="dark">
 
@@ -37,7 +37,9 @@
     <div id="auth-loading-screen" class="auth-loading-overlay active">
         <div class="auth-loading-card">
             <img src="logo.png" alt="Logo IE" class="school-logo large" style="width: 76px; height: 76px; object-fit: contain; margin: 0 auto 18px; display: block;">
-            <div class="auth-loading-spinner" aria-hidden="true"></div>
+            <div class="auth-loading-spinner" aria-hidden="true">
+                <span class="auth-loading-spinner-bar"></span>
+            </div>
             <h2>RafaConecta</h2>
             <p>Comprobando sesión...</p>
         </div>

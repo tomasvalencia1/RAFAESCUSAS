@@ -123,18 +123,40 @@ body.is-webview {
     font-size: 14px;
 }
 .auth-loading-spinner {
-    width: 42px;
-    height: 42px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
-    border: 3px solid var(--surface-3);
-    border-top-color: var(--primary);
+    border: 9px solid rgba(255, 250, 242, 0.12);
     margin: 0 auto;
-    animation: authSpin 0.85s linear infinite;
-    box-shadow: 0 0 18px rgba(20,184,166,0.16);
+    position: relative;
+    box-shadow: 0 0 18px rgba(34, 211, 238, 0.12);
 }
 
-@keyframes authSpin {
+.auth-loading-spinner-bar {
+    position: absolute;
+    inset: 0;
+    animation: authSpinnerOrbit 1.1s linear infinite;
+}
+
+.auth-loading-spinner-bar::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 13px;
+    height: 35px;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(180deg, #38bdf8 0%, #1686e7 100%);
+    box-shadow: 0 0 10px rgba(34, 211, 238, 0.48);
+    transform: translate(-50%, -50%) rotate(-28deg);
+}
+
+@keyframes authSpinnerOrbit {
     to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .auth-loading-spinner-bar { animation: none; }
 }
 
 .login-card {
