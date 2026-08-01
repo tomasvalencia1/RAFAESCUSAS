@@ -26,10 +26,10 @@
     <meta property="twitter:description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Mantente al día con nuestra comunidad.">
     <meta property="twitter:image" content="https://rafaexcusas.vercel.app/logo.png">
     <!-- Módulos de Firebase y Lógica -->
-    <script type="module" src="app.js?v=5"></script>
+    <script type="module" src="app.js?v=6"></script>
     <!-- Estilos y Fuentes -->
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body data-theme="dark">
 
@@ -159,6 +159,7 @@
             <aside class="left-sidebar">
                 <nav class="nav-menu glass-card">
                     <a href="#" class="nav-item active" id="nav-home-btn"><i class='bx bxs-home'></i><span>Inicio</span></a>
+                    <a href="#" class="nav-item" id="nav-tasks-btn"><i class='bx bx-calendar-check'></i><span>Mis tareas</span></a>
                     <a href="#" class="nav-item" id="nav-events-btn"><i class='bx bx-calendar-event'></i><span>Eventos</span></a>
                     <a href="#" class="nav-item" id="nav-games-btn"><i class='bx bx-joystick'></i><span>Juegos y Retos</span></a>
                     <a href="#" class="nav-item teacher-chat-only" id="nav-chat-btn"><i class='bx bx-chat'></i><span>Chat Maestro/Acudiente</span></a>
@@ -224,6 +225,10 @@
                 <button class="mobile-nav-item" id="mobile-home-btn" type="button">
                     <i class='bx bxs-home'></i>
                     <span>Inicio</span>
+                </button>
+                <button class="mobile-nav-item" id="mobile-tasks-btn" type="button">
+                    <i class='bx bx-calendar-check'></i>
+                    <span>Tareas</span>
                 </button>
                 <button class="mobile-nav-item teacher-chat-only" id="mobile-chat-btn" type="button">
                     <i class='bx bx-chat'></i>
@@ -341,6 +346,57 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn-primary" id="publish-event-btn">Guardar Evento</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Personal Tasks Calendar -->
+        <div class="modal-overlay" id="tasks-modal">
+            <div class="modal-content task-calendar-modal">
+                <div class="modal-header">
+                    <div class="task-modal-title">
+                        <i class='bx bx-calendar-check'></i>
+                        <div>
+                            <h2>Mis tareas</h2>
+                            <p>Organiza tus fechas de entrega</p>
+                        </div>
+                    </div>
+                    <button class="close-modal-btn" id="close-tasks-btn" aria-label="Cerrar tareas"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="task-calendar-toolbar">
+                    <button class="icon-btn small" id="task-calendar-prev-btn" type="button" aria-label="Mes anterior"><i class='bx bx-chevron-left'></i></button>
+                    <strong id="task-calendar-month-label"></strong>
+                    <button class="icon-btn small" id="task-calendar-next-btn" type="button" aria-label="Mes siguiente"><i class='bx bx-chevron-right'></i></button>
+                </div>
+                <div class="task-calendar-weekdays" aria-hidden="true">
+                    <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
+                </div>
+                <div class="task-calendar-grid" id="task-calendar-grid"></div>
+                <div class="task-list-heading">
+                    <h3 id="task-list-title">Tareas del mes</h3>
+                    <button class="text-action-btn" id="clear-task-date-filter-btn" type="button" hidden>Ver todo el mes</button>
+                </div>
+                <div class="task-list" id="tasks-list"></div>
+                <div class="modal-footer task-calendar-footer">
+                    <button class="btn-primary" id="add-task-btn" type="button"><i class='bx bx-plus'></i> Crear tarea</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Personal Task Modal -->
+        <div class="modal-overlay" id="task-create-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Nueva tarea</h2>
+                    <button class="close-modal-btn" id="close-task-create-btn" aria-label="Cerrar formulario de tarea"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="task-title-input" maxlength="120" placeholder="Ej.: Entregar taller de matematicas" class="text-input">
+                    <label class="task-date-label" for="task-date-input">Fecha de entrega</label>
+                    <input type="date" id="task-date-input" class="text-input">
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-primary" id="save-task-btn" type="button">Guardar tarea</button>
                 </div>
             </div>
         </div>

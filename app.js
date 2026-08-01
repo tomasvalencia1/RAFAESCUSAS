@@ -95,6 +95,11 @@ const postsContainer = document.getElementById('posts-container');
 const newsContainer = document.getElementById('news-container');
 const reportsContainer = document.getElementById('reports-container');
 const eventsListContainer = document.getElementById('events-list-container');
+const taskCalendarGrid = document.getElementById('task-calendar-grid');
+const taskCalendarMonthLabel = document.getElementById('task-calendar-month-label');
+const taskListTitle = document.getElementById('task-list-title');
+const tasksList = document.getElementById('tasks-list');
+const clearTaskDateFilterBtn = document.getElementById('clear-task-date-filter-btn');
 
 // Modals
 const postModal = document.getElementById('post-modal');
@@ -102,6 +107,8 @@ const newsModal = document.getElementById('news-modal');
 const reportModal = document.getElementById('report-modal');
 const eventsViewModal = document.getElementById('events-view-modal');
 const eventCreateModal = document.getElementById('event-create-modal');
+const tasksModal = document.getElementById('tasks-modal');
+const taskCreateModal = document.getElementById('task-create-modal');
 const roleSelectionScreen = document.getElementById('role-selection-screen');
 const roleRequestModal = document.getElementById('role-request-modal');
 const roleRequestModalMessage = document.getElementById('role-request-modal-message');
@@ -145,10 +152,12 @@ const addEventBtn = document.getElementById('add-event-btn');
 
 // Nav & Inputs
 const navEventsBtn = document.getElementById('nav-events-btn');
+const navTasksBtn = document.getElementById('nav-tasks-btn');
 const mobileHomeBtn = document.getElementById('mobile-home-btn');
 const mobileChatBtn = document.getElementById('mobile-chat-btn');
 const mobileOpenModalBtn = document.getElementById('mobile-open-modal-btn');
 const mobileEventsBtn = document.getElementById('mobile-events-btn');
+const mobileTasksBtn = document.getElementById('mobile-tasks-btn');
 const mobileUsersBtn = document.getElementById('mobile-users-btn');
 const studentHiddenEls = document.querySelectorAll('.student-hidden');
 const teacherChatEls = document.querySelectorAll('.teacher-chat-only');
@@ -165,6 +174,10 @@ let chatContactsListener = null;
 let allContactsCache = [];
 let allAdminUsersCache = [];
 let allRoleRequestsCache = {};
+let personalTasksCache = [];
+let personalTasksListener = null;
+let taskCalendarDate = new Date();
+let selectedTaskDate = null;
 const initialAuthLoadingStartedAt = Date.now();
 let hasResolvedInitialAuth = false;
 let initialAuthFinishPromise = null;
@@ -536,8 +549,10 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = null; isAdmin = false; userRole = null; allPostsCache = [];
         if (activeChatListener) { activeChatListener(); activeChatListener = null; }
         if (chatContactsListener) { chatContactsListener(); chatContactsListener = null; }
+        if (personalTasksListener) { personalTasksListener(); personalTasksListener = null; }
         activeChatId = null;
         allContactsCache = [];
+        personalTasksCache = [];
         showLoginScreen();
         roleSelectionScreen.classList.remove('active');
         closeProfilePopover();
@@ -582,6 +597,7 @@ async function completeLogin() {
     loadNews();
     loadReports();
     loadEvents();
+    loadPersonalTasks();
 
     checkPendingRoleRequest();
 }
@@ -967,6 +983,254 @@ function loadEvents() {
         if(isAdmin) document.querySelectorAll('.delete-event-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar evento?")) await remove(ref(db, `events/${e.target.closest('.delete-event-btn').dataset.id}`)); });
     });
 }
+
+// === PERSONAL TASKS ===
+function getLocalDateKey(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function getDateFromKey(dateKey) {
+    const [year, month, day] = (dateKey || '').split('-').map(Number);
+    return new Date(year, month - 1, day);
+}
+
+function formatTaskDate(dateKey) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey || '')) return 'Sin fecha';
+    return getDateFromKey(dateKey).toLocaleDateString('es-CO', {
+        weekday: 'short', day: 'numeric', month: 'short'
+    });
+}
+
+function isTaskInCurrentMonth(task) {
+    const taskDate = getDateFromKey(task.dueDate);
+    return taskDate.getFullYear() === taskCalendarDate.getFullYear() &&
+        taskDate.getMonth() === taskCalendarDate.getMonth();
+}
+
+function loadPersonalTasks() {
+    if (!currentUser) return;
+    if (personalTasksListener) personalTasksListener();
+
+    personalTasksListener = onValue(ref(db, `personalTasks/${currentUser.uid}`), (snapshot) => {
+        personalTasksCache = snapshot.exists()
+            ? Object.entries(snapshot.val()).map(([id, task]) => ({ id, ...task }))
+            : [];
+        renderPersonalTasks();
+    }, (error) => {
+        console.error('No se pudieron cargar las tareas personales:', error);
+        personalTasksCache = [];
+        renderPersonalTasks();
+    });
+}
+
+function renderPersonalTasks() {
+    renderTaskCalendar();
+    renderTaskList();
+}
+
+function renderTaskCalendar() {
+    if (!taskCalendarGrid || !taskCalendarMonthLabel) return;
+
+    const year = taskCalendarDate.getFullYear();
+    const month = taskCalendarDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayOffset = (firstDay.getDay() + 6) % 7;
+
+    taskCalendarMonthLabel.textContent = new Intl.DateTimeFormat('es-CO', {
+        month: 'long', year: 'numeric'
+    }).format(firstDay);
+    taskCalendarGrid.innerHTML = '';
+
+    for (let index = 0; index < firstDayOffset; index += 1) {
+        const emptyDay = document.createElement('div');
+        emptyDay.className = 'task-calendar-day empty';
+        taskCalendarGrid.appendChild(emptyDay);
+    }
+
+    const todayKey = getLocalDateKey(new Date());
+    for (let day = 1; day <= daysInMonth; day += 1) {
+        const dateKey = getLocalDateKey(new Date(year, month, day));
+        const dayTasks = personalTasksCache.filter(task => task.dueDate === dateKey);
+        const hasPendingTask = dayTasks.some(task => !task.completed);
+        const allTasksCompleted = dayTasks.length > 0 && dayTasks.every(task => task.completed);
+        const calendarDay = document.createElement('button');
+        calendarDay.type = 'button';
+        calendarDay.className = 'task-calendar-day';
+        calendarDay.dataset.date = dateKey;
+        calendarDay.setAttribute('aria-label', `${day} de ${taskCalendarMonthLabel.textContent}`);
+
+        if (dateKey === todayKey) calendarDay.classList.add('today');
+        if (dateKey === selectedTaskDate) calendarDay.classList.add('selected');
+        if (hasPendingTask) calendarDay.classList.add(dateKey < todayKey ? 'overdue' : 'has-pending');
+        if (allTasksCompleted) calendarDay.classList.add('all-completed');
+
+        calendarDay.innerHTML = `<span>${day}</span>${dayTasks.length ? `<small>${dayTasks.length}</small>` : ''}`;
+        calendarDay.addEventListener('click', () => {
+            selectedTaskDate = dateKey;
+            renderPersonalTasks();
+        });
+        taskCalendarGrid.appendChild(calendarDay);
+    }
+}
+
+function renderTaskList() {
+    if (!tasksList || !taskListTitle) return;
+
+    const visibleTasks = (selectedTaskDate
+        ? personalTasksCache.filter(task => task.dueDate === selectedTaskDate)
+        : personalTasksCache.filter(isTaskInCurrentMonth)
+    ).sort((firstTask, secondTask) => {
+        const completionOrder = Number(firstTask.completed) - Number(secondTask.completed);
+        return completionOrder || (firstTask.dueDate || '').localeCompare(secondTask.dueDate || '');
+    });
+
+    const selectedDateLabel = selectedTaskDate ? formatTaskDate(selectedTaskDate) : null;
+    taskListTitle.textContent = selectedDateLabel ? `Tareas: ${selectedDateLabel}` : 'Tareas del mes';
+    clearTaskDateFilterBtn.hidden = !selectedTaskDate;
+    tasksList.innerHTML = '';
+
+    if (!visibleTasks.length) {
+        const emptyState = document.createElement('p');
+        emptyState.className = 'task-empty-state';
+        emptyState.textContent = selectedDateLabel
+            ? 'No hay tareas con esta fecha de entrega.'
+            : 'No tienes tareas para este mes.';
+        tasksList.appendChild(emptyState);
+        return;
+    }
+
+    const todayKey = getLocalDateKey(new Date());
+    visibleTasks.forEach((task) => {
+        const isCompleted = task.completed === true;
+        const isOverdue = !isCompleted && task.dueDate < todayKey;
+        const taskElement = document.createElement('article');
+        taskElement.className = `task-item${isCompleted ? ' completed' : ''}${isOverdue ? ' overdue' : ''}`;
+        const taskId = escapeAttribute(task.id);
+        const taskTitle = escapeHTML(task.title || 'Tarea sin titulo');
+        const statusLabel = isCompleted ? 'Completada' : (isOverdue ? 'Vencida' : 'Pendiente');
+        const statusClass = isCompleted ? 'completed' : (isOverdue ? 'overdue' : 'pending');
+
+        taskElement.innerHTML = `
+            <button class="task-complete-btn" type="button" data-id="${taskId}" aria-label="${isCompleted ? 'Marcar como pendiente' : 'Marcar como completada'}">
+                <i class='bx ${isCompleted ? 'bx-check' : 'bx-circle'}'></i>
+            </button>
+            <div class="task-item-content">
+                <h4>${taskTitle}</h4>
+                <span><i class='bx bx-calendar'></i> Entrega: ${escapeHTML(formatTaskDate(task.dueDate))}</span>
+            </div>
+            <div class="task-item-actions">
+                <span class="task-status ${statusClass}">${statusLabel}</span>
+                <button class="task-delete-btn" type="button" data-id="${taskId}" aria-label="Eliminar tarea"><i class='bx bx-trash'></i></button>
+            </div>
+        `;
+        tasksList.appendChild(taskElement);
+    });
+
+    tasksList.querySelectorAll('.task-complete-btn').forEach((button) => {
+        button.addEventListener('click', () => togglePersonalTask(button.dataset.id));
+    });
+    tasksList.querySelectorAll('.task-delete-btn').forEach((button) => {
+        button.addEventListener('click', () => deletePersonalTask(button.dataset.id));
+    });
+}
+
+async function togglePersonalTask(taskId) {
+    const task = personalTasksCache.find(item => item.id === taskId);
+    if (!task || !currentUser) return;
+
+    try {
+        const completed = !task.completed;
+        await update(ref(db, `personalTasks/${currentUser.uid}/${taskId}`), {
+            completed,
+            completedAt: completed ? Date.now() : null
+        });
+    } catch (error) {
+        console.error('No se pudo actualizar la tarea:', error);
+        alert('No se pudo actualizar la tarea. Intenta de nuevo.');
+    }
+}
+
+async function deletePersonalTask(taskId) {
+    if (!currentUser || !taskId || !confirm('¿Eliminar esta tarea?')) return;
+
+    try {
+        await remove(ref(db, `personalTasks/${currentUser.uid}/${taskId}`));
+    } catch (error) {
+        console.error('No se pudo eliminar la tarea:', error);
+        alert('No se pudo eliminar la tarea. Intenta de nuevo.');
+    }
+}
+
+function openPersonalTasks() {
+    taskCalendarDate = new Date();
+    selectedTaskDate = null;
+    renderPersonalTasks();
+    tasksModal.classList.add('active');
+}
+
+if (navTasksBtn) {
+    navTasksBtn.onclick = (event) => {
+        event.preventDefault();
+        openPersonalTasks();
+    };
+}
+if (mobileTasksBtn) mobileTasksBtn.onclick = openPersonalTasks;
+
+document.getElementById('close-tasks-btn').onclick = () => tasksModal.classList.remove('active');
+document.getElementById('task-calendar-prev-btn').onclick = () => {
+    taskCalendarDate = new Date(taskCalendarDate.getFullYear(), taskCalendarDate.getMonth() - 1, 1);
+    selectedTaskDate = null;
+    renderPersonalTasks();
+};
+document.getElementById('task-calendar-next-btn').onclick = () => {
+    taskCalendarDate = new Date(taskCalendarDate.getFullYear(), taskCalendarDate.getMonth() + 1, 1);
+    selectedTaskDate = null;
+    renderPersonalTasks();
+};
+clearTaskDateFilterBtn.onclick = () => {
+    selectedTaskDate = null;
+    renderPersonalTasks();
+};
+
+const taskTitleInput = document.getElementById('task-title-input');
+const taskDateInput = document.getElementById('task-date-input');
+const saveTaskBtn = document.getElementById('save-task-btn');
+document.getElementById('add-task-btn').onclick = () => {
+    taskTitleInput.value = '';
+    taskDateInput.value = selectedTaskDate || getLocalDateKey(new Date());
+    taskCreateModal.classList.add('active');
+    taskTitleInput.focus();
+};
+document.getElementById('close-task-create-btn').onclick = () => taskCreateModal.classList.remove('active');
+
+saveTaskBtn.onclick = async () => {
+    const title = taskTitleInput.value.trim();
+    const dueDate = taskDateInput.value;
+    if (!title || !dueDate || !currentUser) {
+        alert('Escribe el nombre y la fecha de entrega de la tarea.');
+        return;
+    }
+
+    saveTaskBtn.disabled = true;
+    try {
+        await set(push(ref(db, `personalTasks/${currentUser.uid}`)), {
+            title,
+            dueDate,
+            completed: false,
+            createdAt: Date.now()
+        });
+        taskCreateModal.classList.remove('active');
+    } catch (error) {
+        console.error('No se pudo guardar la tarea:', error);
+        alert('No se pudo guardar la tarea. Revisa tu conexion e intenta de nuevo.');
+    } finally {
+        saveTaskBtn.disabled = false;
+    }
+};
 
 // === GAMES & CHALLENGES (TIC TAC TOE) ===
 const navGamesBtn = document.getElementById('nav-games-btn');
