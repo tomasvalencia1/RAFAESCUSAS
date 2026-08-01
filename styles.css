@@ -510,7 +510,7 @@ body.profile-menu-open { overflow: hidden; }
     filter: none;
     box-shadow: none;
 }
-.create-post-btn { width: 44px; height: 44px; padding: 0; border-radius: 50%; }
+.create-post-btn { width: 44px; height: 44px; padding: 0; border-radius: 50%; align-self: center; }
 .create-post-btn span { display: none; }
 
 /* ===== FEED ===== */
