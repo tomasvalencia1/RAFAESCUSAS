@@ -864,6 +864,22 @@ body.profile-menu-open { overflow: hidden; }
 .task-calendar-footer { margin-top: 12px; }
 .task-date-label { display: block; margin: 0 0 7px; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
 
+/* Solo escritorio: el calendario conserva su marco y la lista usa el alto restante. */
+@media (min-width: 769px) {
+    .task-calendar-modal {
+        height: min(88vh, 760px);
+        padding: 24px;
+        overflow: hidden;
+    }
+    .task-calendar-modal .modal-header { flex: 0 0 auto; margin-bottom: 14px; }
+    .task-calendar-toolbar { flex: 0 0 auto; margin-bottom: 8px; }
+    .task-calendar-grid { flex: 0 0 auto; gap: 4px; }
+    .task-calendar-day { min-height: 42px; }
+    .task-list-heading { flex: 0 0 auto; margin: 14px 0 8px; }
+    .task-list { flex: 1 1 auto; min-height: 0; max-height: none; }
+    .task-calendar-footer { flex: 0 0 auto; margin-top: 10px; }
+}
+
 @media (max-width: 768px) {
     .task-calendar-modal { width: calc(100% - 24px); max-height: calc(100vh - 42px); padding: 20px 16px; }
     .task-calendar-day { min-height: 47px; font-size: 12px; }
