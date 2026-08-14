@@ -1,0 +1,23 @@
+{
+  "name": "rafaescusas",
+  "version": "1.0.0",
+  "description": "IE Rafael Uribe Uribe - RafaConecta social network",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tomasvalencia1/RAFAESCUSAS.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tomasvalencia1/RAFAESCUSAS/issues"
+  },
+  "homepage": "https://github.com/tomasvalencia1/RAFAESCUSAS#readme",
+  "dependencies": {
+    "@vercel/speed-insights": "^2.0.0"
+  }
+}
