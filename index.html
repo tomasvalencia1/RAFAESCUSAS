@@ -532,10 +532,143 @@
                         <div id="admin-users-list" class="users-table-body">
                             <div class="loading-spinner">Cargando usuarios...</div>
                         </div>
+        <div class="modal-overlay" id="games-modal">
+            <div class="modal-content" style="max-width: 500px; text-align: center;">
+                <div class="modal-header">
+                    <h2>Juegos y Retos</h2>
+                    <button class="close-modal-btn" id="close-games-modal-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body" style="padding-top: 10px;">
+                    <p style="color: var(--text-muted); margin-bottom: 20px;">¡Tres en Raya! Juega contra ti mismo o un amigo a tu lado.</p>
+                    <div id="tic-tac-toe-board" style="display: grid; grid-template-columns: repeat(3, 100px); gap: 10px; justify-content: center; margin: 0 auto 20px auto;">
+                        <!-- JS will populate the grid -->
+                    </div>
+                    <h3 id="game-status-text" style="color: var(--primary-blue); min-height: 24px; margin-bottom: 20px;">Tu turno (X)</h3>
+                    <button class="btn-primary" id="reset-game-btn" style="margin: 0 auto;">Reiniciar Juego</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Role Selection Screen -->
+        <div id="role-selection-screen" class="modal-overlay">
+            <div class="modal-content" style="max-width: 640px;">
+                <div class="modal-header" style="justify-content: center; margin-bottom: 8px; text-align: center; flex-direction: column; gap: 10px;">
+                    <h2>¡Bienvenido a la red!</h2>
+                    <p style="color: var(--text-muted);">Selecciona tu rol en la institución para continuar</p>
+                </div>
+                <p class="role-selection-hint">
+                    <i class='bx bxs-shield-alt-2'></i>
+                    Profesor, Padre de familia y Directivo requieren aprobación de un administrador. Mientras se aprueba, entrarás con acceso de Estudiante.
+                </p>
+                <div class="role-cards-container">
+                    <div class="role-card" data-role="estudiante">
+                        <div class="role-icon-bg student"><i class='bx bxs-graduation'></i></div>
+                        <h3>Estudiante</h3>
+                        <p>Solo ver publicaciones</p>
+                    </div>
+                    <div class="role-card" data-role="profesor">
+                        <div class="role-icon-bg teacher"><i class='bx bxs-chalkboard'></i></div>
+                        <h3>Profesor</h3>
+                        <p>Publica y chatea</p>
+                        <span class="role-card-tag">Requiere aprobación</span>
+                    </div>
+                    <div class="role-card" data-role="padre">
+                        <div class="role-icon-bg parent"><i class='bx bxs-group'></i></div>
+                        <h3>Padre de Familia</h3>
+                        <p>Mantente informado</p>
+                        <span class="role-card-tag">Requiere aprobación</span>
+                    </div>
+                    <div class="role-card" data-role="directivo">
+                        <div class="role-icon-bg director"><i class='bx bxs-briefcase'></i></div>
+                        <h3>Directivo</h3>
+                        <p>Gestión y noticias</p>
+                        <span class="role-card-tag">Requiere aprobación</span>
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- Role Request Confirmation Modal -->
+        <div class="modal-overlay" id="role-request-modal">
+            <div class="modal-content role-request-modal-content">
+                <div class="role-request-icon"><i class='bx bxs-check-circle'></i></div>
+                <h2 class="role-request-title">¡Solicitud enviada!</h2>
+                <p class="role-request-message" id="role-request-modal-message"></p>
+                <button class="btn-primary role-request-btn" id="role-request-modal-btn">Entendido</button>
+            </div>
+        </div>
+
+        <!-- Chat Panel (Slide-in) -->
+        <div id="chat-panel" class="chat-panel">
+            <!-- Sidebar with contacts -->
+            <div class="chat-sidebar">
+                <div class="chat-header">
+                    <h2>Chat institucional</h2>
+                    <button class="close-chat-btn" id="close-chat-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="chat-search">
+                    <i class='bx bx-search'></i>
+                    <input type="text" id="chat-search-input" placeholder="Buscar maestro, profesor, acudiente o directivo...">
+                </div>
+                <div class="contacts-list" id="chat-contacts-list">
+                    <div class="loading-spinner small">Cargando contactos...</div>
+                </div>
+            </div>
+            <!-- Conversation Area -->
+            <div class="chat-conversation" id="chat-conversation" style="display: none;">
+                <div class="conversation-header">
+                    <button class="back-to-contacts-btn" id="back-to-contacts-btn"><i class='bx bx-arrow-back'></i></button>
+                    <img src="" id="chat-active-avatar" class="avatar-small">
+                    <div class="chat-active-info">
+                        <h3 id="chat-active-name">Nombre</h3>
+                        <span id="chat-active-role" class="badge">Rol</span>
+                    </div>
+                </div>
+                <div class="conversation-messages" id="conversation-messages">
+                    <!-- Messages go here -->
+                </div>
+                <div class="conversation-input">
+                    <input type="text" id="chat-message-input" placeholder="Escribe un mensaje...">
+                    <button id="send-message-btn" class="send-message-btn"><i class='bx bxs-send'></i></button>
+                </div>
+            </div>
+            <!-- Empty state -->
+            <div class="chat-empty-state" id="chat-empty-state">
+                <i class='bx bx-chat'></i>
+                <h3>Selecciona un contacto</h3>
+                <p>Elige un maestro, profesor, acudiente o directivo para empezar a conversar.</p>
+            </div>
+        </div>
+
+        <!-- Admin Users Modal -->
+        <div class="modal-overlay" id="admin-users-modal">
+            <div class="modal-content" style="max-width: 800px; max-height: 90vh; display: flex; flex-direction: column;">
+                <div class="modal-header">
+                    <h2>Gestión de Usuarios</h2>
+                    <button class="close-modal-btn" id="close-users-modal-btn"><i class='bx bx-x'></i></button>
+                </div>
+                <div class="modal-body" style="flex: 1; overflow-y: auto;">
+                    <div class="admin-users-search">
+                        <i class='bx bx-search'></i>
+                        <input type="text" id="admin-user-search-input" placeholder="Buscar usuario por nombre, correo o rol...">
+                    </div>
+                    <div class="users-list-table">
+                        <div class="users-table-header">
+                            <div class="col-user">Usuario</div>
+                            <div class="col-role">Rol Actual</div>
+                            <div class="col-action">Acción</div>
+                        </div>
+                        <div id="admin-users-list" class="users-table-body">
+                            <div class="loading-spinner">Cargando usuarios...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    <!-- Vercel Analytics -->
+    <script defer src="/_vercel/insights/script.js"></script>
 
 </body>
 </html>
