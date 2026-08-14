@@ -1,0 +1,21 @@
+{
+  "name": "rafaconecta",
+  "version": "1.0.0",
+  "description": "Red social oficial de la Institución Educativa Rafael Uribe Uribe",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'No build step required for vanilla site'",
+    "deploy": "vercel"
+  },
+  "keywords": [
+    "rafaconecta",
+    "educación",
+    "red-social"
+  ],
+  "author": "IE Rafael Uribe Uribe",
+  "license": "MIT",
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1"
+  }
+}
