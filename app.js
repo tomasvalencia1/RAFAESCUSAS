@@ -88,6 +88,37 @@ function getAndroidBridge() {
         : null;
 }
 
+function checkApkVersion() {
+    if (!isAndroidWebView()) return true;
+
+    let currentVersion = 1;
+    if (window.AndroidFCM && typeof window.AndroidFCM.getVersionCode === 'function') {
+        currentVersion = window.AndroidFCM.getVersionCode();
+    }
+
+    const REQUIRED_APK_VERSION = 2;
+
+    if (currentVersion < REQUIRED_APK_VERSION) {
+        const updateOverlay = document.createElement('div');
+        updateOverlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(10,8,5,0.98);z-index:9999999;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;flex-direction:column;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);';
+        
+        updateOverlay.innerHTML = `
+            <div style="background:#241e18;padding:32px;border-radius:24px;border:1px solid rgba(255,250,242,0.1);max-width:400px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+                <div style="font-size:64px;margin-bottom:20px;line-height:1;">⚠️</div>
+                <h2 style="font-size:22px;font-weight:700;color:#fffaf2;margin-bottom:12px;font-family:'Inter',sans-serif;letter-spacing:-0.5px;">Instale la nueva versión de RafaConecta</h2>
+                <p style="font-size:14px;color:rgba(255,250,242,0.7);line-height:1.5;font-family:'Inter',sans-serif;">
+                    Desinstale esta versión e instale la versión actualizada para continuar usando la aplicación.
+                </p>
+            </div>
+        `;
+        document.body.appendChild(updateOverlay);
+        return false;
+    }
+    return true;
+}
+
+checkApkVersion();
+
 function waitForAndroidBridge(timeout = 1200) {
     return new Promise((resolve) => {
         const startedAt = Date.now();
