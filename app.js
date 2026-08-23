@@ -48,7 +48,7 @@ document.body.addEventListener('click', (e) => {
     if (isButton.closest('.delete-news-btn, .delete-report-btn, .delete-event-btn, .delete-post-btn, .delete-comment-btn, .task-delete-btn')) {
         window.hapticTap(3); // Destructive
     } else if (isButton.closest('#publish-post-btn, #publish-news-btn, #publish-report-btn, #publish-event-btn, #save-task-btn, .comment-submit-btn, #send-message-btn, .task-complete-btn')) {
-        window.hapticTap(2); // Publish / Success
+        window.hapticTap(5); // Fireworks / Success (Publish)
     } else {
         window.hapticTap(1); // Standard solid tap
     }
