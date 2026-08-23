@@ -61,9 +61,24 @@ body {
     min-height: 100vh;
     overflow-x: hidden;
 }
+
 body.is-webview {
     --safe-area-top: max(35px, env(safe-area-inset-top, 35px));
     padding-top: var(--safe-area-top);
+}
+
+body.is-webview::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--safe-area-top);
+    background: rgba(26, 22, 18, 0.72);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    z-index: 99999;
+    pointer-events: none;
 }
 
 #auth-loading-screen, #login-screen, #app-container { position: relative; z-index: 1; }
@@ -1369,4 +1384,5 @@ body.profile-menu-open { overflow: hidden; }
     background: rgba(10, 10, 26, 0.92) !important;
     box-shadow: 0 4px 30px rgba(0,0,0,0.5), 0 1px 0 rgba(123,92,229,0.2) !important;
 }
+
 
