@@ -67,19 +67,7 @@ body.is-webview {
     padding-top: var(--safe-area-top);
 }
 
-body.is-webview::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: var(--safe-area-top);
-    background: rgba(26, 22, 18, 0.72);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    z-index: 99999;
-    pointer-events: none;
-}
+
 
 #auth-loading-screen, #login-screen, #app-container { position: relative; z-index: 1; }
 
@@ -181,27 +169,22 @@ body.is-webview::before {
     margin-bottom: 8px; font-size: 24px; font-weight: 700;
     color: var(--text-primary); letter-spacing: -0.4px;
 }
-.login-card p {
-    color: var(--text-secondary); margin-bottom: 36px; font-size: 14px;
-}
-.login-btn {
-    margin: 0 auto;
-}
+.login-card p { color: var(--text-secondary); margin-bottom: 36px; font-size: 14px; }
 
-/* ===== HEADER — TRANSLÚCIDO & STICKY ===== */
+.login-btn { margin: 0 auto; }
+
+/* ===== HEADER - SOLID ===== */
 .header {
-    background: rgba(26, 22, 18, 0.72);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
+    background: #1a1612;
     border-bottom: 1px solid rgba(255, 250, 242, 0.10);
-    height: 60px;
+    min-height: calc(60px + var(--safe-area-top, 0px));
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 20px;
+    padding: var(--safe-area-top, 0px) 20px 0;
     box-shadow: var(--shadow-card);
     position: sticky;
-    top: var(--safe-area-top, 0px);
+    top: 0;
     z-index: 100;
     transform: translateY(0);
     transition: transform 0.28s ease, background 0.25s ease, box-shadow 0.25s ease;
@@ -209,7 +192,7 @@ body.is-webview::before {
 }
 
 .header.header-hidden {
-    transform: translateY(calc(-100% - var(--safe-area-top, 0px)));
+    transform: translateY(-100%);
     pointer-events: none;
 }
 
@@ -1383,3 +1366,5 @@ body.profile-menu-open { overflow: hidden; }
 .header.scrolled {
     box-shadow: 0 4px 30px rgba(0,0,0,0.5), 0 1px 0 rgba(123,92,229,0.2) !important;
 }
+
+
