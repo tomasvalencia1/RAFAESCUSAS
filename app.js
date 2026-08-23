@@ -22,12 +22,20 @@ const isIOSDevice = /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 let lastHapticTime = 0;
-window.hapticTap = function(pattern = 40) {
+window.hapticTap = function(type = 1) {
+    // type: 1 = Tap normal, 2 = Confirmación/Éxito, 3 = Eliminar/Error
     const now = Date.now();
-    if (now - lastHapticTime < 50) return; // debounce to prevent double-triggering
+    if (now - lastHapticTime < 50) return; // debounce
     lastHapticTime = now;
-    if ('vibrate' in navigator) {
-        navigator.vibrate(pattern);
+    
+    if (window.AndroidFCM && typeof window.AndroidFCM.triggerHaptic === 'function') {
+        // Usar motor háptico premium de Android (HapticFeedbackConstants)
+        window.AndroidFCM.triggerHaptic(type);
+    } else if ('vibrate' in navigator) {
+        // Fallback para web tradicional
+        if (type === 2) navigator.vibrate([40, 60, 40]);
+        else if (type === 3) navigator.vibrate([50, 40, 50]);
+        else navigator.vibrate(40);
     }
 }
 
@@ -38,11 +46,11 @@ document.body.addEventListener('click', (e) => {
     
     // Determine firmness based on button type
     if (isButton.closest('.delete-news-btn, .delete-report-btn, .delete-event-btn, .delete-post-btn, .delete-comment-btn, .task-delete-btn')) {
-        window.hapticTap([50, 40, 50]); // Destructive (stronger)
+        window.hapticTap(3); // Destructive
     } else if (isButton.closest('#publish-post-btn, #publish-news-btn, #publish-report-btn, #publish-event-btn, #save-task-btn, .comment-submit-btn, #send-message-btn, .task-complete-btn')) {
-        window.hapticTap([40, 60, 40]); // Publish / Success (longer vibration)
+        window.hapticTap(2); // Publish / Success
     } else {
-        window.hapticTap(40); // Standard solid click
+        window.hapticTap(1); // Standard solid tap
     }
 }, true); // Use capture phase so it runs before any other click listener
 
