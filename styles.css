@@ -1381,8 +1381,5 @@ body.profile-menu-open { overflow: hidden; }
 }
 
 .header.scrolled {
-    background: rgba(10, 10, 26, 0.92) !important;
     box-shadow: 0 4px 30px rgba(0,0,0,0.5), 0 1px 0 rgba(123,92,229,0.2) !important;
 }
-
-
