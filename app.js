@@ -21,11 +21,30 @@ const isAndroidDevice = /Android/i.test(navigator.userAgent);
 const isIOSDevice = /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-function hapticTap(pattern = 15) {
+let lastHapticTime = 0;
+window.hapticTap = function(pattern = 40) {
+    const now = Date.now();
+    if (now - lastHapticTime < 50) return; // debounce to prevent double-triggering
+    lastHapticTime = now;
     if ('vibrate' in navigator) {
         navigator.vibrate(pattern);
     }
 }
+
+document.body.addEventListener('click', (e) => {
+    // Detect interactive elements
+    const isButton = e.target.closest('button, .btn, .action-btn, a, .role-card, .contact-item, .nav-btn, .mobile-nav-btn, .tic-tac-toe-cell');
+    if (!isButton) return;
+    
+    // Determine firmness based on button type
+    if (isButton.closest('.delete-news-btn, .delete-report-btn, .delete-event-btn, .delete-post-btn, .delete-comment-btn, .task-delete-btn')) {
+        window.hapticTap([50, 40, 50]); // Destructive (stronger)
+    } else if (isButton.closest('#publish-post-btn, #publish-news-btn, #publish-report-btn, #publish-event-btn, #save-task-btn, .comment-submit-btn, #send-message-btn, .task-complete-btn')) {
+        window.hapticTap([40, 60, 40]); // Publish / Success (longer vibration)
+    } else {
+        window.hapticTap(40); // Standard solid click
+    }
+}, true); // Use capture phase so it runs before any other click listener
 
 // WebView Detection for Android Status Bar
 // WebView Detection for Android Status Bar (AVANZADO)
