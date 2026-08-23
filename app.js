@@ -1780,3 +1780,53 @@ window.addEventListener('scroll', () => {
 
     lastScrollY = Math.max(currentScrollY, 0);
 }, { passive: true });
+// === INTERCEPTOR DEL BOTÓN ATRÁS DE ANDROID ===
+window.onAndroidBack = function() {
+    // 1. Cerrar popover de perfil si está abierto
+    if (typeof profilePopover !== 'undefined' && profilePopover.classList.contains('active')) {
+        closeProfilePopover();
+        return true;
+    }
+    
+    // 2. Cerrar conversación de chat (la vista hija del panel)
+    if (typeof chatConversation !== 'undefined' && chatConversation.classList.contains('active')) {
+        closeActiveChat();
+        return true;
+    }
+    
+    // 3. Cerrar panel de chat principal
+    if (typeof chatPanel !== 'undefined' && chatPanel.classList.contains('active')) {
+        chatPanel.classList.remove('active');
+        return true;
+    }
+
+    // 4. Cerrar cualquier otro modal general abierto
+    const activeModals = [
+        typeof postModal !== 'undefined' ? postModal : null,
+        typeof newsModal !== 'undefined' ? newsModal : null, 
+        typeof reportModal !== 'undefined' ? reportModal : null, 
+        typeof eventsViewModal !== 'undefined' ? eventsViewModal : null, 
+        typeof eventCreateModal !== 'undefined' ? eventCreateModal : null, 
+        typeof tasksModal !== 'undefined' ? tasksModal : null, 
+        typeof taskCreateModal !== 'undefined' ? taskCreateModal : null, 
+        typeof roleRequestModal !== 'undefined' ? roleRequestModal : null, 
+        typeof gamesModal !== 'undefined' ? gamesModal : null, 
+        typeof adminUsersModal !== 'undefined' ? adminUsersModal : null
+    ];
+    
+    for (let modal of activeModals) {
+        if (modal && modal.classList.contains('active')) {
+            modal.classList.remove('active');
+            
+            // Caso especial: limpiar vista previa si es el modal de posts
+            if (modal.id === 'post-modal' && typeof resetImagePreview === 'function') {
+                resetImagePreview();
+            }
+            return true; // Indicamos a Android que nosotros manejamos el "Atrás"
+        }
+    }
+    
+    // Si no había ningún menú/modal abierto, retornamos false
+    // Esto le avisa al código nativo que debe proceder a salir de la app.
+    return false;
+};
