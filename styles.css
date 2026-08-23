@@ -1,7 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
+* {
+    -webkit-tap-highlight-color: transparent;
+}
+
 /* ============================================================
-   DARK THEME — GLASSMORPHISM & ANTIGRAVITY
+   DARK THEME - GLASSMORPHISM & ANTIGRAVITY
    ============================================================ */
 
 :root {
@@ -1365,3 +1369,4 @@ body.profile-menu-open { overflow: hidden; }
     background: rgba(10, 10, 26, 0.92) !important;
     box-shadow: 0 4px 30px rgba(0,0,0,0.5), 0 1px 0 rgba(123,92,229,0.2) !important;
 }
+
