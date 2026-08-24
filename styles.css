@@ -45,7 +45,7 @@
 }
 
 /* ===== RESET ===== */
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { scroll-behavior: smooth; }
 
 body {
@@ -1360,6 +1360,7 @@ body.profile-menu-open { overflow: hidden; }
 }
 
 .header.scrolled { box-shadow: 0 4px 30px rgba(0,0,0,0.5), 0 1px 0 rgba(123,92,229,0.2) !important; }
+
 
 
 
