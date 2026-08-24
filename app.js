@@ -852,7 +852,6 @@ document.getElementById('publish-post-btn').addEventListener('click', async (e) 
 
 function loadPosts() {
     onValue(ref(db, 'posts'), (snapshot) => {
-        postsContainer.innerHTML = '';
         if (!snapshot.exists()) {
             postsContainer.innerHTML = '<div class="glass-card loading-spinner">No hay publicaciones aún.</div>';
             allPostsCache = [];
@@ -862,13 +861,25 @@ function loadPosts() {
         const postsArray = Object.entries(snapshot.val()).map(([id, data]) => ({id, ...data})).sort((a,b) => b.timestamp - a.timestamp);
         allPostsCache = postsArray;
 
-        postsArray.forEach(post => {
+        const newPostIds = new Set(postsArray.map(p => 'post-' + escapeAttribute(p.id)));
+        
+        // Eliminar posts que ya no existen
+        Array.from(postsContainer.children).forEach(child => {
+            if (child.id && child.id.startsWith('post-')) {
+                if (!newPostIds.has(child.id)) child.remove();
+            } else if (child.classList.contains('loading-spinner')) {
+                child.remove();
+            }
+        });
+
+        postsArray.forEach((post, index) => {
             const minutesAgo = Math.floor((Date.now() - post.timestamp) / 60000);
             const timeStr = minutesAgo < 60 ? `Hace ${minutesAgo} min` : (minutesAgo < 1440 ? `Hace ${Math.floor(minutesAgo/60)} horas` : `Hace ${Math.floor(minutesAgo/1440)} días`);
 
             const likesCount = post.likes ? Object.keys(post.likes).length : 0;
             const myLike = post.likes && post.likes[currentUser.uid] ? true : false;
             const postId = escapeAttribute(post.id);
+            const domId = 'post-' + postId;
             const authorName = escapeHTML(post.author?.name || 'Usuario');
             const authorAvatar = escapeAttribute(safeImageSrc(post.author?.avatar));
             const postContent = escapeHTML(post.content);
@@ -894,31 +905,59 @@ function loadPosts() {
                 </div>`;
             }).join('') : '';
 
-            const postEl = document.createElement('article');
-            postEl.className = 'post-card';
-            postEl.innerHTML = `
-                <div class="post-header">
-                    <div class="user-info">
-                        <img src="${authorAvatar}" alt="Avatar" class="avatar">
-                        <div class="user-details"><span class="username">${authorName}</span><span class="post-meta">${timeStr}</span></div>
+            let postEl = document.getElementById(domId);
+            
+            if (postEl) {
+                const likeBtn = postEl.querySelector('.like-btn');
+                if (likeBtn) {
+                    likeBtn.className = `action-btn like-btn ${myLike?'liked':''}`;
+                    likeBtn.innerHTML = `<i class='bx ${myLike?'bxs-heart':'bx-heart'}'></i><span class="likes-count">${likesCount}</span>`;
+                }
+                
+                const commentBtn = postEl.querySelector('.comment-btn');
+                if (commentBtn) {
+                    commentBtn.innerHTML = `<i class='bx bx-message-rounded'></i>${post.comments ? Object.keys(post.comments).length : 0}`;
+                }
+                
+                const commentsList = postEl.querySelector('.comments-list');
+                if (commentsList && commentsList.innerHTML !== commentsHtml) {
+                    commentsList.innerHTML = commentsHtml;
+                }
+                
+                const metaSpan = postEl.querySelector('.post-meta');
+                if(metaSpan) metaSpan.textContent = timeStr;
+
+            } else {
+                postEl = document.createElement('article');
+                postEl.className = 'post-card';
+                postEl.id = domId;
+                postEl.innerHTML = `
+                    <div class="post-header">
+                        <div class="user-info">
+                            <img src="${authorAvatar}" alt="Avatar" class="avatar">
+                            <div class="user-details"><span class="username">${authorName}</span><span class="post-meta">${timeStr}</span></div>
+                        </div>
+                        ${isAdmin ? `<button class="action-btn delete-post-btn" data-id="${postId}"><i class='bx bx-trash'></i></button>` : ''}
                     </div>
-                    ${isAdmin ? `<button class="action-btn delete-post-btn" data-id="${postId}"><i class='bx bx-trash'></i></button>` : ''}
-                </div>
-                ${post.content ? `<div class="post-content">${postContent}</div>` : ''}
-                ${imageHtml}
-                <div class="post-actions">
-                    <button class="action-btn like-btn ${myLike?'liked':''}" data-id="${postId}"><i class='bx ${myLike?'bxs-heart':'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button>
-                    <button class="action-btn comment-btn" data-id="${postId}"><i class='bx bx-message-rounded'></i>${post.comments ? Object.keys(post.comments).length : 0}</button>
-                </div>
-                <div class="comments-section" id="comments-${postId}">
-                    <div class="comments-list">${commentsHtml}</div>
-                    <div class="comment-input-area">
-                        <input type="text" placeholder="Escribe un comentario..." class="new-comment-input" data-id="${postId}">
-                        <button class="comment-submit-btn" data-id="${postId}"><i class='bx bxs-send'></i></button>
+                    ${post.content ? `<div class="post-content">${postContent}</div>` : ''}
+                    ${imageHtml}
+                    <div class="post-actions">
+                        <button class="action-btn like-btn ${myLike?'liked':''}" data-id="${postId}"><i class='bx ${myLike?'bxs-heart':'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button>
+                        <button class="action-btn comment-btn" data-id="${postId}"><i class='bx bx-message-rounded'></i>${post.comments ? Object.keys(post.comments).length : 0}</button>
                     </div>
-                </div>
-            `;
-            postsContainer.appendChild(postEl);
+                    <div class="comments-section" id="comments-${postId}">
+                        <div class="comments-list">${commentsHtml}</div>
+                        <div class="comment-input-area">
+                            <input type="text" placeholder="Escribe un comentario..." class="new-comment-input" data-id="${postId}">
+                            <button class="comment-submit-btn" data-id="${postId}"><i class='bx bxs-send'></i></button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (postsContainer.children[index] !== postEl) {
+                postsContainer.insertBefore(postEl, postsContainer.children[index]);
+            }
         });
     });
 }
