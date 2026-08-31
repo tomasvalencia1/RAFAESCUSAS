@@ -1,0 +1,33 @@
+name: Limpiar publicaciones estudiantiles vencidas
+
+on:
+  schedule:
+    # Cada hora, a los 17 minutos, para evitar la congestión del minuto 0.
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Instalar Firebase Admin
+        run: npm ci --prefix functions
+
+      - name: Eliminar publicaciones vencidas
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node functions/cleanup-expired-posts.cjs

@@ -8,7 +8,8 @@ La aplicación existente usa **Firebase Realtime Database (RTDB)**, no Firestore
 - `styles.css`: tokens claros y reglas de reemplazo flat para las tarjetas, navegación, modales y los nuevos componentes. No elimina el CSS anterior para no romper vistas que aún dependen de él.
 - `app.js`: feed por seguimiento, vencimiento inmediato a las 24 horas, publicaciones marcadas, follow, comentarios en `posts/{postId}/comentarios`, soporte, anuncios de profesores y panel de moderación.
 - `database.rules.json`: único bloque de reglas RTDB para los nodos nuevos y los ya utilizados por la app.
-- `functions/index.js`: limpieza programada horaria y defensa posterior para anuncios docentes inválidos.
+- `.github/workflows/cleanup-expired-posts.yml` y `functions/cleanup-expired-posts.cjs`: limpieza programada gratis por GitHub Actions, sin Cloud Functions.
+- `functions/index.js`: alternativa opcional para quien habilite Cloud Functions/Blaze; no es necesaria para la solución gratuita.
 - `design-preview.html`: pantalla estática antes/después para validar el diseño.
 
 ## Modelo RTDB añadido
@@ -24,7 +25,9 @@ La aplicación existente usa **Firebase Realtime Database (RTDB)**, no Firestore
 ## Firebase: pasos manuales necesarios
 
 1. Las reglas de **Realtime Database** ya fueron publicadas en el proyecto `rafaescusas` el 30 de agosto de 2026. `database.rules.json` es la fuente de verdad para cambios posteriores. No pegar reglas de Firestore: este proyecto no las usa.
-2. Para la limpieza física horaria y la verificación defensiva de 15 palabras, las dependencias de `functions/` ya están instaladas y bloqueadas en `package-lock.json`. Falta activar el plan **Blaze** en `rafaescusas`: Firebase rechazó el despliegue porque Cloud Scheduler/Artifact Registry no están disponibles en Spark. Luego ejecuta `firebase deploy --only functions` desde la raíz; `.firebaserc` ya selecciona ese proyecto.
-3. Mientras Functions no esté desplegado, el cliente oculta los posts vencidos inmediatamente. Si un **directivo** abre el feed, también intenta limpiarlos físicamente; no se concede ese borrado a estudiantes por seguridad.
-4. RTDB Rules puede imponer roles, campos, tamaño del texto y exactamente tres slots diarios, pero no puede separar una cadena en palabras. El contador de 15 palabras se valida en vivo en el cliente y `enforceTeacherMessagePolicy` lo verifica del lado servidor tras desplegar Functions.
-5. No se requieren índices compuestos: RTDB usa este modelo de rutas y no índices compuestos de Firestore. Si se agregan consultas con `orderByChild`, crear el índice RTDB correspondiente en las reglas.
+2. La limpieza horaria no requiere Blaze: el workflow `Limpiar publicaciones estudiantiles vencidas` de GitHub Actions está incluido. En Firebase Console → Configuración del proyecto → Cuentas de servicio, genera una **nueva clave privada JSON**. En GitHub → repositorio → Settings → Secrets and variables → Actions, crea el secreto `FIREBASE_SERVICE_ACCOUNT` y pega allí el contenido completo del JSON. Nunca subas ese archivo ni lo pegues en código.
+3. Después abre GitHub → Actions → `Limpiar publicaciones estudiantiles vencidas` → **Run workflow**. Si finaliza correctamente, cada hora eliminará físicamente los posts de estudiantes con más de 24 horas. El horario se ejecuta en UTC (minuto 17 de cada hora).
+4. El workflow usa runners estándar de GitHub. En repositorios públicos son gratuitos; en privados consume la cuota mensual incluida de GitHub Free. No usa plan de pago de Firebase.
+5. Mientras el secreto no esté configurado, el cliente sigue ocultando posts vencidos inmediatamente. Si un **directivo** abre el feed, también intenta eliminarlos físicamente; no se concede ese borrado a estudiantes por seguridad.
+6. RTDB Rules puede imponer roles, campos, tamaño del texto y exactamente tres slots diarios, pero no puede separar una cadena en palabras. El contador de 15 palabras se valida en vivo en el cliente. La alternativa de Cloud Functions queda disponible, pero ya no es necesaria.
+7. No se requieren índices compuestos: RTDB usa este modelo de rutas y no índices compuestos de Firestore. Si se agregan consultas con `orderByChild`, crear el índice RTDB correspondiente en las reglas.
