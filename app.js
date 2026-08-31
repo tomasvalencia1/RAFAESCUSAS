@@ -271,10 +271,10 @@ function canUseTeacherChat(role = userRole) {
     return isAdmin || TEACHER_CHAT_ROLES.includes(normalizeRole(role));
 }
 
-// Moderation follows the institutional role, independently of the legacy
-// `admins` list that is still used by the old user-management tools.
-function isDirectivo() {
-    return normalizeRole(userRole) === 'directivo';
+// The school requested that destructive moderation controls remain exclusive
+// to accounts explicitly registered in the legacy `admins/{uid}` node.
+function canManageContent() {
+    return isAdmin;
 }
 
 function isProfessor() {
@@ -440,8 +440,8 @@ function getChatSenderName(message, targetUser, isMe) {
 
 // === THEME LOGIC ===
 // Flat, light visual system shared by the website and Capacitor WebView.
-document.documentElement.setAttribute('data-theme', 'light');
-localStorage.setItem('theme', 'light');
+document.documentElement.setAttribute('data-theme', 'dark');
+localStorage.setItem('theme', 'dark');
 
 // === PROFILE POPOVER LOGIC ===
 function openProfilePopover() {
@@ -1122,7 +1122,7 @@ function buildCommentsHtml(post, postId) {
     ].sort((a, b) => (a.value.timestamp || 0) - (b.value.timestamp || 0));
     return comments.map(({ id: commentId, value: comment, path }) => {
         const authorId = comment.autorId || comment.authorUid || '';
-        const canDelete = isDirectivo() || authorId === currentUser?.uid;
+        const canDelete = canManageContent();
         return `<div class="comment">
             <img src="${escapeAttribute(safeImageSrc(comment.autorAvatar || comment.authorAvatar))}" class="avatar" alt="Avatar">
             <div class="comment-content"><div class="comment-text-group"><strong>${escapeHTML(comment.autorNombre || comment.authorName || 'Usuario')}</strong>${escapeHTML(comment.texto || comment.text || '')}</div>
@@ -1153,10 +1153,10 @@ function renderCommunityFeed() {
         const imageSrc = safeImageSrc(post.imageBase64, '');
         const expiry = authorId === currentUser.uid && normalizeRole(post.authorRole) === 'estudiante'
             ? `<span class="post-expiry">${postExpiryLabel(post)}</span>` : '';
-        const flagged = isDirectivo() && post.flagged ? '<span class="post-flag">Pendiente de revisión</span>' : '';
+        const flagged = canManageContent() && post.flagged ? '<span class="post-flag">Pendiente de revisión</span>' : '';
         return `<article class="post-card" id="post-${postId}">
             <div class="post-header"><div class="user-info"><img src="${authorAvatar}" alt="Avatar" class="avatar"><div class="user-details"><span class="username">${authorName}</span><span class="post-meta">${formatPostTime(postCreatedAt(post))}</span>${expiry}</div></div>
-                <div class="post-header-actions">${flagged}${canFollow ? `<button class="action-btn follow-btn ${followsAuthor ? 'following' : ''}" data-author-id="${escapeAttribute(authorId)}" data-following="${followsAuthor}" type="button">${followsAuthor ? 'Siguiendo' : 'Seguir'}</button>` : ''}${isDirectivo() ? `<button class="action-btn delete-post-btn" aria-label="Eliminar publicación" data-id="${postId}" type="button"><i class='bx bx-trash'></i></button>` : ''}</div>
+                <div class="post-header-actions">${flagged}${canFollow ? `<button class="action-btn follow-btn ${followsAuthor ? 'following' : ''}" data-author-id="${escapeAttribute(authorId)}" data-following="${followsAuthor}" type="button">${followsAuthor ? 'Siguiendo' : 'Seguir'}</button>` : ''}${canManageContent() ? `<button class="action-btn delete-post-btn" aria-label="Eliminar publicación" data-id="${postId}" type="button"><i class='bx bx-trash'></i></button>` : ''}</div>
             </div>
             ${post.content ? `<div class="post-content">${escapeHTML(post.content)}</div>` : ''}
             ${imageSrc ? `<img src="${escapeAttribute(imageSrc)}" alt="Imagen adjunta" class="post-image-full">` : ''}
@@ -1168,9 +1168,9 @@ function renderCommunityFeed() {
 }
 
 async function cleanupExpiredStudentPosts(posts) {
-    // In the client fallback only a directivo can remove records, matching the
+    // In the client fallback only an administrator can remove records, matching the
     // moderation delete permission. Everyone else still stops seeing them now.
-    if (!isDirectivo()) return;
+    if (!canManageContent()) return;
     const expired = posts.filter(post => isExpiredStudentPost(post));
     if (!expired.length) return;
     const updates = {};
@@ -1255,7 +1255,7 @@ function openConfirmModal({ title, message, confirmLabel = 'Confirmar', destruct
 }
 
 async function deletePostWithLog(postId) {
-    if (!isDirectivo() || !currentUser) return;
+    if (!canManageContent() || !currentUser) return;
     const shouldDelete = await openConfirmModal({ title: 'Eliminar publicación', message: 'Esta acción eliminará también sus comentarios y no se puede deshacer.', confirmLabel: 'Eliminar', destructive: true });
     if (!shouldDelete) return;
     const post = allPostsCache.find(item => item.id === postId);
@@ -1265,7 +1265,7 @@ async function deletePostWithLog(postId) {
             [`posts/${postId}`]: null,
             [`logs_moderacion/${logId}`]: {
                 moderadorId: currentUser.uid,
-                moderadorNombre: currentUser.displayName || 'Directivo',
+                moderadorNombre: currentUser.displayName || 'Administrador',
                 postId,
                 autorPostId: post?.author?.uid || '',
                 accion: 'eliminar_publicacion',
@@ -1279,7 +1279,7 @@ async function deletePostWithLog(postId) {
 }
 
 async function deleteComment(postId, commentId, authorId, commentPath = 'comentarios') {
-    if (!currentUser || (!isDirectivo() && authorId !== currentUser.uid)) return;
+    if (!currentUser || !canManageContent()) return;
     const confirmed = await openConfirmModal({ title: 'Eliminar comentario', message: '¿Quieres eliminar este comentario?', confirmLabel: 'Eliminar', destructive: true });
     if (!confirmed) return;
     await remove(ref(db, `posts/${postId}/${commentPath}/${commentId}`));
@@ -1292,7 +1292,7 @@ function renderModerationQueue() {
         moderationCount.textContent = flaggedPosts.length > 99 ? '99+' : String(flaggedPosts.length);
     }
     if (!moderationPostsList) return;
-    if (!isDirectivo()) { moderationPostsList.innerHTML = ''; return; }
+    if (!canManageContent()) { moderationPostsList.innerHTML = ''; return; }
     moderationPostsList.innerHTML = flaggedPosts.length ? flaggedPosts.map(post => `<article class="moderation-item"><div class="moderation-item-header"><span>${escapeHTML(post.author?.name || 'Usuario')}</span><span class="post-flag">${escapeHTML(post.reason || 'Revisión requerida')}</span></div><p>${escapeHTML(post.content || '(Publicación con imagen)')}</p><div class="moderation-actions"><button class="btn-primary moderation-delete-btn" data-id="${escapeAttribute(post.id)}" type="button">Eliminar</button><button class="action-btn moderation-dismiss-btn" data-id="${escapeAttribute(post.id)}" type="button">Descartar alerta</button></div></article>`).join('') : '<p class="empty-state">No hay publicaciones pendientes de revisión.</p>';
 }
 
@@ -1356,8 +1356,8 @@ async function sendTeacherMessage() {
 }
 
 function configureCommunityVisibility() {
-    const directivo = isDirectivo();
-    document.querySelectorAll('.moderation-only').forEach(element => { element.style.display = directivo ? 'flex' : 'none'; });
+    const contentManager = canManageContent();
+    document.querySelectorAll('.moderation-only').forEach(element => { element.style.display = contentManager ? 'flex' : 'none'; });
     if (teacherMessageComposer) teacherMessageComposer.style.display = isProfessor() ? 'block' : 'none';
     updateTeacherComposer();
 }
@@ -1422,17 +1422,38 @@ postsContainer.addEventListener('keypress', event => {
 
 if (teacherMessageInput) teacherMessageInput.addEventListener('input', updateTeacherComposer);
 if (sendTeacherMessageBtn) sendTeacherMessageBtn.addEventListener('click', sendTeacherMessage);
-if (navModerationBtn) navModerationBtn.addEventListener('click', event => { event.preventDefault(); if (isDirectivo()) moderationModal?.classList.add('active'); });
+if (navModerationBtn) navModerationBtn.addEventListener('click', event => { event.preventDefault(); if (canManageContent()) moderationModal?.classList.add('active'); });
 document.getElementById('close-moderation-btn')?.addEventListener('click', () => moderationModal?.classList.remove('active'));
 moderationPostsList?.addEventListener('click', async event => {
     const deleteButton = event.target.closest('.moderation-delete-btn');
     if (deleteButton) return deletePostWithLog(deleteButton.dataset.id);
     const dismissButton = event.target.closest('.moderation-dismiss-btn');
-    if (dismissButton && isDirectivo()) await update(ref(db, `posts/${dismissButton.dataset.id}`), { flagged: false, reason: null });
+    if (dismissButton && canManageContent()) await update(ref(db, `posts/${dismissButton.dataset.id}`), { flagged: false, reason: null });
 });
 
-if (supportFab) supportFab.addEventListener('click', () => supportModal?.classList.add('active'));
-document.getElementById('close-support-btn')?.addEventListener('click', () => supportModal?.classList.remove('active'));
+function toggleSupportModal(open) {
+    if (!supportModal) return;
+    supportModal.classList.toggle('active', open);
+    supportModal.setAttribute('aria-hidden', String(!open));
+
+    if (open) {
+        requestAnimationFrame(() => supportText?.focus());
+    }
+}
+
+if (supportFab) {
+    supportFab.addEventListener('click', event => {
+        // El botón está dentro de la vista principal: en WebView evitamos que
+        // el toque se propague a elementos que puedan estar debajo del modal.
+        event.preventDefault();
+        event.stopPropagation();
+        toggleSupportModal(true);
+    });
+}
+document.getElementById('close-support-btn')?.addEventListener('click', () => toggleSupportModal(false));
+supportModal?.addEventListener('click', event => {
+    if (event.target === supportModal) toggleSupportModal(false);
+});
 document.getElementById('send-support-btn')?.addEventListener('click', async event => {
     const text = supportText?.value.trim();
     if (!text || !currentUser) return;

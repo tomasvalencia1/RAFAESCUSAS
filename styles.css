@@ -1772,6 +1772,10 @@ body.is-webview .main-layout { padding-top: 0 !important; }
 }
 .feed-section { gap: 20px; }
 
+/* Soporte siempre queda por encima de la app, el chat y las barras del APK. */
+#support-modal { z-index: 2200 !important; }
+#support-modal .modal-content { max-height: min(620px, calc(100vh - 32px)); overflow-y: auto; }
+
 
 
 
