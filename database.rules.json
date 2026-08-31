@@ -1,0 +1,104 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "admins": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).val() === true)",
+        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+      }
+    },
+    "users": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).val() === true)",
+        "role": {
+          ".validate": "newData.isString() && (newData.val() === 'estudiante' || root.child('admins').child(auth.uid).val() === true)"
+        }
+      }
+    },
+    "roleRequests": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).val() === true)",
+        ".write": "auth != null && ((auth.uid === $uid && !data.exists() && newData.child('requestedRole').val() !== 'estudiante' && newData.child('status').val() === 'pending') || root.child('admins').child(auth.uid).val() === true)"
+      }
+    },
+    "posts": {
+      ".read": "auth != null",
+      "$postId": {
+        ".write": "auth != null && ((!data.exists() && newData.exists() && newData.child('author').child('uid').val() === auth.uid && newData.child('authorRole').val() === root.child('users').child(auth.uid).child('role').val()) || (data.exists() && !newData.exists() && root.child('users').child(auth.uid).child('role').val() === 'directivo') || (data.exists() && newData.exists() && root.child('users').child(auth.uid).child('role').val() === 'directivo'))",
+        ".validate": "data.exists() || (!newData.exists() || (newData.hasChildren(['author', 'authorRole', 'timestamp', 'createdAt']) && newData.child('author').child('uid').isString() && newData.child('authorRole').isString() && newData.child('timestamp').isNumber() && newData.child('createdAt').isNumber()))",
+        "likes": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.val() === true"
+          }
+        },
+        "comentarios": {
+          "$commentId": {
+            ".write": "auth != null && ((!data.exists() && newData.exists() && newData.child('autorId').val() === auth.uid && (data.parent().parent().child('authorRole').val() !== 'estudiante' || now < data.parent().parent().child('createdAt').val() + 86400000)) || (data.exists() && !newData.exists() && (data.child('autorId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'directivo')))",
+            ".validate": "!newData.exists() || (newData.hasChildren(['autorId', 'autorNombre', 'texto', 'timestamp']) && newData.child('autorId').val() === auth.uid && newData.child('texto').isString() && newData.child('texto').val().length <= 500 && newData.child('timestamp').isNumber())"
+          }
+        },
+        "comments": {
+          "$commentId": {
+            ".write": "auth != null && ((data.exists() && !newData.exists() && (data.child('authorUid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'directivo')) || (!data.exists() && newData.exists() && newData.child('authorUid').val() === auth.uid))"
+          }
+        }
+      }
+    },
+    "siguiendo": {
+      "$seguidorId": {
+        ".read": "auth != null && auth.uid === $seguidorId",
+        "$seguidoId": {
+          ".write": "auth != null && auth.uid === $seguidorId && (newData.val() === null || (newData.child('seguidoId').val() === $seguidoId && newData.child('creadoEn').isNumber()))"
+        }
+      }
+    },
+    "mensajes_profesor": {
+      ".read": "auth != null",
+      "$dia": {
+        "$profesorId": {
+          "$slot": {
+            ".write": "auth != null && auth.uid === $profesorId && (root.child('users').child(auth.uid).child('role').val() === 'profesor' || root.child('users').child(auth.uid).child('role').val() === 'maestro') && !data.exists() && newData.exists() && ($slot === '1' || $slot === '2' || $slot === '3')",
+            ".validate": "newData.hasChildren(['autorId', 'autorNombre', 'texto', 'timestamp', 'dia']) && newData.child('autorId').val() === auth.uid && newData.child('autorNombre').isString() && newData.child('texto').isString() && newData.child('texto').val().length <= 180 && newData.child('timestamp').isNumber() && newData.child('dia').val() === $dia"
+          }
+        }
+      }
+    },
+    "logs_moderacion": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'directivo'",
+      "$logId": {
+        ".write": "auth != null && !data.exists() && newData.exists() && root.child('users').child(auth.uid).child('role').val() === 'directivo' && newData.child('moderadorId').val() === auth.uid",
+        ".validate": "newData.hasChildren(['moderadorId', 'postId', 'accion', 'timestamp']) && newData.child('postId').isString() && newData.child('timestamp').isNumber()"
+      }
+    },
+    "soporte": {
+      "$ticketId": {
+        ".read": "auth != null && (data.child('userId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'directivo')",
+        ".write": "auth != null && ((!data.exists() && newData.child('userId').val() === auth.uid && newData.child('texto').isString() && newData.child('texto').val().length <= 1000 && newData.child('estado').val() === 'pendiente') || (data.exists() && root.child('users').child(auth.uid).child('role').val() === 'directivo'))"
+      }
+    },
+    "configuracion": {
+      "moderacion": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'directivo'"
+      }
+    },
+    "news": { ".read": "auth != null", ".write": "auth != null && root.child('admins').child(auth.uid).val() === true" },
+    "reports": { ".read": "auth != null", ".write": "auth != null && root.child('admins').child(auth.uid).val() === true" },
+    "events": { ".read": "auth != null", ".write": "auth != null && root.child('admins').child(auth.uid).val() === true" },
+    "personalTasks": {
+      "$uid": { ".read": "auth != null && auth.uid === $uid", ".write": "auth != null && auth.uid === $uid" }
+    },
+    "fcmTokens": {
+      "$uid": { ".read": "auth != null && auth.uid === $uid", ".write": "auth != null && auth.uid === $uid" }
+    },
+    "chats": {
+      "$chatId": {
+        ".read": "auth != null && data.child('participants').child(auth.uid).exists()",
+        ".write": "auth != null && ((data.exists() && data.child('participants').child(auth.uid).exists()) || (!data.exists() && newData.child('participants').child(auth.uid).exists()))"
+      }
+    }
+  }
+}

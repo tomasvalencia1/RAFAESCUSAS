@@ -271,6 +271,16 @@ function canUseTeacherChat(role = userRole) {
     return isAdmin || TEACHER_CHAT_ROLES.includes(normalizeRole(role));
 }
 
+// Moderation follows the institutional role, independently of the legacy
+// `admins` list that is still used by the old user-management tools.
+function isDirectivo() {
+    return normalizeRole(userRole) === 'directivo';
+}
+
+function isProfessor() {
+    return ['profesor', 'maestro'].includes(normalizeRole(userRole));
+}
+
 function isTeacherChatContactRole(role) {
     return TEACHER_CHAT_ROLES.includes(normalizeRole(role));
 }
@@ -429,9 +439,9 @@ function getChatSenderName(message, targetUser, isMe) {
 }
 
 // === THEME LOGIC ===
-// Hardcoded to dark mode per new design aesthetic
-document.documentElement.setAttribute('data-theme', 'dark');
-localStorage.setItem('theme', 'dark');
+// Flat, light visual system shared by the website and Capacitor WebView.
+document.documentElement.setAttribute('data-theme', 'light');
+localStorage.setItem('theme', 'light');
 
 // === PROFILE POPOVER LOGIC ===
 function openProfilePopover() {
@@ -615,6 +625,11 @@ onAuthStateChanged(auth, async (user) => {
         }
     } else {
         currentUser = null; isAdmin = false; userRole = null; allPostsCache = [];
+        if (postsListener) { postsListener(); postsListener = null; }
+        if (followingListener) { followingListener(); followingListener = null; }
+        if (teacherMessagesListener) { teacherMessagesListener(); teacherMessagesListener = null; }
+        if (moderationConfigListener) { moderationConfigListener(); moderationConfigListener = null; }
+        followingIds = {}; teacherMessagesCache = [];
         if (activeChatListener) { activeChatListener(); activeChatListener = null; }
         if (chatContactsListener) { chatContactsListener(); chatContactsListener = null; }
         if (personalTasksListener) { personalTasksListener(); personalTasksListener = null; }
@@ -661,7 +676,7 @@ async function completeLogin() {
         chatContactsList.innerHTML = '';
     }
 
-    loadPosts();
+    initializeCommunityFeatures();
     loadNews();
     loadReports();
     loadEvents();
@@ -825,6 +840,9 @@ function resetImagePreview() {
     postImagePreview.src = '';
 }
 
+// Legacy post renderer retained only as migration reference. The application
+// below uses the RTDB-aware social feed with expiry, follows and moderation.
+if (false) {
 // === POSTS LOGIC ===
 document.getElementById('publish-post-btn').addEventListener('click', async (e) => {
     const text = document.getElementById('post-textarea').value.trim();
@@ -1003,6 +1021,433 @@ async function submitComment(postId, input) {
     await set(push(ref(db, `posts/${postId}/comments`)), { authorUid: currentUser.uid, authorName: currentUser.displayName, authorAvatar: currentUser.photoURL, text: txt, timestamp: Date.now() });
     document.getElementById(`comments-${postId}`).classList.add('visible');
 }
+
+}
+
+// === COMMUNITY FEED, EXPIRY, COMMENTS, FOLLOWS & MODERATION ===
+
+const STUDENT_POST_TTL_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_PROHIBITED_WORDS = ['groseria', 'idiota', 'mierda', 'puta', 'malparido', 'gonorrea'];
+let postsListener = null;
+let followingListener = null;
+let teacherMessagesListener = null;
+let moderationConfigListener = null;
+let followingIds = {};
+let teacherMessagesCache = [];
+let prohibitedWords = [...DEFAULT_PROHIBITED_WORDS];
+
+const teacherMessagesList = document.getElementById('teacher-messages-list');
+const teacherMessageComposer = document.getElementById('teacher-message-composer');
+const teacherMessageInput = document.getElementById('teacher-message-input');
+const teacherMessageCount = document.getElementById('teacher-message-count');
+const teacherMessageLimit = document.getElementById('teacher-message-limit');
+const sendTeacherMessageBtn = document.getElementById('send-teacher-message-btn');
+const supportFab = document.getElementById('support-fab');
+const supportModal = document.getElementById('support-modal');
+const supportText = document.getElementById('support-text');
+const moderationModal = document.getElementById('moderation-modal');
+const moderationPostsList = document.getElementById('moderation-posts-list');
+const moderationCount = document.getElementById('moderation-count');
+const navModerationBtn = document.getElementById('nav-moderation-btn');
+const confirmModal = document.getElementById('confirm-modal');
+let pendingConfirmResolver = null;
+
+function todayKey(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function countWords(text) {
+    return (text || '').trim().split(/\s+/).filter(Boolean).length;
+}
+
+function normalizeModerationText(text) {
+    return (text || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function normalizeProhibitedWords(value) {
+    const candidates = Array.isArray(value) ? value : Object.values(value || {});
+    const words = candidates.map(word => normalizeModerationText(word).trim()).filter(Boolean);
+    return words.length ? [...new Set(words)] : [...DEFAULT_PROHIBITED_WORDS];
+}
+
+function containsProhibitedWord(text) {
+    const normalizedText = normalizeModerationText(text);
+    const tokens = normalizedText.split(/[^a-z0-9ñ]+/).filter(Boolean);
+    return prohibitedWords.some(word => word.includes(' ')
+        ? normalizedText.includes(word)
+        : tokens.includes(word));
+}
+
+function postCreatedAt(post) {
+    return Number(post?.createdAt || post?.timestamp || 0);
+}
+
+function isExpiredStudentPost(post, now = Date.now()) {
+    return normalizeRole(post?.authorRole) === 'estudiante' && postCreatedAt(post) > 0 && now >= postCreatedAt(post) + STUDENT_POST_TTL_MS;
+}
+
+function postExpiryLabel(post) {
+    const remaining = Math.max(0, postCreatedAt(post) + STUDENT_POST_TTL_MS - Date.now());
+    const hours = Math.ceil(remaining / (60 * 60 * 1000));
+    return `Expira en ${hours}h`;
+}
+
+function formatPostTime(timestamp) {
+    const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+    if (minutes < 60) return `Hace ${minutes} min`;
+    if (minutes < 1440) return `Hace ${Math.floor(minutes / 60)} horas`;
+    return `Hace ${Math.floor(minutes / 1440)} días`;
+}
+
+function isPostVisibleInFeed(post) {
+    if (!currentUser || isExpiredStudentPost(post)) return false;
+    const authorId = post.author?.uid || post.autorId;
+    const authorRole = normalizeRole(post.authorRole);
+    return authorId === currentUser.uid || authorRole === 'profesor' || authorRole === 'maestro' || Boolean(followingIds[authorId]);
+}
+
+function commentsForPost(post) {
+    // The former UI stored legacy comments in English. New comments use the
+    // requested Spanish RTDB path and both remain readable during migration.
+    return { ...(post.comments || {}), ...(post.comentarios || {}) };
+}
+
+function buildCommentsHtml(post, postId) {
+    const comments = [
+        ...Object.entries(post.comments || {}).map(([id, value]) => ({ id, value, path: 'comments' })),
+        ...Object.entries(post.comentarios || {}).map(([id, value]) => ({ id, value, path: 'comentarios' }))
+    ].sort((a, b) => (a.value.timestamp || 0) - (b.value.timestamp || 0));
+    return comments.map(({ id: commentId, value: comment, path }) => {
+        const authorId = comment.autorId || comment.authorUid || '';
+        const canDelete = isDirectivo() || authorId === currentUser?.uid;
+        return `<div class="comment">
+            <img src="${escapeAttribute(safeImageSrc(comment.autorAvatar || comment.authorAvatar))}" class="avatar" alt="Avatar">
+            <div class="comment-content"><div class="comment-text-group"><strong>${escapeHTML(comment.autorNombre || comment.authorName || 'Usuario')}</strong>${escapeHTML(comment.texto || comment.text || '')}</div>
+            ${canDelete ? `<button class="action-btn delete-comment-btn" aria-label="Eliminar comentario" data-post-id="${escapeAttribute(postId)}" data-comment-id="${escapeAttribute(commentId)}" data-comment-path="${path}" data-author-id="${escapeAttribute(authorId)}"><i class='bx bx-x'></i></button>` : ''}</div>
+        </div>`;
+    }).join('');
+}
+
+function renderCommunityFeed() {
+    if (!postsContainer || !currentUser) return;
+    const visiblePosts = allPostsCache.filter(isPostVisibleInFeed);
+    if (!visiblePosts.length) {
+        postsContainer.innerHTML = '<div class="glass-card loading-spinner">Aún no hay publicaciones de personas que sigues. Sigue a alguien o espera un anuncio del profesorado.</div>';
+        renderModerationQueue();
+        return;
+    }
+
+    postsContainer.innerHTML = visiblePosts.map(post => {
+        const postId = escapeAttribute(post.id);
+        const authorId = post.author?.uid || post.autorId || '';
+        const authorName = escapeHTML(post.author?.name || post.autorNombre || 'Usuario');
+        const authorAvatar = escapeAttribute(safeImageSrc(post.author?.avatar || post.autorAvatar));
+        const comments = commentsForPost(post);
+        const likesCount = Object.keys(post.likes || {}).length;
+        const liked = Boolean(post.likes?.[currentUser.uid]);
+        const canFollow = authorId && authorId !== currentUser.uid;
+        const followsAuthor = Boolean(followingIds[authorId]);
+        const imageSrc = safeImageSrc(post.imageBase64, '');
+        const expiry = authorId === currentUser.uid && normalizeRole(post.authorRole) === 'estudiante'
+            ? `<span class="post-expiry">${postExpiryLabel(post)}</span>` : '';
+        const flagged = isDirectivo() && post.flagged ? '<span class="post-flag">Pendiente de revisión</span>' : '';
+        return `<article class="post-card" id="post-${postId}">
+            <div class="post-header"><div class="user-info"><img src="${authorAvatar}" alt="Avatar" class="avatar"><div class="user-details"><span class="username">${authorName}</span><span class="post-meta">${formatPostTime(postCreatedAt(post))}</span>${expiry}</div></div>
+                <div class="post-header-actions">${flagged}${canFollow ? `<button class="action-btn follow-btn ${followsAuthor ? 'following' : ''}" data-author-id="${escapeAttribute(authorId)}" data-following="${followsAuthor}" type="button">${followsAuthor ? 'Siguiendo' : 'Seguir'}</button>` : ''}${isDirectivo() ? `<button class="action-btn delete-post-btn" aria-label="Eliminar publicación" data-id="${postId}" type="button"><i class='bx bx-trash'></i></button>` : ''}</div>
+            </div>
+            ${post.content ? `<div class="post-content">${escapeHTML(post.content)}</div>` : ''}
+            ${imageSrc ? `<img src="${escapeAttribute(imageSrc)}" alt="Imagen adjunta" class="post-image-full">` : ''}
+            <div class="post-actions"><button class="action-btn like-btn ${liked ? 'liked' : ''}" data-id="${postId}" type="button"><i class='bx ${liked ? 'bxs-heart' : 'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button><button class="action-btn comment-btn" data-id="${postId}" type="button"><i class='bx bx-message-rounded'></i><span>${Object.keys(comments).length}</span></button></div>
+            <div class="comments-section" id="comments-${postId}"><div class="comments-list">${buildCommentsHtml(post, post.id)}</div><div class="comment-input-area"><input type="text" maxlength="500" placeholder="Escribe un comentario..." class="new-comment-input" data-id="${postId}"><button class="comment-submit-btn" data-id="${postId}" type="button" aria-label="Publicar comentario"><i class='bx bxs-send'></i></button></div></div>
+        </article>`;
+    }).join('');
+    renderModerationQueue();
+}
+
+async function cleanupExpiredStudentPosts(posts) {
+    // In the client fallback only a directivo can remove records, matching the
+    // moderation delete permission. Everyone else still stops seeing them now.
+    if (!isDirectivo()) return;
+    const expired = posts.filter(post => isExpiredStudentPost(post));
+    if (!expired.length) return;
+    const updates = {};
+    expired.forEach(post => { updates[`posts/${post.id}`] = null; });
+    try { await update(ref(db), updates); } catch (error) { console.warn('No se pudo limpiar publicaciones vencidas:', error); }
+}
+
+function loadPosts() {
+    if (postsListener) postsListener();
+    postsListener = onValue(ref(db, 'posts'), snapshot => {
+        allPostsCache = snapshot.exists()
+            ? Object.entries(snapshot.val()).map(([id, data]) => ({ id, ...data })).sort((a, b) => postCreatedAt(b) - postCreatedAt(a))
+            : [];
+        renderCommunityFeed();
+        cleanupExpiredStudentPosts(allPostsCache);
+    }, error => {
+        console.error('No se pudieron cargar las publicaciones:', error);
+        renderInlineStatus(postsContainer, 'No se pudieron cargar las publicaciones. Revisa las reglas de Firebase.');
+    });
+}
+
+function loadFollowing() {
+    if (!currentUser) return;
+    if (followingListener) followingListener();
+    followingListener = onValue(ref(db, `siguiendo/${currentUser.uid}`), snapshot => {
+        followingIds = snapshot.exists() ? snapshot.val() : {};
+        renderCommunityFeed();
+    });
+}
+
+async function toggleFollow(authorId) {
+    if (!authorId || !currentUser || authorId === currentUser.uid) return;
+    const path = ref(db, `siguiendo/${currentUser.uid}/${authorId}`);
+    if (followingIds[authorId]) await remove(path);
+    else await set(path, { seguidoId: authorId, creadoEn: Date.now() });
+}
+
+async function submitComment(postId, input) {
+    const text = input?.value?.trim();
+    if (!text || !currentUser) return;
+    input.value = '';
+    try {
+        await set(push(ref(db, `posts/${postId}/comentarios`)), {
+            autorId: currentUser.uid,
+            autorNombre: currentUser.displayName || 'Usuario',
+            autorAvatar: currentUser.photoURL || '',
+            texto: text,
+            timestamp: Date.now()
+        });
+        document.getElementById(`comments-${escapeSelector(postId)}`)?.classList.add('visible');
+    } catch (error) {
+        console.error('No se pudo publicar el comentario:', error);
+        alert('No se pudo publicar el comentario. Inténtalo de nuevo.');
+    }
+}
+
+function openConfirmModal({ title, message, confirmLabel = 'Confirmar', destructive = false }) {
+    return new Promise(resolve => {
+        const titleEl = document.getElementById('confirm-modal-title');
+        const messageEl = document.getElementById('confirm-modal-message');
+        const acceptBtn = document.getElementById('confirm-accept-btn');
+        const cancelBtn = document.getElementById('confirm-cancel-btn');
+        if (!confirmModal || !titleEl || !messageEl || !acceptBtn || !cancelBtn) { resolve(window.confirm(message)); return; }
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+        acceptBtn.textContent = confirmLabel;
+        acceptBtn.classList.toggle('danger-btn', destructive);
+        confirmModal.classList.add('active');
+        const close = result => {
+            confirmModal.classList.remove('active');
+            acceptBtn.removeEventListener('click', accepted);
+            cancelBtn.removeEventListener('click', cancelled);
+            pendingConfirmResolver = null;
+            resolve(result);
+        };
+        const accepted = () => close(true);
+        const cancelled = () => close(false);
+        pendingConfirmResolver = cancelled;
+        acceptBtn.addEventListener('click', accepted);
+        cancelBtn.addEventListener('click', cancelled);
+    });
+}
+
+async function deletePostWithLog(postId) {
+    if (!isDirectivo() || !currentUser) return;
+    const shouldDelete = await openConfirmModal({ title: 'Eliminar publicación', message: 'Esta acción eliminará también sus comentarios y no se puede deshacer.', confirmLabel: 'Eliminar', destructive: true });
+    if (!shouldDelete) return;
+    const post = allPostsCache.find(item => item.id === postId);
+    const logId = push(ref(db, 'logs_moderacion')).key;
+    try {
+        await update(ref(db), {
+            [`posts/${postId}`]: null,
+            [`logs_moderacion/${logId}`]: {
+                moderadorId: currentUser.uid,
+                moderadorNombre: currentUser.displayName || 'Directivo',
+                postId,
+                autorPostId: post?.author?.uid || '',
+                accion: 'eliminar_publicacion',
+                timestamp: Date.now()
+            }
+        });
+    } catch (error) {
+        console.error('No se pudo eliminar la publicación:', error);
+        alert('No se pudo eliminar la publicación. Revisa las reglas de Firebase.');
+    }
+}
+
+async function deleteComment(postId, commentId, authorId, commentPath = 'comentarios') {
+    if (!currentUser || (!isDirectivo() && authorId !== currentUser.uid)) return;
+    const confirmed = await openConfirmModal({ title: 'Eliminar comentario', message: '¿Quieres eliminar este comentario?', confirmLabel: 'Eliminar', destructive: true });
+    if (!confirmed) return;
+    await remove(ref(db, `posts/${postId}/${commentPath}/${commentId}`));
+}
+
+function renderModerationQueue() {
+    const flaggedPosts = allPostsCache.filter(post => post.flagged && !isExpiredStudentPost(post));
+    if (moderationCount) {
+        moderationCount.hidden = flaggedPosts.length === 0;
+        moderationCount.textContent = flaggedPosts.length > 99 ? '99+' : String(flaggedPosts.length);
+    }
+    if (!moderationPostsList) return;
+    if (!isDirectivo()) { moderationPostsList.innerHTML = ''; return; }
+    moderationPostsList.innerHTML = flaggedPosts.length ? flaggedPosts.map(post => `<article class="moderation-item"><div class="moderation-item-header"><span>${escapeHTML(post.author?.name || 'Usuario')}</span><span class="post-flag">${escapeHTML(post.reason || 'Revisión requerida')}</span></div><p>${escapeHTML(post.content || '(Publicación con imagen)')}</p><div class="moderation-actions"><button class="btn-primary moderation-delete-btn" data-id="${escapeAttribute(post.id)}" type="button">Eliminar</button><button class="action-btn moderation-dismiss-btn" data-id="${escapeAttribute(post.id)}" type="button">Descartar alerta</button></div></article>`).join('') : '<p class="empty-state">No hay publicaciones pendientes de revisión.</p>';
+}
+
+function loadModerationConfig() {
+    if (moderationConfigListener) moderationConfigListener();
+    moderationConfigListener = onValue(ref(db, 'configuracion/moderacion/palabrasProhibidas'), snapshot => {
+        prohibitedWords = normalizeProhibitedWords(snapshot.val());
+    }, () => { prohibitedWords = [...DEFAULT_PROHIBITED_WORDS]; });
+}
+
+function updateTeacherComposer() {
+    if (!teacherMessageComposer || !teacherMessageInput || !teacherMessageCount || !sendTeacherMessageBtn) return;
+    const words = countWords(teacherMessageInput.value);
+    const sentToday = teacherMessagesCache.filter(message => message.autorId === currentUser?.uid && message.dia === todayKey()).length;
+    const exceedsWords = words > 15;
+    teacherMessageCount.textContent = `${words}/15 palabras`;
+    teacherMessageCount.style.color = exceedsWords ? 'var(--danger-red)' : '';
+    sendTeacherMessageBtn.disabled = !isProfessor() || !teacherMessageInput.value.trim() || exceedsWords || sentToday >= 3;
+    if (teacherMessageLimit) teacherMessageLimit.textContent = sentToday >= 3 ? 'Ya usaste tus 3 mensajes de hoy.' : `${3 - sentToday} mensaje${3 - sentToday === 1 ? '' : 's'} disponible${3 - sentToday === 1 ? '' : 's'} hoy.`;
+}
+
+function renderTeacherMessages() {
+    if (!teacherMessagesList) return;
+    const latest = teacherMessagesCache.slice(0, 20);
+    teacherMessagesList.innerHTML = latest.length ? latest.map(message => `<article class="teacher-message"><strong>${escapeHTML(message.autorNombre || 'Profesor')}</strong><p>${escapeHTML(message.texto || '')}</p><time>${new Date(message.timestamp || Date.now()).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}</time></article>`).join('') : '<p class="empty-state">Aún no hay anuncios del profesorado.</p>';
+    updateTeacherComposer();
+}
+
+function loadTeacherMessages() {
+    if (teacherMessagesListener) teacherMessagesListener();
+    teacherMessagesListener = onValue(ref(db, 'mensajes_profesor'), snapshot => {
+        const root = snapshot.val() || {};
+        teacherMessagesCache = Object.entries(root).flatMap(([dia, byTeacher]) => Object.values(byTeacher || {}).flatMap(slots => Object.entries(slots || {}).map(([slot, message]) => ({ ...message, dia: message.dia || dia, _slot: slot })))).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        renderTeacherMessages();
+    }, () => renderInlineStatus(teacherMessagesList, 'No se pudieron cargar los anuncios.'));
+}
+
+async function sendTeacherMessage() {
+    if (!isProfessor() || !currentUser || !teacherMessageInput) return;
+    const texto = teacherMessageInput.value.trim();
+    const words = countWords(texto);
+    const dia = todayKey();
+    const todaysMessages = teacherMessagesCache.filter(message => message.autorId === currentUser.uid && message.dia === dia);
+    if (!texto || words > 15 || todaysMessages.length >= 3) { updateTeacherComposer(); return; }
+    const occupied = new Set(todaysMessages.map(message => String(message._slot || '')));
+    const slot = ['1', '2', '3'].find(value => !occupied.has(value)) || String(todaysMessages.length + 1);
+    try {
+        await set(ref(db, `mensajes_profesor/${dia}/${currentUser.uid}/${slot}`), {
+            autorId: currentUser.uid,
+            autorNombre: currentUser.displayName || 'Profesor',
+            texto,
+            timestamp: Date.now(),
+            dia
+        });
+        teacherMessageInput.value = '';
+        updateTeacherComposer();
+    } catch (error) {
+        console.error('No se pudo enviar el anuncio:', error);
+        alert('No se pudo enviar el anuncio. Revisa las reglas de Firebase.');
+    }
+}
+
+function configureCommunityVisibility() {
+    const directivo = isDirectivo();
+    document.querySelectorAll('.moderation-only').forEach(element => { element.style.display = directivo ? 'flex' : 'none'; });
+    if (teacherMessageComposer) teacherMessageComposer.style.display = isProfessor() ? 'block' : 'none';
+    updateTeacherComposer();
+}
+
+function initializeCommunityFeatures() {
+    configureCommunityVisibility();
+    loadModerationConfig();
+    loadFollowing();
+    loadPosts();
+    loadTeacherMessages();
+}
+
+document.getElementById('publish-post-btn').addEventListener('click', async event => {
+    const text = document.getElementById('post-textarea').value.trim();
+    if ((!text && !currentPostImageBase64) || !currentUser) return;
+    const button = event.currentTarget;
+    button.textContent = 'Publicando...'; button.disabled = true;
+    try {
+        const flagged = containsProhibitedWord(text);
+        const postData = {
+            author: { uid: currentUser.uid, name: currentUser.displayName || 'Usuario', avatar: currentUser.photoURL || '' },
+            authorRole: normalizeRole(userRole),
+            content: text,
+            timestamp: Date.now(),
+            createdAt: Date.now(),
+            flagged,
+            reason: flagged ? 'lenguaje inapropiado' : null
+        };
+        if (currentPostImageBase64) postData.imageBase64 = currentPostImageBase64;
+        await set(push(ref(db, 'posts')), postData);
+        postModal.classList.remove('active');
+        document.getElementById('post-textarea').value = '';
+        resetImagePreview();
+    } catch (error) {
+        console.error('No se pudo publicar:', error);
+        alert('No se pudo publicar. Revisa tu conexión e inténtalo de nuevo.');
+    } finally { button.textContent = 'Publicar'; button.disabled = false; }
+});
+
+postsContainer.addEventListener('click', async event => {
+    const deleteButton = event.target.closest('.delete-post-btn');
+    if (deleteButton) return deletePostWithLog(deleteButton.dataset.id);
+    const followButton = event.target.closest('.follow-btn');
+    if (followButton) return toggleFollow(followButton.dataset.authorId);
+    const likeButton = event.target.closest('.like-btn');
+    if (likeButton && currentUser) {
+        const likeRef = ref(db, `posts/${likeButton.dataset.id}/likes/${currentUser.uid}`);
+        const snapshot = await get(likeRef);
+        return snapshot.exists() ? remove(likeRef) : set(likeRef, true);
+    }
+    const commentButton = event.target.closest('.comment-btn');
+    if (commentButton) return document.getElementById(`comments-${escapeSelector(commentButton.dataset.id)}`)?.classList.toggle('visible');
+    const submitButton = event.target.closest('.comment-submit-btn');
+    if (submitButton) return submitComment(submitButton.dataset.id, postsContainer.querySelector(`.new-comment-input[data-id="${escapeSelector(submitButton.dataset.id)}"]`));
+    const deleteCommentButton = event.target.closest('.delete-comment-btn');
+    if (deleteCommentButton) return deleteComment(deleteCommentButton.dataset.postId, deleteCommentButton.dataset.commentId, deleteCommentButton.dataset.authorId, deleteCommentButton.dataset.commentPath);
+});
+
+postsContainer.addEventListener('keypress', event => {
+    if (event.key === 'Enter' && event.target.classList.contains('new-comment-input')) submitComment(event.target.dataset.id, event.target);
+});
+
+if (teacherMessageInput) teacherMessageInput.addEventListener('input', updateTeacherComposer);
+if (sendTeacherMessageBtn) sendTeacherMessageBtn.addEventListener('click', sendTeacherMessage);
+if (navModerationBtn) navModerationBtn.addEventListener('click', event => { event.preventDefault(); if (isDirectivo()) moderationModal?.classList.add('active'); });
+document.getElementById('close-moderation-btn')?.addEventListener('click', () => moderationModal?.classList.remove('active'));
+moderationPostsList?.addEventListener('click', async event => {
+    const deleteButton = event.target.closest('.moderation-delete-btn');
+    if (deleteButton) return deletePostWithLog(deleteButton.dataset.id);
+    const dismissButton = event.target.closest('.moderation-dismiss-btn');
+    if (dismissButton && isDirectivo()) await update(ref(db, `posts/${dismissButton.dataset.id}`), { flagged: false, reason: null });
+});
+
+if (supportFab) supportFab.addEventListener('click', () => supportModal?.classList.add('active'));
+document.getElementById('close-support-btn')?.addEventListener('click', () => supportModal?.classList.remove('active'));
+document.getElementById('send-support-btn')?.addEventListener('click', async event => {
+    const text = supportText?.value.trim();
+    if (!text || !currentUser) return;
+    const button = event.currentTarget;
+    button.disabled = true; button.textContent = 'Enviando...';
+    try {
+        await set(push(ref(db, 'soporte')), { userId: currentUser.uid, texto: text, timestamp: Date.now(), estado: 'pendiente' });
+        supportText.value = '';
+        button.textContent = '¡Solicitud enviada!';
+        setTimeout(() => { supportModal?.classList.remove('active'); button.textContent = 'Enviar solicitud'; button.disabled = false; }, 1200);
+    } catch (error) {
+        console.error('No se pudo enviar soporte:', error);
+        button.textContent = 'Reintentar'; button.disabled = false;
+    }
+});
 
 // === ADMIN WIDGETS LOGIC (News, Reports, Events) ===
 
@@ -1879,6 +2324,11 @@ window.addEventListener('scroll', () => {
 }, { passive: true });
 // === INTERCEPTOR DEL BOTÓN ATRÁS DE ANDROID ===
 window.onAndroidBack = function() {
+    if (typeof confirmModal !== 'undefined' && confirmModal.classList.contains('active') && pendingConfirmResolver) {
+        pendingConfirmResolver();
+        return true;
+    }
+
     // 1. Cerrar popover de perfil si está abierto
     if (typeof profilePopover !== 'undefined' && profilePopover.classList.contains('active')) {
         closeProfilePopover();
@@ -1906,8 +2356,11 @@ window.onAndroidBack = function() {
         typeof eventCreateModal !== 'undefined' ? eventCreateModal : null, 
         typeof tasksModal !== 'undefined' ? tasksModal : null, 
         typeof taskCreateModal !== 'undefined' ? taskCreateModal : null, 
-        typeof roleRequestModal !== 'undefined' ? roleRequestModal : null, 
-        typeof gamesModal !== 'undefined' ? gamesModal : null, 
+        typeof roleRequestModal !== 'undefined' ? roleRequestModal : null,
+        typeof supportModal !== 'undefined' ? supportModal : null,
+        typeof confirmModal !== 'undefined' ? confirmModal : null,
+        typeof moderationModal !== 'undefined' ? moderationModal : null,
+        typeof gamesModal !== 'undefined' ? gamesModal : null,
         typeof adminUsersModal !== 'undefined' ? adminUsersModal : null
     ];
     

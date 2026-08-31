@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RafaConecta · Antes y después</title>
+  <link rel="stylesheet" href="https://rawcdn.githack.com/pattespatte/vanilla-css-design-system/refs/tags/v1.0.2/styles/vanilla-combined.min.css">
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+  <style>
+    * { box-sizing:border-box } body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:#262626; background:#f1f3f5; }
+    header { max-width:1000px; margin:0 auto; padding:28px 18px 14px; } h1 { margin:0 0 5px; font-size:24px; } header p { color:#666; margin:0; }
+    main { max-width:1000px; display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:0 auto; padding:12px 18px 32px; }
+    .sample { border-radius:14px; overflow:hidden; border:1px solid #d8d8d8; background:white; } .label { padding:10px 14px; font-weight:700; font-size:13px; }
+    .before { background:radial-gradient(circle at 20% 20%,#352a53,#16120f 70%); color:#fffaf2; border-color:#4c426a; } .before .label { border-bottom:1px solid rgba(255,255,255,.15); } .after .label { background:#fff; border-bottom:1px solid #dbdbdb; }
+    .screen { min-height:420px; padding:18px; } .before .screen { background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.02)); }
+    .top { display:flex; align-items:center; gap:9px; font-weight:700; margin-bottom:18px; }.top img { width:34px; height:34px; border-radius:50%; background:#ddd; }
+    .before .card { background:rgba(36,30,24,.78); border:1px solid rgba(255,255,255,.17); box-shadow:0 12px 30px rgba(0,0,0,.4); backdrop-filter:blur(16px); }
+    .after .screen { background:#fafafa; }.after .card { background:#fff; border:1px solid #dbdbdb; }
+    .card { padding:14px; border-radius:12px; }.user { display:flex; gap:9px; align-items:center; }.avatar { width:34px;height:34px;border-radius:50%;background:#e0e0e0; }.meta { font-size:11px; opacity:.65; }.copy { margin:13px 0; line-height:1.45; font-size:14px; }.photo { height:125px; border-radius:8px; background:linear-gradient(135deg,#cceaff,#f8d0e4); }.actions { display:flex; gap:14px; margin-top:12px; font-size:18px; }.before button { background:linear-gradient(135deg,#7b5ce5,#22d3ee); box-shadow:0 7px 20px rgba(123,92,229,.4); }.after button { background:#0095f6; border:1px solid #0095f6; box-shadow:none; }.screen button { color:#fff; border:0; border-radius:8px; padding:9px 13px; margin-top:15px; font-weight:650; }
+    .after .announcements { padding:12px; margin-bottom:12px; background:#fff; border:1px solid #dbdbdb; border-radius:12px; }.eyebrow { color:#0095f6;font-size:10px;letter-spacing:.08em;font-weight:700;text-transform:uppercase; }.announcements h2 {font-size:14px;margin:3px 0 8px}.notice {border-left:3px solid #0095f6;background:#fafafa;padding:8px;font-size:12px}.notice strong{display:block}
+    footer { text-align:center;color:#666;font-size:12px;padding:0 15px 25px; } @media(max-width:680px){main{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header><h1>RafaConecta · propuesta visual</h1><p>Muestra estática para validar la migración de glassmorphism oscuro a una interfaz plana y clara.</p></header>
+  <main>
+    <section class="sample before"><div class="label">ANTES · Glassmorphism oscuro</div><div class="screen"><div class="top"><img src="logo.png" alt=""><span>IE Rafael Uribe Uribe</span></div><article class="card"><div class="user"><span class="avatar"></span><div><strong>Laura Gómez</strong><div class="meta">Hace 10 min</div></div></div><p class="copy">Mañana tendremos ensayo para el acto cultural. ¡No olviden traer el material!</p><div class="photo"></div><div class="actions"><i class="bx bx-heart"></i><i class="bx bx-message-rounded"></i></div></article><button>Crear publicación</button></div></section>
+    <section class="sample after"><div class="label">DESPUÉS · Flat, inspirado en Instagram</div><div class="screen"><div class="top"><img src="logo.png" alt=""><span>IE Rafael Uribe Uribe</span></div><section class="announcements"><span class="eyebrow">Comunidad</span><h2>Mensajes del profesorado</h2><div class="notice"><strong>Prof. Carlos Rojas</strong>Recuerden entregar el taller de ciencias el viernes.</div></section><article class="card"><div class="user"><span class="avatar"></span><div><strong>Laura Gómez</strong><div class="meta">Hace 10 min · Expira en 24h</div></div></div><p class="copy">Mañana tendremos ensayo para el acto cultural. ¡No olviden traer el material!</p><div class="photo"></div><div class="actions"><i class="bx bx-heart"></i><i class="bx bx-message-rounded"></i></div></article><button>Crear publicación</button></div></section>
+  </main>
+  <footer>El resultado aplicado usa fondo #FAFAFA, bordes sutiles, tipografía del sistema y azul #0095F6 como único acento.</footer>
+</body>
+</html>

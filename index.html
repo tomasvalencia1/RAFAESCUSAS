@@ -26,12 +26,13 @@
     <meta property="twitter:description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Mantente al día con nuestra comunidad.">
     <meta property="twitter:image" content="https://rafaexcusas.vercel.app/logo.png">
     <!-- Módulos de Firebase y Lógica -->
-    <script type="module" src="app.js?v=6"></script>
+    <script type="module" src="app.js?v=7"></script>
     <!-- Estilos y Fuentes -->
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-    <link rel="stylesheet" href="styles.css?v=6">
+    <link rel="stylesheet" href="https://rawcdn.githack.com/pattespatte/vanilla-css-design-system/refs/tags/v1.0.2/styles/vanilla-combined.min.css">
+    <link rel="stylesheet" href="styles.css?v=7">
 </head>
-<body data-theme="dark">
+<body data-theme="light">
 
     <!-- Initial Auth Loading Screen -->
     <div id="auth-loading-screen" class="auth-loading-overlay active">
@@ -163,6 +164,7 @@
                     <a href="#" class="nav-item" id="nav-events-btn"><i class='bx bx-calendar-event'></i><span>Eventos</span></a>
                     <a href="#" class="nav-item" id="nav-games-btn"><i class='bx bx-joystick'></i><span>Juegos y Retos</span></a>
                     <a href="#" class="nav-item teacher-chat-only" id="nav-chat-btn"><i class='bx bx-chat'></i><span>Chat Maestro/Acudiente</span></a>
+                    <a href="#" class="nav-item moderation-only" id="nav-moderation-btn" style="display: none;"><i class='bx bx-shield-quarter'></i><span>Moderación <b id="moderation-count" class="nav-count" hidden>0</b></span></a>
                     <a href="#" class="nav-item admin-only" id="nav-users-btn" style="display: none;"><i class='bx bx-group'></i><span>Usuarios</span></a>
                 </nav>
                 <button class="btn-primary create-post-btn" id="open-modal-btn">
@@ -178,6 +180,18 @@
                     <div class="inline-post-input" style="flex: 1; background: var(--input-bg); padding: 12px 20px; border-radius: 24px; color: var(--text-muted); font-size: 14px; border: 1px solid var(--border-color);">¿Qué está pasando en la institución?</div>
                     <button class="icon-btn" style="color:var(--primary-blue);"><i class='bx bx-image-add'></i></button>
                 </div>
+                <section class="teacher-messages-panel" id="teacher-messages-panel" aria-labelledby="teacher-messages-title">
+                    <div class="section-heading">
+                        <div><span class="section-kicker">Comunidad</span><h2 id="teacher-messages-title">Mensajes del profesorado</h2></div>
+                    </div>
+                    <div id="teacher-message-composer" class="teacher-message-composer" style="display:none;">
+                        <label for="teacher-message-input">Comparte un anuncio con tus estudiantes</label>
+                        <textarea id="teacher-message-input" maxlength="180" rows="2" placeholder="Máximo 15 palabras"></textarea>
+                        <div class="composer-footer"><span id="teacher-message-count">0/15 palabras</span><button id="send-teacher-message-btn" class="btn-primary" type="button">Enviar anuncio</button></div>
+                        <p id="teacher-message-limit" class="field-help"></p>
+                    </div>
+                    <div id="teacher-messages-list" class="teacher-messages-list"><p class="empty-state">Cargando mensajes…</p></div>
+                </section>
                 <div id="posts-container">
                     <div class="glass-card loading-spinner">Cargando publicaciones...</div>
                 </div>
@@ -248,6 +262,8 @@
                 </button>
             </nav>
         </div>
+
+        <button id="support-fab" class="support-fab" type="button" aria-label="Abrir soporte"><i class='bx bx-help-circle'></i><span>Soporte</span></button>
 
         <!-- Create Post Modal -->
         <div class="modal-overlay" id="post-modal">
@@ -666,6 +682,36 @@
                 </div>
             </div>
         </div>
+
+    <!-- Support modal -->
+    <div class="modal-overlay" id="support-modal" aria-hidden="true">
+        <div class="modal-content compact-modal">
+            <div class="modal-header"><h2>Centro de soporte</h2><button class="close-modal-btn" id="close-support-btn" type="button" aria-label="Cerrar"><i class='bx bx-x'></i></button></div>
+            <div class="modal-body">
+                <p class="modal-intro">Cuéntanos qué necesitas. El equipo recibirá tu solicitud.</p>
+                <textarea id="support-text" rows="5" maxlength="1000" placeholder="Describe el problema o la ayuda que necesitas"></textarea>
+            </div>
+            <div class="modal-footer"><button class="btn-primary" id="send-support-btn" type="button">Enviar solicitud</button></div>
+        </div>
+    </div>
+
+    <!-- Reusable confirmation modal -->
+    <div class="modal-overlay" id="confirm-modal" aria-hidden="true">
+        <div class="modal-content compact-modal confirm-modal-content">
+            <div class="confirm-icon"><i id="confirm-modal-icon" class='bx bx-info-circle'></i></div>
+            <h2 id="confirm-modal-title">¿Confirmar acción?</h2>
+            <p id="confirm-modal-message"></p>
+            <div class="modal-footer confirm-actions"><button class="action-btn" id="confirm-cancel-btn" type="button">Cancelar</button><button class="btn-primary danger-btn" id="confirm-accept-btn" type="button">Confirmar</button></div>
+        </div>
+    </div>
+
+    <!-- Moderation queue (directivo) -->
+    <div class="modal-overlay" id="moderation-modal" aria-hidden="true">
+        <div class="modal-content moderation-modal-content">
+            <div class="modal-header"><div><span class="section-kicker">Revisión</span><h2>Contenido pendiente</h2></div><button class="close-modal-btn" id="close-moderation-btn" type="button" aria-label="Cerrar"><i class='bx bx-x'></i></button></div>
+            <div class="modal-body"><p class="modal-intro">Estas publicaciones coinciden con palabras configuradas para revisión. No se eliminan automáticamente.</p><div id="moderation-posts-list" class="moderation-posts-list"></div></div>
+        </div>
+    </div>
 
     <!-- Vercel Analytics -->
     <script defer src="/_vercel/insights/script.js"></script>
