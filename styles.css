@@ -876,6 +876,130 @@ body.profile-menu-open { overflow: hidden; }
     .task-status { display: none; }
 }
 
+/* ============================================================
+   FINAL DARK THEME + ANDROID WEBVIEW STABILITY
+   Kept last so legacy glassmorphism declarations cannot leak back in.
+   ============================================================ */
+:root {
+    --primary: #2f9bff;
+    --primary-2: #2f9bff;
+    --primary-blue: #2f9bff;
+    --primary-gradient: #2f9bff;
+    --primary-glow-btn: none;
+    --bg-color: #000000;
+    --bg-secondary: #080808;
+    --surface: #111111;
+    --surface-2: #151515;
+    --surface-3: #1d1d1d;
+    --text-primary: #ffffff;
+    --text-secondary: #d0d0d0;
+    --text-muted: #a3a3a3;
+    --border-color: #303030;
+    --input-bg: #0b0b0b;
+    --hover-bg: #1d1d1d;
+    --comment-bg: #0b0b0b;
+    --danger-red: #ff5b66;
+    --success-green: #49c46b;
+}
+
+html, body, body[data-theme="dark"], #app-container {
+    width: 100%;
+    max-width: 100%;
+    background: #000 !important;
+    color: #fff;
+    overflow-x: clip;
+}
+
+.header,
+.header.scrolled {
+    background: #000 !important;
+    border-bottom-color: #303030;
+    box-shadow: none !important;
+}
+.header .logo-text, .logo-text, .username-small { color: #fff !important; }
+.search-bar, .search-bar input { background: #151515; color: #fff; }
+.search-bar { border-color: #303030; }
+.search-bar:focus-within { border-color: #777; }
+
+.glass-card,
+.glass-card:hover,
+.post-card,
+.modal-content,
+.auth-loading-card,
+.login-card,
+.profile-popover,
+.news-widget,
+.reports-widget,
+.mobile-bottom-bar,
+.teacher-messages-panel {
+    background: #111 !important;
+    border-color: #303030 !important;
+    color: #fff;
+    box-shadow: none !important;
+}
+.nav-item, .action-btn, .icon-btn { color: #fff; }
+.nav-item:hover, .nav-item.active, .action-btn:hover, .icon-btn:hover { background: #1d1d1d; color: #fff; }
+.nav-item.active { color: #fff; }
+.nav-item.active::before { background: #2f9bff; }
+
+.btn-primary,
+.mobile-nav-item.create-btn,
+.send-message-btn,
+.support-fab { background: #2f9bff; border-color: #2f9bff; color: #fff; }
+.btn-primary:hover, .send-message-btn:hover, .support-fab:hover { background: #167ed8; }
+
+.modal-overlay { background: rgba(0,0,0,.78); }
+.modal-content, .confirm-modal-content h2, .close-modal-btn { color: #fff; }
+.modal-content textarea,
+.modal-content .text-input,
+.modal-content input,
+.modal-content select,
+.teacher-message-composer textarea {
+    color: #fff;
+    background: #090909;
+    border-color: #383838;
+}
+.login-overlay, .auth-loading-overlay { background: #000; }
+.mobile-nav-item { color: #a3a3a3; }
+.mobile-nav-item.active { color: #fff; }
+
+.section-heading h2, .teacher-message strong, .moderation-item p { color: #fff; }
+.teacher-message { background: #0b0b0b; border-left-color: #2f9bff; }
+.teacher-message p, .teacher-message time, .field-help, .modal-intro,
+.composer-footer span, .empty-state, .moderation-item-header { color: #bdbdbd; }
+.follow-btn.following { color: #fff; background: #111; border-color: #555; }
+.comments-section { background: #0b0b0b; border-top-color: #303030; }
+.comment { border-bottom-color: #252525; }
+.post-flag { color: #ffd16d; background: #2a2108; border-color: #6f5715; }
+.confirm-icon { background: #300d11; color: #ff7b84; }
+.moderation-item { background: #0b0b0b; border-color: #383838; }
+
+/* Android: remove the artificial 35px top gutter and keep the app header
+   permanently visible. It also suppresses off-screen panel shadows that could
+   appear as a dark stripe at the right edge of some WebViews. */
+body.is-webview {
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    padding-top: 0;
+}
+body.is-webview .header,
+body.is-webview .header.scrolled,
+body.is-webview .header.header-hidden {
+    position: sticky !important;
+    top: 0 !important;
+    transform: translateY(0) !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+}
+body.is-webview .main-layout { padding-top: 0; }
+body.is-webview .chat-panel,
+.chat-panel { box-shadow: none; }
+body.is-webview .mobile-bottom-bar { box-shadow: none !important; }
+
+@media (max-width: 768px) {
+    .profile-popover, .profile-panel-topbar { background: #111 !important; }
+}
+
 /* Tic Tac Toe */
 .tic-tac-toe-cell {
     width: 100px; height: 100px;
@@ -1527,6 +1651,91 @@ body[data-theme="light"] {
     .support-fab { width:46px; height:46px; justify-content:center; padding:0; }
     .teacher-messages-panel { margin:12px 0; padding:14px; }
 }
+
+/* ============================================================
+   TEMA OSCURO FINAL
+   Este bloque queda al final para prevalecer sobre las reglas antiguas.
+   ============================================================ */
+:root {
+    --primary: #2f9bff;
+    --primary-2: #2f9bff;
+    --primary-blue: #2f9bff;
+    --primary-gradient: #2f9bff;
+    --primary-glow-btn: none;
+    --bg-color: #000;
+    --bg-secondary: #080808;
+    --surface: #111;
+    --surface-2: #151515;
+    --surface-3: #1d1d1d;
+    --text-primary: #fff;
+    --text-secondary: #d0d0d0;
+    --text-muted: #a3a3a3;
+    --border-color: #303030;
+    --input-bg: #0b0b0b;
+    --hover-bg: #1d1d1d;
+    --comment-bg: #0b0b0b;
+    --shadow-card: none;
+    --shadow-hover: none;
+    --shadow-glow: none;
+}
+
+html, body, body[data-theme="dark"], #app-container {
+    width: 100%; max-width: 100%; background: #000 !important; color: #fff;
+    overflow-x: clip;
+}
+.header, .header.scrolled {
+    background: #000 !important; border-bottom-color: #303030 !important;
+    box-shadow: none !important;
+}
+.header .logo-text, .logo-text, .username-small, .nav-item, .action-btn, .icon-btn,
+.section-heading h2, .teacher-message strong, .moderation-item p,
+.confirm-modal-content h2, .close-modal-btn { color: #fff !important; }
+.search-bar, .search-bar input { background: #151515 !important; color: #fff !important; }
+.search-bar { border-color: #303030 !important; }
+.search-bar:focus-within { border-color: #777 !important; }
+
+.glass-card, .glass-card:hover, .post-card, .modal-content, .auth-loading-card,
+.login-card, .profile-popover, .news-widget, .reports-widget, .mobile-bottom-bar,
+.teacher-messages-panel, .profile-panel-topbar {
+    background: #111 !important; border-color: #303030 !important; color: #fff !important;
+    box-shadow: none !important;
+}
+.nav-item:hover, .nav-item.active, .action-btn:hover, .icon-btn:hover {
+    background: #1d1d1d !important; color: #fff !important;
+}
+.nav-item.active::before { background: #2f9bff !important; }
+.btn-primary, .mobile-nav-item.create-btn, .send-message-btn, .support-fab {
+    background: #2f9bff !important; border-color: #2f9bff !important; color: #fff !important;
+}
+.btn-primary:hover, .send-message-btn:hover, .support-fab:hover { background: #167ed8 !important; }
+.modal-overlay { background: rgba(0, 0, 0, .78) !important; }
+.modal-content textarea, .modal-content .text-input, .modal-content input,
+.modal-content select, .teacher-message-composer textarea {
+    background: #090909 !important; border-color: #383838 !important; color: #fff !important;
+}
+.login-overlay, .auth-loading-overlay { background: #000 !important; }
+.mobile-nav-item { color: #a3a3a3 !important; }
+.mobile-nav-item.active { color: #fff !important; }
+.teacher-message, .comments-section, .moderation-item { background: #0b0b0b !important; }
+.teacher-message { border-left-color: #2f9bff !important; }
+.teacher-message p, .teacher-message time, .field-help, .modal-intro, .composer-footer span,
+.empty-state, .moderation-item-header { color: #bdbdbd !important; }
+.comments-section { border-top-color: #303030 !important; }
+.comment { border-bottom-color: #252525 !important; }
+.follow-btn.following { background: #111 !important; border-color: #555 !important; color: #fff !important; }
+.post-flag { color: #ffd16d !important; background: #2a2108 !important; border-color: #6f5715 !important; }
+.confirm-icon { background: #300d11 !important; color: #ff7b84 !important; }
+.moderation-item { border-color: #383838 !important; }
+
+/* Android WebView: elimina el espacio superior artificial, mantiene la cabecera
+   visible y elimina las sombras de paneles que formaban una franja a la derecha. */
+body.is-webview { --safe-area-top: env(safe-area-inset-top, 0px); padding-top: 0 !important; }
+body.is-webview .header, body.is-webview .header.scrolled, body.is-webview .header.header-hidden {
+    position: sticky !important; top: 0 !important; transform: translateY(0) !important;
+    opacity: 1 !important; pointer-events: auto !important; visibility: visible !important;
+}
+body.is-webview .main-layout { padding-top: 0 !important; }
+.chat-panel, body.is-webview .chat-panel, body.is-webview .mobile-bottom-bar { box-shadow: none !important; }
 
 
 
