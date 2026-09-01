@@ -277,6 +277,12 @@ function canManageContent() {
     return isAdmin;
 }
 
+function canDeletePost(post) {
+    if (!currentUser || !post) return false;
+    const authorId = post.author?.uid || post.autorId || '';
+    return canManageContent() || authorId === currentUser.uid;
+}
+
 function isProfessor() {
     return ['profesor', 'maestro'].includes(normalizeRole(userRole));
 }
@@ -1180,6 +1186,7 @@ function renderCommunityFeed() {
         const likesCount = Object.keys(post.likes || {}).length;
         const liked = Boolean(post.likes?.[currentUser.uid]);
         const canFollow = authorId && authorId !== currentUser.uid;
+        const canDelete = canDeletePost(post);
         const followsAuthor = Boolean(followingIds[authorId]);
         const imageSrc = safeImageSrc(post.imageBase64, '');
         const expiry = authorId === currentUser.uid && normalizeRole(post.authorRole) === 'estudiante'
@@ -1187,7 +1194,7 @@ function renderCommunityFeed() {
         const flagged = canManageContent() && post.flagged ? '<span class="post-flag">Pendiente de revisión</span>' : '';
         return `<article class="post-card" id="post-${postId}">
             <div class="post-header"><div class="user-info"><img src="${authorAvatar}" alt="Avatar" class="avatar"><div class="user-details"><span class="username">${authorName}</span><span class="post-meta">${formatPostTime(postCreatedAt(post))}</span>${expiry}</div></div>
-                <div class="post-header-actions">${flagged}${canFollow ? `<button class="action-btn follow-btn ${followsAuthor ? 'following' : ''}" data-author-id="${escapeAttribute(authorId)}" data-following="${followsAuthor}" type="button">${followsAuthor ? 'Siguiendo' : 'Seguir'}</button>` : ''}${canManageContent() ? `<button class="action-btn delete-post-btn" aria-label="Eliminar publicación" data-id="${postId}" type="button"><i class='bx bx-trash'></i></button>` : ''}</div>
+                <div class="post-header-actions">${flagged}${canFollow ? `<button class="action-btn follow-btn ${followsAuthor ? 'following' : ''}" data-author-id="${escapeAttribute(authorId)}" data-following="${followsAuthor}" type="button">${followsAuthor ? 'Siguiendo' : 'Seguir'}</button>` : ''}${canDelete ? `<button class="action-btn delete-post-btn" aria-label="Eliminar publicación" data-id="${postId}" type="button"><i class='bx bx-trash'></i></button>` : ''}</div>
             </div>
             ${post.content ? `<div class="post-content">${escapeHTML(post.content)}</div>` : ''}
             ${imageSrc ? `<img src="${escapeAttribute(imageSrc)}" alt="Imagen adjunta" class="post-image-full">` : ''}
@@ -1364,23 +1371,27 @@ function openConfirmModal({ title, message, confirmLabel = 'Confirmar', destruct
 }
 
 async function deletePostWithLog(postId) {
-    if (!canManageContent() || !currentUser) return;
+    const post = allPostsCache.find(item => item.id === postId);
+    if (!currentUser || !canDeletePost(post)) return;
     const shouldDelete = await openConfirmModal({ title: 'Eliminar publicación', message: 'Esta acción eliminará también sus comentarios y no se puede deshacer.', confirmLabel: 'Eliminar', destructive: true });
     if (!shouldDelete) return;
-    const post = allPostsCache.find(item => item.id === postId);
-    const logId = push(ref(db, 'logs_moderacion')).key;
+    const updates = { [`posts/${postId}`]: null };
+
+    // El historial de moderación registra solo acciones administrativas. Los
+    // autores pueden retirar su propio contenido sin obtener permiso de logs.
+    if (canManageContent()) {
+        const logId = push(ref(db, 'logs_moderacion')).key;
+        updates[`logs_moderacion/${logId}`] = {
+            moderadorId: currentUser.uid,
+            moderadorNombre: currentUser.displayName || 'Administrador',
+            postId,
+            autorPostId: post.author?.uid || post.autorId || '',
+            accion: 'eliminar_publicacion',
+            timestamp: Date.now()
+        };
+    }
     try {
-        await update(ref(db), {
-            [`posts/${postId}`]: null,
-            [`logs_moderacion/${logId}`]: {
-                moderadorId: currentUser.uid,
-                moderadorNombre: currentUser.displayName || 'Administrador',
-                postId,
-                autorPostId: post?.author?.uid || '',
-                accion: 'eliminar_publicacion',
-                timestamp: Date.now()
-            }
-        });
+        await update(ref(db), updates);
     } catch (error) {
         console.error('No se pudo eliminar la publicación:', error);
         alert('No se pudo eliminar la publicación. Revisa las reglas de Firebase.');
