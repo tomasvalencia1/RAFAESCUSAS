@@ -26,11 +26,11 @@
     <meta property="twitter:description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Mantente al día con nuestra comunidad.">
     <meta property="twitter:image" content="https://rafaexcusas.vercel.app/logo.png">
     <!-- Módulos de Firebase y Lógica -->
-    <script type="module" src="app.js?v=7"></script>
+    <script type="module" src="app.js?v=8"></script>
     <!-- Estilos y Fuentes -->
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link rel="stylesheet" href="https://rawcdn.githack.com/pattespatte/vanilla-css-design-system/refs/tags/v1.0.2/styles/vanilla-combined.min.css">
-    <link rel="stylesheet" href="styles.css?v=7">
+    <link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body data-theme="dark">
 
@@ -66,9 +66,10 @@
                 <img src="logo.png" alt="Logo IE" class="school-logo" style="width: 40px; height: 40px; object-fit: contain;">
                 <h1 class="logo-text">IE Rafael Uribe Uribe</h1>
             </div>
-            <div class="search-bar">
+            <div class="search-bar user-search-bar" id="user-search">
                 <i class='bx bx-search'></i>
-                <input type="text" placeholder="Buscar publicaciones...">
+                <input id="user-search-input" type="search" autocomplete="off" maxlength="80" placeholder="Buscar personas..." aria-label="Buscar personas para seguir" aria-controls="user-search-results" aria-expanded="false">
+                <div id="user-search-results" class="user-search-results user-search-results-desktop" role="list" aria-live="polite"></div>
             </div>
             <div class="header-actions">
                 <div class="user-profile-header" id="profile-btn">
@@ -144,8 +145,8 @@
                     </div>
                     <p class="profile-note">Manten tu rol correcto para ver las herramientas disponibles. Si algo no coincide, solicita ajuste a un administrador.</p>
                     <div class="popover-actions">
-                        <button class="logout-btn" id="logout-btn">
-                            <i class='bx bx-log-out'></i> Cerrar Sesion
+                        <button class="logout-btn" id="logout-btn" type="button">
+                            <i class='bx bx-log-out'></i> Cerrar sesión
                         </button>
                     </div>
                 </div>
@@ -180,6 +181,16 @@
                     <div class="inline-post-input" style="flex: 1; background: var(--input-bg); padding: 12px 20px; border-radius: 24px; color: var(--text-muted); font-size: 14px; border: 1px solid var(--border-color);">¿Qué está pasando en la institución?</div>
                     <button class="icon-btn" style="color:var(--primary-blue);"><i class='bx bx-image-add'></i></button>
                 </div>
+                <section class="user-search-mobile" aria-labelledby="mobile-user-search-title">
+                    <div class="user-search-mobile-heading"><i class='bx bx-user-plus'></i><h2 id="mobile-user-search-title">Encontrar personas</h2></div>
+                    <p>Busca por nombre y sigue a las personas que quieres ver en tu inicio.</p>
+                    <div class="user-search-input-wrap">
+                        <i class='bx bx-search' aria-hidden="true"></i>
+                        <input id="mobile-user-search-input" type="search" autocomplete="off" maxlength="80" placeholder="Buscar por nombre" aria-label="Buscar personas para seguir" aria-controls="mobile-user-search-results" aria-expanded="false">
+                    </div>
+                    <span id="mobile-user-search-status" class="user-search-status" aria-live="polite">Escribe al menos 2 letras.</span>
+                    <div id="mobile-user-search-results" class="user-search-results" role="list" aria-live="polite"></div>
+                </section>
                 <section class="teacher-messages-panel" id="teacher-messages-panel" aria-labelledby="teacher-messages-title">
                     <div class="section-heading">
                         <div><span class="section-kicker">Comunidad</span><h2 id="teacher-messages-title">Mensajes del profesorado</h2></div>

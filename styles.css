@@ -1776,6 +1776,129 @@ body.is-webview .main-layout { padding-top: 0 !important; }
 #support-modal { z-index: 2200 !important; }
 #support-modal .modal-content { max-height: min(620px, calc(100vh - 32px)); overflow-y: auto; }
 
+/* Perfil en escritorio: la tarjeta conserva su ancho, pero nunca se sale de
+   la ventana. El desplazamiento ocurre dentro de ella y no bloquea la página. */
+@media (min-width: 769px) {
+    body.profile-menu-open { overflow-x: hidden; overflow-y: auto; }
+    .profile-popover {
+        position: fixed !important;
+        top: calc(60px + var(--safe-area-top, 0px) + 12px) !important;
+        right: 20px !important;
+        width: min(360px, calc(100vw - 24px)) !important;
+        max-height: calc(100dvh - 84px - var(--safe-area-top, 0px)) !important;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        z-index: 600 !important;
+    }
+    .profile-popover .popover-actions {
+        position: sticky;
+        bottom: -18px;
+        padding: 12px 0 18px;
+        background: #111;
+    }
+}
+body.profile-menu-open .support-fab {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Directorio de personas: búsqueda y seguimiento dentro de la misma pantalla. */
+.user-search-bar { position: relative; overflow: visible; }
+.user-search-results {
+    display: grid;
+    gap: 7px;
+    max-height: min(390px, calc(100dvh - 145px));
+    overflow-y: auto;
+}
+.user-search-results:empty { display: none; }
+.user-search-results-desktop {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 500;
+    width: max(100%, 340px);
+    padding: 8px;
+    border: 1px solid #303030;
+    border-radius: 10px;
+    background: #111;
+}
+.user-search-result {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    padding: 8px;
+    border: 1px solid #282828;
+    border-radius: 8px;
+    background: #0b0b0b;
+}
+.user-search-result .avatar-small { width: 30px; height: 30px; }
+.user-search-person { min-width: 0; }
+.user-search-person strong, .user-search-person span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.user-search-person strong { color: #fff; font-size: 12px; }
+.user-search-person span { margin-top: 2px; color: #a3a3a3; font-size: 10px; }
+.user-search-follow-btn {
+    min-width: 72px;
+    justify-content: center;
+    padding: 7px 9px;
+    border: 1px solid #2f9bff !important;
+    background: #12324c !important;
+    color: #fff !important;
+    font-size: 11px;
+}
+.user-search-follow-btn:hover { background: #1e587f !important; }
+.user-search-follow-btn.following { border-color: #555 !important; background: #171717 !important; }
+.user-search-follow-btn:disabled { cursor: wait; opacity: .65; }
+.user-search-empty {
+    margin: 0;
+    padding: 10px;
+    color: #bdbdbd;
+    font-size: 12px;
+    text-align: center;
+}
+.user-search-mobile { display: none; }
+
+@media (max-width: 768px) {
+    .user-search-mobile {
+        display: block;
+        padding: 14px;
+        border: 1px solid #303030;
+        border-radius: 12px;
+        background: #111;
+    }
+    .user-search-mobile-heading { display: flex; align-items: center; gap: 8px; }
+    .user-search-mobile-heading i { color: #2f9bff; font-size: 19px; }
+    .user-search-mobile-heading h2 { color: #fff; font-size: 15px; }
+    .user-search-mobile > p { margin: 6px 0 11px; color: #bdbdbd; font-size: 12px; line-height: 1.4; }
+    .user-search-input-wrap { position: relative; }
+    .user-search-input-wrap > i {
+        position: absolute;
+        top: 50%; left: 12px;
+        transform: translateY(-50%);
+        color: #9a9a9a;
+        pointer-events: none;
+    }
+    .user-search-input-wrap input {
+        width: 100%;
+        min-height: 40px;
+        padding: 9px 12px 9px 36px;
+        border: 1px solid #383838;
+        border-radius: 9px;
+        outline: none;
+        background: #090909;
+        color: #fff;
+        font: inherit;
+    }
+    .user-search-input-wrap input:focus { border-color: #2f9bff; }
+    .user-search-status { display: block; min-height: 18px; margin-top: 8px; color: #a3a3a3; font-size: 11px; }
+    .user-search-mobile .user-search-results { margin-top: 8px; max-height: 320px; }
+}
+
 
 
 

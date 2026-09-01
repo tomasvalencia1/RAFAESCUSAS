@@ -456,6 +456,9 @@ function closeProfilePopover() {
 }
 
 profileBtn.addEventListener('click', (e) => {
+    // El panel está dentro del disparador de perfil. Sus propios botones no
+    // deben volver a alternar/cerrar el menú al hacer clic en ellos.
+    if (e.target.closest('.profile-popover')) return;
     e.stopPropagation();
     if (profilePopover.classList.contains('active')) {
         closeProfilePopover();
@@ -595,9 +598,23 @@ loginGoogleBtn.addEventListener('click', async () => {
         alert("Hubo un error al iniciar sesión.");
     }
 });
-logoutBtn.addEventListener('click', () => {
+logoutBtn.addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (logoutBtn.disabled) return;
+
     hapticTap(15);
-    signOut(auth);
+    logoutBtn.disabled = true;
+    logoutBtn.innerHTML = "<i class='bx bx-loader-alt bx-spin'></i> Cerrando sesión...";
+
+    try {
+        await signOut(auth);
+    } catch (error) {
+        console.error('No se pudo cerrar sesión:', error);
+        logoutBtn.disabled = false;
+        logoutBtn.innerHTML = "<i class='bx bx-log-out'></i> Cerrar sesión";
+        alert('No se pudo cerrar la sesión. Inténtalo de nuevo.');
+    }
 });
 
 onAuthStateChanged(auth, async (user) => {
@@ -627,9 +644,15 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = null; isAdmin = false; userRole = null; allPostsCache = [];
         if (postsListener) { postsListener(); postsListener = null; }
         if (followingListener) { followingListener(); followingListener = null; }
+        if (userDirectoryListener) { userDirectoryListener(); userDirectoryListener = null; }
         if (teacherMessagesListener) { teacherMessagesListener(); teacherMessagesListener = null; }
         if (moderationConfigListener) { moderationConfigListener(); moderationConfigListener = null; }
-        followingIds = {}; teacherMessagesCache = [];
+        followingIds = {}; userDirectoryCache = []; followActionIds.clear(); teacherMessagesCache = [];
+        [userSearchInput, mobileUserSearchInput].forEach(input => {
+            if (input) { input.value = ''; input.setAttribute('aria-expanded', 'false'); }
+        });
+        [userSearchResults, mobileUserSearchResults].forEach(results => { if (results) results.innerHTML = ''; });
+        if (mobileUserSearchStatus) mobileUserSearchStatus.textContent = 'Escribe al menos 2 letras.';
         if (activeChatListener) { activeChatListener(); activeChatListener = null; }
         if (chatContactsListener) { chatContactsListener(); chatContactsListener = null; }
         if (personalTasksListener) { personalTasksListener(); personalTasksListener = null; }
@@ -1030,9 +1053,12 @@ const STUDENT_POST_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_PROHIBITED_WORDS = ['groseria', 'idiota', 'mierda', 'puta', 'malparido', 'gonorrea'];
 let postsListener = null;
 let followingListener = null;
+let userDirectoryListener = null;
 let teacherMessagesListener = null;
 let moderationConfigListener = null;
 let followingIds = {};
+let userDirectoryCache = [];
+const followActionIds = new Set();
 let teacherMessagesCache = [];
 let prohibitedWords = [...DEFAULT_PROHIBITED_WORDS];
 
@@ -1045,6 +1071,11 @@ const sendTeacherMessageBtn = document.getElementById('send-teacher-message-btn'
 const supportFab = document.getElementById('support-fab');
 const supportModal = document.getElementById('support-modal');
 const supportText = document.getElementById('support-text');
+const userSearchInput = document.getElementById('user-search-input');
+const userSearchResults = document.getElementById('user-search-results');
+const mobileUserSearchInput = document.getElementById('mobile-user-search-input');
+const mobileUserSearchResults = document.getElementById('mobile-user-search-results');
+const mobileUserSearchStatus = document.getElementById('mobile-user-search-status');
 const moderationModal = document.getElementById('moderation-modal');
 const moderationPostsList = document.getElementById('moderation-posts-list');
 const moderationCount = document.getElementById('moderation-count');
@@ -1198,14 +1229,92 @@ function loadFollowing() {
     followingListener = onValue(ref(db, `siguiendo/${currentUser.uid}`), snapshot => {
         followingIds = snapshot.exists() ? snapshot.val() : {};
         renderCommunityFeed();
+        renderUserDirectoryResults();
+    });
+}
+
+function normalizeUserSearchText(value) {
+    return (value || '').toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLocaleLowerCase('es-CO')
+        .trim();
+}
+
+function renderUserDirectoryFor(input, results, status) {
+    if (!input || !results) return;
+    const term = normalizeUserSearchText(input.value);
+
+    if (term.length < 2) {
+        results.innerHTML = '';
+        input.setAttribute('aria-expanded', 'false');
+        if (status) status.textContent = 'Escribe al menos 2 letras.';
+        return;
+    }
+
+    const matches = userDirectoryCache
+        .filter(user => normalizeUserSearchText(user.name).includes(term))
+        .slice(0, 8);
+
+    input.setAttribute('aria-expanded', 'true');
+    if (status) status.textContent = matches.length
+        ? `${matches.length} ${matches.length === 1 ? 'persona encontrada' : 'personas encontradas'}.`
+        : 'No encontramos personas con ese nombre.';
+
+    if (!matches.length) {
+        results.innerHTML = '<p class="user-search-empty">No encontramos personas con ese nombre.</p>';
+        return;
+    }
+
+    results.innerHTML = matches.map(user => {
+        const followed = Boolean(followingIds[user.uid]);
+        const isUpdating = followActionIds.has(user.uid);
+        return `<article class="user-search-result" role="listitem">
+            <img src="${escapeAttribute(safeImageSrc(user.avatar))}" alt="" class="avatar-small">
+            <div class="user-search-person"><strong>${escapeHTML(user.name || 'Usuario')}</strong><span>${escapeHTML(formatRoleLabel(user.role))}</span></div>
+            <button class="action-btn user-search-follow-btn ${followed ? 'following' : ''}" data-user-id="${escapeAttribute(user.uid)}" type="button" ${isUpdating ? 'disabled' : ''}>${isUpdating ? 'Guardando...' : (followed ? 'Siguiendo' : 'Seguir')}</button>
+        </article>`;
+    }).join('');
+}
+
+function renderUserDirectoryResults() {
+    renderUserDirectoryFor(userSearchInput, userSearchResults);
+    renderUserDirectoryFor(mobileUserSearchInput, mobileUserSearchResults, mobileUserSearchStatus);
+}
+
+function loadUserDirectory() {
+    if (!currentUser) return;
+    if (userDirectoryListener) userDirectoryListener();
+    userDirectoryListener = onValue(ref(db, 'users'), snapshot => {
+        userDirectoryCache = snapshot.exists()
+            ? Object.entries(snapshot.val())
+                .map(([uid, data]) => ({ uid, ...(data || {}) }))
+                .filter(user => user.uid !== currentUser.uid && Boolean(user.name))
+                .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es-CO', { sensitivity: 'base' }))
+            : [];
+        renderUserDirectoryResults();
+    }, error => {
+        console.error('No se pudo cargar el directorio de usuarios:', error);
+        userDirectoryCache = [];
+        if (mobileUserSearchStatus) mobileUserSearchStatus.textContent = 'No se pudo cargar la lista de personas.';
     });
 }
 
 async function toggleFollow(authorId) {
-    if (!authorId || !currentUser || authorId === currentUser.uid) return;
+    if (!authorId || !currentUser || authorId === currentUser.uid || followActionIds.has(authorId)) return;
+    followActionIds.add(authorId);
+    renderUserDirectoryResults();
     const path = ref(db, `siguiendo/${currentUser.uid}/${authorId}`);
-    if (followingIds[authorId]) await remove(path);
-    else await set(path, { seguidoId: authorId, creadoEn: Date.now() });
+    try {
+        if (followingIds[authorId]) await remove(path);
+        else await set(path, { seguidoId: authorId, creadoEn: Date.now() });
+    } catch (error) {
+        console.error('No se pudo actualizar el seguimiento:', error);
+        alert('No se pudo actualizar el seguimiento. Inténtalo de nuevo.');
+    } finally {
+        followActionIds.delete(authorId);
+        renderUserDirectoryResults();
+    }
 }
 
 async function submitComment(postId, input) {
@@ -1366,6 +1475,7 @@ function initializeCommunityFeatures() {
     configureCommunityVisibility();
     loadModerationConfig();
     loadFollowing();
+    loadUserDirectory();
     loadPosts();
     loadTeacherMessages();
 }
@@ -1418,6 +1528,34 @@ postsContainer.addEventListener('click', async event => {
 
 postsContainer.addEventListener('keypress', event => {
     if (event.key === 'Enter' && event.target.classList.contains('new-comment-input')) submitComment(event.target.dataset.id, event.target);
+});
+
+[userSearchInput, mobileUserSearchInput].forEach(input => {
+    if (!input) return;
+    input.addEventListener('input', renderUserDirectoryResults);
+    input.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+            input.value = '';
+            input.blur();
+            renderUserDirectoryResults();
+        }
+    });
+});
+
+[userSearchResults, mobileUserSearchResults].forEach(results => {
+    results?.addEventListener('click', event => {
+        const followButton = event.target.closest('.user-search-follow-btn');
+        if (followButton) toggleFollow(followButton.dataset.userId);
+    });
+});
+
+document.addEventListener('click', event => {
+    if (event.target.closest('#user-search, .user-search-mobile')) return;
+    let changed = false;
+    [userSearchInput, mobileUserSearchInput].forEach(input => {
+        if (input?.value) { input.value = ''; changed = true; }
+    });
+    if (changed) renderUserDirectoryResults();
 });
 
 if (teacherMessageInput) teacherMessageInput.addEventListener('input', updateTeacherComposer);
