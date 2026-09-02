@@ -331,6 +331,32 @@ window.addEventListener('androidFcmToken', (event) => {
     saveAndroidFcmToken(event.detail);
 });
 
+// The native APK exposes these optional methods. Existing APKs keep working;
+// the notification-enabled build will request Android 13+ permission and pass
+// its current FCM token through the function above.
+async function initializeAndroidNotifications() {
+    const bridge = window.AndroidFCM;
+    if (!bridge || !currentUser) return;
+
+    try {
+        if (typeof bridge.requestNotificationPermission === 'function'
+            && !localStorage.getItem('rafa-notifications-requested')) {
+            localStorage.setItem('rafa-notifications-requested', 'true');
+            await Promise.resolve(bridge.requestNotificationPermission());
+        }
+
+        const getToken = bridge.getFcmToken || bridge.getNotificationToken;
+        if (typeof getToken === 'function') {
+            const token = await Promise.resolve(getToken.call(bridge));
+            if (token) await saveAndroidFcmToken(token);
+        }
+    } catch (error) {
+        // Permission can be rejected by the user. The app itself must remain
+        // fully usable and Android may provide the token later by event.
+        console.warn('No se pudieron inicializar las notificaciones Android:', error);
+    }
+}
+
 async function signInWithAndroidGoogle(idToken) {
     if (!idToken) {
         setLoginButtonLoading(false);
@@ -706,6 +732,7 @@ async function completeLogin() {
     }
 
     initializeCommunityFeatures();
+    initializeAndroidNotifications();
     loadNews();
     loadReports();
     loadEvents();

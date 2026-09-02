@@ -6,7 +6,7 @@
   },
   "main": "index.js",
   "scripts": {
-    "check": "node --check index.js"
+    "check": "node --check index.js && node --check cleanup-expired-posts.cjs && node --check send-relevant-notifications.cjs"
   },
   "dependencies": {
     "firebase-admin": "^12.7.0",

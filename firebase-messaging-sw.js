@@ -19,12 +19,26 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Mensaje recibido en segundo plano: ', payload);
-  
-  const notificationTitle = payload.notification?.title || 'Nueva Notificación';
+  const notificationTitle = payload.notification?.title || 'Nueva notificación';
   const notificationOptions = {
     body: payload.notification?.body || 'Tienes contenido nuevo.',
-    icon: '/logo.png' // Icono de tu app
+    icon: '/logo.png',
+    badge: '/logo.png',
+    data: {
+      url: payload.fcmOptions?.link || 'https://rafaexcusas.vercel.app/',
+      type: payload.data?.type || 'general',
+      entityId: payload.data?.entityId || ''
+    }
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || 'https://rafaexcusas.vercel.app/';
+  event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+    const existing = windows.find(client => client.url.startsWith('https://rafaexcusas.vercel.app/'));
+    return existing ? existing.focus() : clients.openWindow(url);
+  }));
 });

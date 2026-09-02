@@ -26,7 +26,7 @@
     "posts": {
       ".read": "auth != null",
       "$postId": {
-        ".write": "auth != null && ((!data.exists() && newData.exists() && newData.child('author').child('uid').val() === auth.uid && newData.child('authorRole').val() === root.child('users').child(auth.uid).child('role').val()) || (data.exists() && !newData.exists() && root.child('users').child(auth.uid).child('role').val() === 'directivo') || (data.exists() && newData.exists() && root.child('users').child(auth.uid).child('role').val() === 'directivo'))",
+        ".write": "auth != null && ((!data.exists() && newData.exists() && newData.child('author').child('uid').val() === auth.uid && newData.child('authorRole').val() === root.child('users').child(auth.uid).child('role').val()) || (data.exists() && !newData.exists() && (data.child('author').child('uid').val() === auth.uid || data.child('autorId').val() === auth.uid || root.child('admins').child(auth.uid).val() === true)) || (data.exists() && newData.exists() && root.child('admins').child(auth.uid).val() === true))",
         ".validate": "data.exists() || (!newData.exists() || (newData.hasChildren(['author', 'authorRole', 'timestamp', 'createdAt']) && newData.child('author').child('uid').isString() && newData.child('authorRole').isString() && newData.child('timestamp').isNumber() && newData.child('createdAt').isNumber()))",
         "likes": {
           "$uid": {
@@ -36,13 +36,13 @@
         },
         "comentarios": {
           "$commentId": {
-            ".write": "auth != null && ((!data.exists() && newData.exists() && newData.child('autorId').val() === auth.uid && (data.parent().parent().child('authorRole').val() !== 'estudiante' || now < data.parent().parent().child('createdAt').val() + 86400000)) || (data.exists() && !newData.exists() && (data.child('autorId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'directivo')))",
+            ".write": "auth != null && ((!data.exists() && newData.exists() && newData.child('autorId').val() === auth.uid && (data.parent().parent().child('authorRole').val() !== 'estudiante' || now < data.parent().parent().child('createdAt').val() + 86400000)) || (data.exists() && !newData.exists() && root.child('admins').child(auth.uid).val() === true))",
             ".validate": "!newData.exists() || (newData.hasChildren(['autorId', 'autorNombre', 'texto', 'timestamp']) && newData.child('autorId').val() === auth.uid && newData.child('texto').isString() && newData.child('texto').val().length <= 500 && newData.child('timestamp').isNumber())"
           }
         },
         "comments": {
           "$commentId": {
-            ".write": "auth != null && ((data.exists() && !newData.exists() && (data.child('authorUid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'directivo')) || (!data.exists() && newData.exists() && newData.child('authorUid').val() === auth.uid))"
+            ".write": "auth != null && ((data.exists() && !newData.exists() && root.child('admins').child(auth.uid).val() === true) || (!data.exists() && newData.exists() && newData.child('authorUid').val() === auth.uid))"
           }
         }
       }
@@ -67,9 +67,9 @@
       }
     },
     "logs_moderacion": {
-      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'directivo'",
+      ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
       "$logId": {
-        ".write": "auth != null && !data.exists() && newData.exists() && root.child('users').child(auth.uid).child('role').val() === 'directivo' && newData.child('moderadorId').val() === auth.uid",
+        ".write": "auth != null && !data.exists() && newData.exists() && root.child('admins').child(auth.uid).val() === true && newData.child('moderadorId').val() === auth.uid",
         ".validate": "newData.hasChildren(['moderadorId', 'postId', 'accion', 'timestamp']) && newData.child('postId').isString() && newData.child('timestamp').isNumber()"
       }
     },
@@ -82,7 +82,7 @@
     "configuracion": {
       "moderacion": {
         ".read": "auth != null",
-        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'directivo'"
+        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
       }
     },
     "news": { ".read": "auth != null", ".write": "auth != null && root.child('admins').child(auth.uid).val() === true" },
