@@ -2251,10 +2251,20 @@ function getFallbackChatId(uid1, uid2) {
 }
 
 async function prepareChatParticipants(chatId, targetUid) {
-    await update(ref(db, `chats/${chatId}/participants`), {
-        [currentUser.uid]: true,
-        [targetUid]: true
-    });
+    const pRef = ref(db, `chats/${chatId}/participants`);
+    try {
+        await update(pRef, {
+            [currentUser.uid]: true,
+            [targetUid]: true
+        });
+    } catch (error) {
+        if (error.code === 'PERMISSION_DENIED' || (error.message && error.message.includes('PERMISSION_DENIED'))) {
+            // Ya existe y no tenemos permiso de escritura. Validamos que podemos leerlo.
+            await get(pRef);
+            return;
+        }
+        throw error;
+    }
 }
 
 async function openChat(targetUid) {
