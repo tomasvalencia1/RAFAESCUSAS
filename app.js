@@ -96,7 +96,7 @@ function checkApkVersion() {
         currentVersion = window.AndroidFCM.getVersionCode();
     }
 
-    const REQUIRED_APK_VERSION = 2;
+    const REQUIRED_APK_VERSION = 3;
 
     if (currentVersion < REQUIRED_APK_VERSION) {
         const updateOverlay = document.createElement('div');
