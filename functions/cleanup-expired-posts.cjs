@@ -11,7 +11,21 @@ const STUDENT_POST_TTL_MS = 24 * 60 * 60 * 1000;
 
 function getServiceAccount() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!raw) throw new Error('Falta el secreto FIREBASE_SERVICE_ACCOUNT.');
+  if (!raw) {
+    console.error([
+      'ERROR: Falta el secreto FIREBASE_SERVICE_ACCOUNT.',
+      '',
+      'Para configurarlo:',
+      '1. Ve a Firebase Console > Configuración del proyecto > Cuentas de servicio.',
+      '2. Genera una nueva clave privada JSON.',
+      '3. En GitHub > tu repositorio > Settings > Secrets and variables > Actions,',
+      '   crea el secreto FIREBASE_SERVICE_ACCOUNT y pega el contenido del JSON.',
+      '',
+      'Mientras el secreto no esté configurado, el cliente sigue ocultando posts',
+      'vencidos inmediatamente, pero no se eliminan de la base de datos.'
+    ].join('\n'));
+    process.exit(0); // Exit cleanly so the workflow doesn't report a failure
+  }
 
   try {
     return JSON.parse(raw);

@@ -1204,31 +1204,88 @@ function renderCommunityFeed() {
         return;
     }
 
-    postsContainer.innerHTML = visiblePosts.map(post => {
-        const postId = escapeAttribute(post.id);
-        const authorId = post.author?.uid || post.autorId || '';
-        const authorName = escapeHTML(post.author?.name || post.autorNombre || 'Usuario');
-        const authorAvatar = escapeAttribute(safeImageSrc(post.author?.avatar || post.autorAvatar));
-        const comments = commentsForPost(post);
-        const likesCount = Object.keys(post.likes || {}).length;
-        const liked = Boolean(post.likes?.[currentUser.uid]);
-        const canFollow = authorId && authorId !== currentUser.uid;
-        const canDelete = canDeletePost(post);
-        const followsAuthor = Boolean(followingIds[authorId]);
-        const imageSrc = safeImageSrc(post.imageBase64, '');
-        const expiry = authorId === currentUser.uid && normalizeRole(post.authorRole) === 'estudiante'
-            ? `<span class="post-expiry">${postExpiryLabel(post)}</span>` : '';
-        const flagged = canManageContent() && post.flagged ? '<span class="post-flag">Pendiente de revisión</span>' : '';
-        return `<article class="post-card" id="post-${postId}">
-            <div class="post-header"><div class="user-info"><img src="${authorAvatar}" alt="Avatar" class="avatar"><div class="user-details"><span class="username">${authorName}</span><span class="post-meta">${formatPostTime(postCreatedAt(post))}</span>${expiry}</div></div>
-                <div class="post-header-actions">${flagged}${canFollow ? `<button class="action-btn follow-btn ${followsAuthor ? 'following' : ''}" data-author-id="${escapeAttribute(authorId)}" data-following="${followsAuthor}" type="button">${followsAuthor ? 'Siguiendo' : 'Seguir'}</button>` : ''}${canDelete ? `<button class="action-btn delete-post-btn" aria-label="Eliminar publicación" data-id="${postId}" type="button"><i class='bx bx-trash'></i></button>` : ''}</div>
-            </div>
-            ${post.content ? `<div class="post-content">${escapeHTML(post.content)}</div>` : ''}
-            ${imageSrc ? `<img src="${escapeAttribute(imageSrc)}" alt="Imagen adjunta" class="post-image-full">` : ''}
-            <div class="post-actions"><button class="action-btn like-btn ${liked ? 'liked' : ''}" data-id="${postId}" type="button"><i class='bx ${liked ? 'bxs-heart' : 'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button><button class="action-btn comment-btn" data-id="${postId}" type="button"><i class='bx bx-message-rounded'></i><span>${Object.keys(comments).length}</span></button></div>
-            <div class="comments-section" id="comments-${postId}"><div class="comments-list">${buildCommentsHtml(post, post.id)}</div><div class="comment-input-area"><input type="text" maxlength="500" placeholder="Escribe un comentario..." class="new-comment-input" data-id="${postId}"><button class="comment-submit-btn" data-id="${postId}" type="button" aria-label="Publicar comentario"><i class='bx bxs-send'></i></button></div></div>
-        </article>`;
-    }).join('');
+    // --- Incremental DOM reconciliation (Fix #7) ---
+    const _currentIds = new Set(visiblePosts.map(p => p.id));
+    const _existingEls = postsContainer.querySelectorAll('.post-card[id]');
+    const _existingMap = new Map();
+    _existingEls.forEach(el => {
+        const eid = (el.id || '').replace('post-', '');
+        if (!_currentIds.has(eid)) {
+            el.remove();
+        } else {
+            _existingMap.set(eid, el);
+        }
+    });
+
+    visiblePosts.forEach((post, index) => {
+        const postId = post.id;
+        const existingEl = _existingMap.get(postId);
+        
+        if (existingEl) {
+            // Update only key data that may have changed without destroying the element
+            const likesBtn = existingEl.querySelector('.like-btn');
+            if (likesBtn) {
+                const likesCount = Object.keys(post.likes || {}).length;
+                const liked = Boolean(post.likes?.[currentUser.uid]);
+                const countSpan = likesBtn.querySelector('.likes-count');
+                if (countSpan) countSpan.textContent = likesCount;
+                likesBtn.classList.toggle('liked', liked);
+                const icon = likesBtn.querySelector('i');
+                if (icon) { icon.className = liked ? 'bx bxs-heart' : 'bx bx-heart'; }
+                likesBtn.dataset.id = postId;
+            }
+            // Update comment count
+            const commentBtn = existingEl.querySelector('.comment-btn span');
+            const comments = commentsForPost(post);
+            if (commentBtn) commentBtn.textContent = Object.keys(comments).length;
+            // Update follow button state
+            const followBtn = existingEl.querySelector('.follow-btn');
+            if (followBtn) {
+                const authorId = post.author?.uid || post.autorId || '';
+                const followsAuthor = Boolean(followingIds[authorId]);
+                followBtn.classList.toggle('following', followsAuthor);
+                followBtn.dataset.following = String(followsAuthor);
+                followBtn.textContent = followsAuthor ? 'Siguiendo' : 'Seguir';
+            }
+            // Reorder if needed
+            if (postsContainer.children[index] !== existingEl) {
+                postsContainer.insertBefore(existingEl, postsContainer.children[index]);
+            }
+        } else {
+            // New post - create element from scratch
+            const postIdSafe = escapeAttribute(postId);
+            const authorId = post.author?.uid || post.autorId || '';
+            const authorName = escapeHTML(post.author?.name || post.autorNombre || 'Usuario');
+            const authorAvatar = escapeAttribute(safeImageSrc(post.author?.avatar || post.autorAvatar));
+            const comments = commentsForPost(post);
+            const likesCount = Object.keys(post.likes || {}).length;
+            const liked = Boolean(post.likes?.[currentUser.uid]);
+            const canFollow = authorId && authorId !== currentUser.uid;
+            const canDel = canDeletePost(post);
+            const followsAuthor = Boolean(followingIds[authorId]);
+            const imageSrc = safeImageSrc(post.imageBase64, '');
+            const expiry = authorId === currentUser.uid && normalizeRole(post.authorRole) === 'estudiante'
+                ? `<span class="post-expiry">${postExpiryLabel(post)}</span>` : '';
+            const flagged = canManageContent() && post.flagged ? '<span class="post-flag">Pendiente de revisi\u00f3n</span>' : '';
+            const newEl = document.createElement('article');
+            newEl.className = 'post-card';
+            newEl.id = `post-${postIdSafe}`;
+            newEl.innerHTML = `
+                <div class="post-header"><div class="user-info"><img src="${authorAvatar}" alt="Avatar" class="avatar"><div class="user-details"><span class="username">${authorName}</span><span class="post-meta">${formatPostTime(postCreatedAt(post))}</span>${expiry}</div></div>
+                    <div class="post-header-actions">${flagged}${canFollow ? `<button class="action-btn follow-btn ${followsAuthor ? 'following' : ''}" data-author-id="${escapeAttribute(authorId)}" data-following="${followsAuthor}" type="button">${followsAuthor ? 'Siguiendo' : 'Seguir'}</button>` : ''}${canDel ? `<button class="action-btn delete-post-btn" aria-label="Eliminar publicaci\u00f3n" data-id="${postIdSafe}" type="button"><i class='bx bx-trash'></i></button>` : ''}</div>
+                </div>
+                ${post.content ? `<div class="post-content">${escapeHTML(post.content)}</div>` : ''}
+                ${imageSrc ? `<img src="${escapeAttribute(imageSrc)}" alt="Imagen adjunta" class="post-image-full">` : ''}
+                <div class="post-actions"><button class="action-btn like-btn ${liked ? 'liked' : ''}" data-id="${postIdSafe}" type="button"><i class='bx ${liked ? 'bxs-heart' : 'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button><button class="action-btn comment-btn" data-id="${postIdSafe}" type="button"><i class='bx bx-message-rounded'></i><span>${Object.keys(comments).length}</span></button></div>
+                <div class="comments-section" id="comments-${postIdSafe}"><div class="comments-list">${buildCommentsHtml(post, post.id)}</div><div class="comment-input-area"><input type="text" maxlength="500" placeholder="Escribe un comentario..." class="new-comment-input" data-id="${postIdSafe}"><button class="comment-submit-btn" data-id="${postIdSafe}" type="button" aria-label="Publicar comentario"><i class='bx bxs-send'></i></button></div></div>
+            `;
+            if (postsContainer.children[index]) {
+                postsContainer.insertBefore(newEl, postsContainer.children[index]);
+            } else {
+                postsContainer.appendChild(newEl);
+            }
+        }
+    });
     renderModerationQueue();
 }
 
@@ -1721,10 +1778,10 @@ function loadEvents() {
     onValue(ref(db, 'events'), (snapshot) => {
         eventsListContainer.innerHTML = '';
         if (!snapshot.exists()) { eventsListContainer.innerHTML = '<p style="color:var(--text-muted);text-align:center;">No hay próximos eventos programados.</p>'; return; }
-        const arr = Object.entries(snapshot.val()).map(([id, d]) => ({id, ...d})).sort((a,b)=> new Date(a.date) - new Date(b.date));
+        const arr = Object.entries(snapshot.val()).map(([id, d]) => ({id, ...d})).sort((a,b)=> (function(d){var p=(d||'').split('-').map(Number);return new Date(p[0],p[1]-1,p[2])})(a.date) - (function(d){var p=(d||'').split('-').map(Number);return new Date(p[0],p[1]-1,p[2])})(b.date));
         arr.forEach(item => {
             const el = document.createElement('div'); el.className = 'event-item';
-            const formattedDate = new Date(item.date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'long' });
+            const _dp = (item.date||'').split('-').map(Number); const formattedDate = new Date(_dp[0], _dp[1]-1, _dp[2]).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'long' });
             const itemId = escapeAttribute(item.id);
             const title = escapeHTML(item.title);
             const dateText = escapeHTML(formattedDate);
@@ -2319,10 +2376,10 @@ async function sendChatMessage() {
     };
 
     try {
-        await update(ref(db), {
-            [`chats/${activeChatId}/messages/${messageRef.key}`]: msgData,
-            [`chats/${activeChatId}/lastMessage`]: text,
-            [`chats/${activeChatId}/lastTimestamp`]: timestamp
+        await set(messageRef, msgData);
+        await update(ref(db, `chats/${activeChatId}`), {
+            lastMessage: text,
+            lastTimestamp: timestamp
         });
     } catch (error) {
         console.error('No se pudo enviar el mensaje:', error);

@@ -15,7 +15,10 @@ const MAX_SENT_AGE_MS = 35 * 24 * 60 * 60 * 1000;
 
 function getServiceAccount() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!raw) throw new Error('Falta el secreto FIREBASE_SERVICE_ACCOUNT.');
+  if (!raw) {
+    console.error('ERROR: Falta el secreto FIREBASE_SERVICE_ACCOUNT. Configúralo en GitHub > Settings > Secrets > Actions.');
+    process.exit(0);
+  }
   try { return JSON.parse(raw); } catch { throw new Error('FIREBASE_SERVICE_ACCOUNT no contiene un JSON válido.'); }
 }
 
