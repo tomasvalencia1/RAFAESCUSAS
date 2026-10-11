@@ -1,34 +1,35 @@
 /*
- * Publica database.rules.json en la Realtime Database de produccion usando la
- * cuenta de servicio del secreto FIREBASE_SERVICE_ACCOUNT.
+ * Asegura los indices (.indexOn) que necesita el despachador de notificaciones
+ * en la Realtime Database de produccion, usando la cuenta de servicio del
+ * secreto FIREBASE_SERVICE_ACCOUNT.
  *
- * Proteccion: antes de publicar compara con las reglas que hay AHORA en
- * produccion. Solo publica si, ignorando los .indexOn, son identicas a las del
- * repositorio. Si alguien cambio las reglas desde la consola de Firebase, no se
- * sobrescriben: el job falla y muestra que nodos difieren.
+ * No publica database.rules.json: las reglas de produccion se editan tambien
+ * desde la consola y pueden haber cambiado. Toma las reglas VIVAS, les anade
+ * solo los indices y, tras publicar, verifica que todos los permisos siguen
+ * identicos. Si algo no cuadra, no toca nada y el job falla.
  */
 const { cert } = require('firebase-admin/app');
-const fs = require('fs');
-const path = require('path');
 
 const DATABASE_URL = process.env.RULES_DATABASE_URL || 'https://rafaescusas-default-rtdb.firebaseio.com';
 const NS = process.env.RULES_NS ? `?ns=${encodeURIComponent(process.env.RULES_NS)}` : '';
-const RULES_FILE = path.join(__dirname, '..', 'database.rules.json');
 
-// Copia sin ningun .indexOn y con las claves ordenadas, para comparar contenido.
-function canonical(value) {
-  if (Array.isArray(value)) return value.map(canonical);
+// Indices que usan las consultas de functions/send-relevant-notifications.cjs
+const INDICES = {
+  posts: ['createdAt', 'timestamp'],
+  chats: ['lastTimestamp'],
+  news: ['timestamp'],
+  events: ['timestamp'],
+  soporte: ['timestamp'],
+};
+
+// Copia sin ningun .indexOn y con las claves ordenadas, para comparar permisos.
+function sinIndices(value) {
+  if (Array.isArray(value)) return value.map(sinIndices);
   if (value && typeof value === 'object') {
     return Object.keys(value).filter(k => k !== '.indexOn').sort()
-      .reduce((acc, k) => { acc[k] = canonical(value[k]); return acc; }, {});
+      .reduce((acc, k) => { acc[k] = sinIndices(value[k]); return acc; }, {});
   }
   return value;
-}
-
-function sameIncludingIndexes(a, b) {
-  const sorted = v => Array.isArray(v) ? v.map(sorted)
-    : (v && typeof v === 'object') ? Object.keys(v).sort().reduce((o, k) => { o[k] = sorted(v[k]); return o; }, {}) : v;
-  return JSON.stringify(sorted(a)) === JSON.stringify(sorted(b));
 }
 
 async function accessToken() {
@@ -38,40 +39,52 @@ async function accessToken() {
   return (await cert(JSON.parse(raw)).getAccessToken()).access_token;
 }
 
+async function leerReglas(endpoint, headers) {
+  const res = await fetch(endpoint, { headers });
+  if (!res.ok) throw new Error(`No se pudieron leer las reglas (HTTP ${res.status}).`);
+  const texto = await res.text();
+  try { return JSON.parse(texto); } catch { return null; }
+}
+
 async function main() {
-  const repoText = fs.readFileSync(RULES_FILE, 'utf8');
-  const repo = JSON.parse(repoText);
   const headers = { Authorization: `Bearer ${await accessToken()}` };
   const endpoint = `${DATABASE_URL}/.settings/rules.json${NS}`;
 
-  const current = await fetch(endpoint, { headers });
-  if (!current.ok) throw new Error(`No se pudieron leer las reglas actuales (HTTP ${current.status}).`);
-  const currentText = await current.text();
-  let live;
-  try { live = JSON.parse(currentText); } catch {
-    console.log('::error::Las reglas publicadas contienen comentarios o no son JSON puro. No se sobrescriben: publica database.rules.json a mano desde la consola.');
+  const vivas = await leerReglas(endpoint, headers);
+  if (!vivas || typeof vivas.rules !== 'object') {
+    console.log('::error::Las reglas publicadas contienen comentarios o no son JSON puro. No se tocan: añade los índices a mano desde la consola.');
     process.exitCode = 1;
     return;
   }
 
-  if (sameIncludingIndexes(live, repo)) {
-    console.log('Las reglas de producción ya coinciden con database.rules.json. Nada que publicar.');
+  const nuevas = JSON.parse(JSON.stringify(vivas));
+  const anadidos = [];
+  for (const [nodo, campos] of Object.entries(INDICES)) {
+    const regla = nuevas.rules[nodo];
+    if (!regla || typeof regla !== 'object') { console.log(`::warning::El nodo "${nodo}" no tiene reglas propias; se omite su índice.`); continue; }
+    const actuales = Array.isArray(regla['.indexOn']) ? regla['.indexOn'] : (regla['.indexOn'] ? [regla['.indexOn']] : []);
+    const union = [...new Set([...actuales, ...campos])];
+    if (union.length !== actuales.length) { regla['.indexOn'] = union; anadidos.push(`${nodo}: ${union.join(', ')}`); }
+  }
+
+  if (!anadidos.length) {
+    console.log('Los índices ya estaban publicados. Nada que hacer.');
     return;
   }
 
-  if (JSON.stringify(canonical(live)) !== JSON.stringify(canonical(repo))) {
-    const a = canonical(live).rules || {};
-    const b = canonical(repo).rules || {};
-    const nodes = [...new Set([...Object.keys(a), ...Object.keys(b)])]
-      .filter(k => JSON.stringify(a[k]) !== JSON.stringify(b[k]));
-    console.log(`::error::Las reglas de producción no coinciden con las del repositorio (nodos: ${nodes.join(', ') || 'raíz'}). No se sobrescriben. Alguien las cambió desde la consola: sincroniza database.rules.json antes de publicar.`);
-    process.exitCode = 1;
-    return;
-  }
-
-  const put = await fetch(endpoint, { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: repoText });
+  const put = await fetch(endpoint, { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(nuevas, null, 2) });
   if (!put.ok) throw new Error(`La publicación falló (HTTP ${put.status}): ${await put.text()}`);
-  console.log('Reglas publicadas: solo cambian los índices (.indexOn); los permisos son idénticos a los de producción.');
+
+  // Verificacion: los permisos publicados deben ser exactamente los de antes.
+  const despues = await leerReglas(endpoint, headers);
+  if (JSON.stringify(sinIndices(despues)) !== JSON.stringify(sinIndices(vivas))) {
+    // Restaura las reglas originales tal cual estaban.
+    await fetch(endpoint, { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(vivas, null, 2) });
+    console.log('::error::Tras publicar, los permisos no coincidían con los originales. Se restauraron las reglas anteriores.');
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`Índices publicados (${anadidos.join(' | ')}). Permisos verificados: idénticos a los anteriores.`);
 }
 
 main().catch(error => {

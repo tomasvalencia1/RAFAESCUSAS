@@ -1,9 +1,9 @@
-name: Publicar reglas de la base de datos
+name: Asegurar índices de la base de datos
 
 on:
   push:
     branches: [main]
-    paths: [database.rules.json]
+    paths: [database.rules.json, functions/publish-database-rules.cjs]
   workflow_dispatch:
 
 permissions:
@@ -31,7 +31,7 @@ jobs:
       - name: Instalar Firebase Admin
         run: npm ci --prefix functions
 
-      - name: Publicar si solo cambian los índices
+      - name: Añadir los índices a las reglas vivas sin tocar permisos
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node functions/publish-database-rules.cjs
