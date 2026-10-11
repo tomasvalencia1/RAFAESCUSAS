@@ -1,0 +1,46 @@
+name: Enviar notificaciones
+
+on:
+  schedule:
+    # Cada 5 minutos, el minimo que permite GitHub. En horas de mucha carga GitHub
+    # puede retrasar las ejecuciones programadas varios minutos.
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      prueba_uid:
+        description: 'Opcional. ID de cuenta (en la app: Perfil > ID de cuenta). Si lo pones, se envía SOLO una notificación de prueba a esa persona.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+# Nunca dos despachos a la vez: podrian enviar el mismo aviso dos veces.
+concurrency:
+  group: enviar-notificaciones
+  cancel-in-progress: false
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Instalar Firebase Admin
+        run: npm ci --prefix functions
+
+      - name: Enviar notificaciones pendientes
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          # Pasado por variable de entorno, nunca interpolado en el script.
+          PRUEBA_UID: ${{ inputs.prueba_uid }}
+        run: node functions/send-relevant-notifications.cjs

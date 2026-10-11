@@ -4,7 +4,7 @@
  * The service-account JSON is injected only by GitHub Actions as the
  * FIREBASE_SERVICE_ACCOUNT secret. Never place that JSON in this repository.
  */
-const { cert, initializeApp } = require('firebase-admin/app');
+const { cert, initializeApp, deleteApp } = require('firebase-admin/app');
 const { getDatabase } = require('firebase-admin/database');
 
 const STUDENT_POST_TTL_MS = 24 * 60 * 60 * 1000;
@@ -35,12 +35,21 @@ function getServiceAccount() {
 }
 
 async function cleanupExpiredStudentPosts() {
-  initializeApp({
+  const app = initializeApp({
     credential: cert(getServiceAccount()),
     databaseURL: 'https://rafaescusas-default-rtdb.firebaseio.com'
   });
+  try {
+    await removeExpiredPosts(getDatabase(app));
+  } finally {
+    // Cierra la conexion persistente de Realtime Database. Sin esto el proceso de
+    // Node nunca terminaba y GitHub cancelaba el job por tiempo en cada ejecucion.
+    await Promise.race([deleteApp(app), new Promise(resolve => setTimeout(resolve, 5000))]);
+  }
+}
 
-  const postsRef = getDatabase().ref('posts');
+async function removeExpiredPosts(db) {
+  const postsRef = db.ref('posts');
   const snapshot = await postsRef.once('value');
   const now = Date.now();
   const updates = {};
@@ -58,7 +67,10 @@ async function cleanupExpiredStudentPosts() {
   console.log(`Limpieza terminada: ${count} publicación(es) de estudiante eliminada(s).`);
 }
 
-cleanupExpiredStudentPosts().catch((error) => {
-  console.error(error.message || error);
-  process.exitCode = 1;
-});
+cleanupExpiredStudentPosts()
+  .catch((error) => {
+    console.error(error.message || error);
+    process.exitCode = 1;
+  })
+  // Salida explicita como red de seguridad ante cualquier conexion que quede abierta.
+  .finally(() => process.exit(process.exitCode ?? 0));
