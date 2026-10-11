@@ -120,6 +120,12 @@
     /* --- Layout ------------------------------------------------------------- */
     --header-h: 64px;
     --mobile-bar-h: 64px;
+    /* Barra de estado de Android. app.js marca body.is-webview en Android.
+       Se deja en env() puro (sin suelo fijo) porque esa clase tambien se
+       aplica a Chrome en Android, donde no hay barra que compensar y un
+       valor minimo dejaria un hueco muerto en la parte superior. */
+    --safe-top: 0px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
     --container: 76rem;
     --gutter: clamp(1rem, 0.6rem + 2vw, 2rem);
     --tap: 44px;
@@ -139,6 +145,9 @@
     --input-bg: var(--c-surface-2);
     --hover-bg: var(--c-hover);
   }
+
+  /* Solo dentro de la APK / PWA en Android se compensa la barra de estado. */
+  body.is-webview { --safe-top: env(safe-area-inset-top, 0px); }
 
   /* --- Tema oscuro: re-mapeo de roles, no inversión --------------------- */
   :root[data-theme="dark"] {
@@ -181,7 +190,7 @@
 
 /* =========================================================== 3 · BASE ===== */
 @layer base {
-  html { scroll-padding-block-start: calc(var(--header-h) + var(--space-4)); }
+  html { scroll-padding-block-start: calc(var(--header-h) + var(--safe-top) + var(--space-4)); }
 
   body {
     font-family: var(--font-ui);
@@ -189,6 +198,7 @@
     line-height: var(--lh-base);
     color: var(--c-text);
     background: var(--c-bg);
+    min-height: 100vh;   /* reserva para WebView sin dvh */
     min-height: 100dvh;
   }
 
@@ -242,9 +252,11 @@
   .header {
     position: sticky; inset-block-start: 0; z-index: var(--z-sticky);
     display: flex; align-items: center; gap: var(--space-4);
-    min-height: var(--header-h);
+    min-height: calc(var(--header-h) + var(--safe-top));
     padding-inline: var(--gutter);
-    padding-block: var(--space-2);
+    /* El relleno superior incluye la barra de estado: el fondo de la cabecera
+       se pinta por detras de ella y el contenido nunca queda debajo. */
+    padding-block: calc(var(--space-2) + var(--safe-top)) var(--space-2);
     background: var(--c-surface);
     border-block-end: 1px solid var(--c-border);
     transition: transform var(--dur-base) var(--ease-out);
@@ -279,7 +291,7 @@
   /* ≥768 px: aparece la columna de utilidades */
   @media (min-width: 768px) {
     .main-layout { grid-template-columns: minmax(0, 1fr) 19rem; }
-    .right-sidebar { display: grid; gap: var(--space-4); position: sticky; inset-block-start: calc(var(--header-h) + var(--space-4)); }
+    .right-sidebar { display: grid; gap: var(--space-4); position: sticky; inset-block-start: calc(var(--header-h) + var(--safe-top) + var(--space-4)); }
   }
 
   /* ≥1024 px: aparece la navegación lateral y desaparece la barra inferior */
@@ -290,7 +302,7 @@
     }
     .left-sidebar {
       display: grid; gap: var(--space-4);
-      position: sticky; inset-block-start: calc(var(--header-h) + var(--space-4));
+      position: sticky; inset-block-start: calc(var(--header-h) + var(--safe-top) + var(--space-4));
     }
   }
 
@@ -440,8 +452,8 @@
     position: fixed; inset: 0; z-index: var(--z-modal);
     display: none; grid-template-rows: auto 1fr;
     background: var(--c-surface);
-    overflow-y: auto;
-    padding-block-end: var(--space-8);
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding-block: var(--safe-top) calc(var(--space-8) + var(--safe-bottom));
   }
   .profile-popover.active { display: block; }
   @media (min-width: 768px) {
@@ -451,7 +463,7 @@
       width: 22rem; max-height: 80vh;
       border: 1px solid var(--c-border); border-radius: var(--radius-lg);
       box-shadow: var(--elev-5);
-      padding-block-end: 0;
+      padding-block: 0;
     }
   }
 
@@ -760,11 +772,15 @@
   .mobile-nav-item i { font-size: 1.35rem; }
   .mobile-nav-item:hover, .mobile-nav-item.active { color: var(--c-primary); }
   .mobile-nav-item.create-btn { color: var(--c-primary); }
+  /* El glifo de Boxicons trae su propia metrica de linea: sin line-height:1
+     queda descentrado dentro del circulo. */
   .mobile-nav-item.create-btn i {
-    display: grid; place-items: center;
+    display: flex; align-items: center; justify-content: center;
     width: 36px; height: 36px; border-radius: var(--radius-pill);
     background: var(--c-primary); color: var(--c-on-primary);
+    font-size: 1.4rem; line-height: 1; text-align: center;
   }
+  .mobile-nav-item.create-btn i::before { display: block; line-height: 1; }
 
   /* --- 5.17 Botón flotante de soporte --------------------------------------- */
   .support-fab {
@@ -782,18 +798,28 @@
   @media (min-width: 1024px) { .support-fab { inset-block-end: var(--space-6); } }
 
   /* --- 5.18 Modales ---------------------------------------------------------- */
+  /* Centrado con align-items:center impide alcanzar la parte superior cuando
+     el contenido es mas alto que la pantalla. Se usa flex-start + margin auto,
+     que centra igual pero deja el desplazamiento completo en ambos sentidos. */
   .modal-overlay {
     position: fixed; inset: 0; z-index: var(--z-modal);
-    display: none; align-items: center; justify-content: center;
-    padding: var(--space-4);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: calc(var(--space-4) + var(--safe-top)) var(--space-4)
+             calc(var(--space-4) + var(--safe-bottom));
     background: hsl(14 16% 11% / 0.55);
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
   .modal-overlay.active { display: flex; }
 
   .modal-content {
     width: 100%; max-width: 34rem;
-    max-height: calc(100dvh - var(--space-8));
+    margin-block: auto;
+    /* 100vh primero: los WebView de Android antiguos ignoran dvh y, sin este
+       respaldo, la regla entera se descarta y el modal deja de desplazarse. */
+    max-height: calc(100vh - var(--space-8) - var(--safe-top) - var(--safe-bottom));
+    max-height: calc(100dvh - var(--space-8) - var(--safe-top) - var(--safe-bottom));
     display: flex; flex-direction: column;
     background: var(--c-surface);
     border: 1px solid var(--c-border);
@@ -817,7 +843,11 @@
   }
   .close-modal-btn:hover { background: var(--c-hover); color: var(--c-text); }
 
-  .modal-body { padding: var(--space-5); overflow-y: auto; display: grid; gap: var(--space-4); }
+  .modal-body {
+    padding: var(--space-5); display: grid; gap: var(--space-4);
+    overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    min-height: 0;   /* permite encoger dentro del contenedor flex */
+  }
   .modal-intro { font-size: var(--fs-sm); color: var(--c-text-2); }
   .modal-footer {
     display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3);
@@ -899,13 +929,16 @@
   .chat-panel {
     position: fixed; inset: 0; z-index: var(--z-modal);
     display: none; background: var(--c-bg);
+    padding-block: var(--safe-top) var(--safe-bottom);
   }
   .chat-panel.active { display: flex; }
   @media (min-width: 768px) {
     .chat-panel.active {
       inset: auto var(--space-6) var(--space-6) auto;
       width: min(46rem, calc(100vw - var(--space-12)));
+      height: min(36rem, calc(100vh - var(--space-12)));
       height: min(36rem, calc(100dvh - var(--space-12)));
+      padding-block: 0;
       border: 1px solid var(--c-border); border-radius: var(--radius-xl);
       box-shadow: var(--elev-5); overflow: hidden;
     }
@@ -995,7 +1028,19 @@
   .admin-users-search input { background: none; border: 0; }
   .admin-users-search input:focus-visible { box-shadow: none; }
 
-  .users-list-table { border: 1px solid var(--c-border); border-radius: var(--radius-md); overflow: hidden; }
+  /* Sin overflow:hidden a proposito: ese valor da altura minima automatica 0 y
+     permitia que la rejilla del modal encogiera la tabla y recortara la lista
+     de usuarios, dejandola sin desplazamiento. Las esquinas se redondean en la
+     primera y la ultima fila. */
+  .users-list-table { border: 1px solid var(--c-border); border-radius: var(--radius-md); }
+  .users-table-header {
+    border-start-start-radius: calc(var(--radius-md) - 1px);
+    border-start-end-radius: calc(var(--radius-md) - 1px);
+  }
+  .users-table-body > *:last-child {
+    border-end-start-radius: calc(var(--radius-md) - 1px);
+    border-end-end-radius: calc(var(--radius-md) - 1px);
+  }
   .users-table-header {
     display: none;
     padding: var(--space-3) var(--space-4);
@@ -1102,7 +1147,8 @@
   .auth-loading-overlay, .login-overlay {
     position: fixed; inset: 0; z-index: var(--z-toast);
     display: none; align-items: center; justify-content: center;
-    padding: var(--space-5);
+    padding: calc(var(--space-5) + var(--safe-top)) var(--space-5)
+             calc(var(--space-5) + var(--safe-bottom));
     background: var(--c-bg);
   }
   .auth-loading-overlay.active, .login-overlay.active { display: flex; }
@@ -1204,4 +1250,49 @@
   /* Las webviews embebidas no muestran el botón flotante. */
   body.is-webview .support-fab { display: none; }
   [hidden] { display: none !important; }
+}
+
+/* ============================================================================
+   CORRECCIONES FUERA DE CAPA
+   ----------------------------------------------------------------------------
+   La hoja de Boxicons se carga desde su CDN sin @layer. En la cascada, las
+   reglas SIN capa ganan siempre a las que estan dentro de una, por encima de
+   la especificidad y del orden. Sus `display` y `line-height` pisaban a los de
+   la capa `components` y descentraban los glifos dentro de los botones
+   circulares. Aqui se reasignan unicamente esas dos propiedades; todo lo demas
+   sigue viviendo en su capa.
+
+   Si algun dia Boxicons se sustituye por SVG en linea, este bloque desaparece.
+   ========================================================================== */
+
+/* Boton Crear de la barra inferior: el glifo debe quedar centrado en el circulo. */
+.mobile-nav-item.create-btn i {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* Iconos dentro de controles centrados con flex. */
+.nav-item i,
+.icon-btn i,
+.mobile-nav-item i,
+.like-btn i,
+.comment-btn i,
+.close-modal-btn i,
+.close-chat-btn i,
+.back-to-contacts-btn i,
+.profile-back-btn i,
+.send-message-btn i,
+.comment-submit-btn i,
+.support-fab i,
+.image-preview button i,
+.task-complete-btn i,
+.task-delete-btn i,
+.delete-post-btn i,
+.delete-comment-btn i,
+.delete-news-btn i,
+.delete-report-btn i,
+.delete-event-btn i {
+  line-height: 1;
 }
