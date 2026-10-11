@@ -951,6 +951,9 @@
   .modal-body {
     padding: var(--space-5); display: grid; gap: var(--space-4);
     overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    /* Solo desplazamiento vertical: un desborde de fracciones de pixel hacia el
+       lado dibujaba una barra horizontal vacia bajo el contenido. */
+    overflow-x: hidden;
     min-height: 0;   /* permite encoger dentro del contenedor flex */
   }
   .modal-intro { font-size: var(--fs-sm); color: var(--c-text-2); }
@@ -1342,6 +1345,22 @@
   }
 
   .admin-modal-content { max-width: 50rem; }
+
+  /* --- 5.26b Editor de perfil ------------------------------------------------------ */
+  .profile-photo-editor { display: flex; align-items: center; gap: var(--space-5); }
+  .profile-photo-preview {
+    width: 96px; height: 96px; flex-shrink: 0;
+    border-radius: 50%; object-fit: cover;
+    background: var(--c-bg-sunken);
+    border: 1px solid var(--c-border);
+  }
+  .profile-photo-actions { display: grid; gap: var(--space-2); justify-items: start; }
+  .profile-photo-actions .action-btn { cursor: pointer; }
+  .profile-field { display: grid; gap: var(--space-2); }
+  .profile-field label { font-size: var(--fs-sm); font-weight: 600; }
+  .profile-field input[readonly] { color: var(--c-text-mute); background: var(--c-bg-sunken); cursor: not-allowed; }
+  .field-error { font-size: var(--fs-xs); font-weight: 600; color: var(--c-error); }
+  .field-error:empty, #edit-profile-photo-msg:empty { display: none; }
 
   /* --- 5.27 Pestañas del feed: Inicio · Descubrir --------------------------------- */
   .feed-tabs {

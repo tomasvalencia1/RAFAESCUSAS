@@ -512,7 +512,7 @@ function getChatMessageSenderId(message) {
 
 function getChatSenderName(message, targetUser, isMe) {
     if (message.senderName) return sanitizeName(message.senderName);
-    if (isMe) return sanitizeName(auth.currentUser?.displayName || currentUser?.displayName || 'Usuario');
+    if (isMe) return sanitizeName(miNombre());
     const senderId = getChatMessageSenderId(message);
     if (senderId === targetUser?.uid) return sanitizeName(targetUser.name || 'Contacto');
     const cachedUser = allContactsCache.find(user => user.uid === senderId);
@@ -610,8 +610,8 @@ function updateProfileStats() {
         }
     });
 
-    document.getElementById('popover-avatar').src = safeImageSrc(currentUser.photoURL);
-    document.getElementById('popover-name').textContent = currentUser.displayName;
+    document.getElementById('popover-avatar').src = safeImageSrc(miAvatar());
+    document.getElementById('popover-name').textContent = miNombre();
     document.getElementById('popover-email').textContent = currentUser.email;
     document.getElementById('popover-posts-count').textContent = userPostsCount;
     document.getElementById('popover-likes-count').textContent = userLikesCount;
@@ -731,6 +731,178 @@ logoutBtn.addEventListener('click', async (event) => {
     }
 });
 
+// === PERFIL: NOMBRE Y FOTO EDITABLES ===
+// El nombre y la foto salen de users/{uid}, que es lo que ven los demas en el
+// buscador y el chat. La cuenta de Google solo da el valor inicial. El correo
+// no se puede cambiar.
+let perfilActual = { nombre: '', avatar: '' };
+const NOMBRE_MIN = 2;
+const NOMBRE_MAX = 40;
+const FOTO_LADO = 128;
+
+function miNombre(respaldo = 'Usuario') {
+    return perfilActual.nombre || currentUser?.displayName || respaldo;
+}
+
+function miAvatar() {
+    return perfilActual.avatar || currentUser?.photoURL || '';
+}
+
+function cargarPerfil(datos, usuario) {
+    perfilActual = {
+        nombre: String(datos?.name || usuario?.displayName || ''),
+        avatar: String(datos?.avatar || usuario?.photoURL || '')
+    };
+}
+
+function pintarMiPerfil() {
+    const avatar = safeImageSrc(miAvatar());
+    [headerAvatar, document.getElementById('inline-avatar'), document.getElementById('popover-avatar')]
+        .forEach(img => { if (img) img.src = avatar; });
+    if (headerUsername) headerUsername.textContent = miNombre();
+    const popoverName = document.getElementById('popover-name');
+    if (popoverName) popoverName.textContent = miNombre();
+}
+
+function normalizarNombre(texto) {
+    return String(texto || '').replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+// Recorta al centro un cuadrado de 128 px y lo comprime en JPEG (unos 5 KB).
+// El perfil viaja en el nodo users, que cada sesion descarga entero: una foto
+// grande la descargarian todos en cada inicio.
+async function prepararFotoDePerfil(archivo) {
+    if (!archivo || !/^image\//.test(archivo.type)) throw new Error('Elige un archivo de imagen.');
+    if (archivo.size > 20 * 1024 * 1024) throw new Error('La imagen es demasiado grande (máximo 20 MB).');
+    let imagen;
+    try {
+        // Respeta la orientacion de las fotos hechas con el movil.
+        imagen = await createImageBitmap(archivo, { imageOrientation: 'from-image' });
+    } catch (error) {
+        imagen = await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error('No se pudo leer la imagen.'));
+            img.src = URL.createObjectURL(archivo);
+        });
+    }
+    const lado = Math.min(imagen.width, imagen.height);
+    const lienzo = document.createElement('canvas');
+    lienzo.width = lienzo.height = FOTO_LADO;
+    const ctx = lienzo.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(imagen, (imagen.width - lado) / 2, (imagen.height - lado) / 2, lado, lado, 0, 0, FOTO_LADO, FOTO_LADO);
+    let calidad = 0.75;
+    let datos = lienzo.toDataURL('image/jpeg', calidad);
+    while (datos.length > 12000 && calidad > 0.4) {
+        calidad -= 0.1;
+        datos = lienzo.toDataURL('image/jpeg', calidad);
+    }
+    if (datos.length > 16000) throw new Error('No se pudo reducir la imagen lo suficiente.');
+    return datos;
+}
+
+const editProfileModal = document.getElementById('edit-profile-modal');
+const editProfileForm = document.getElementById('edit-profile-form');
+const editProfileName = document.getElementById('edit-profile-name');
+const editProfileNameMsg = document.getElementById('edit-profile-name-msg');
+const editProfileAvatar = document.getElementById('edit-profile-avatar');
+const editProfilePhotoInput = document.getElementById('edit-profile-photo-input');
+const editProfilePhotoMsg = document.getElementById('edit-profile-photo-msg');
+const saveProfileBtn = document.getElementById('save-profile-btn');
+let fotoPendiente = null; // null: la foto no cambia
+
+function abrirEditorDePerfil() {
+    if (!currentUser || !editProfileModal) return;
+    closeProfilePopover();
+    fotoPendiente = null;
+    editProfileName.value = miNombre('');
+    editProfileName.setAttribute('aria-invalid', 'false');
+    editProfileNameMsg.textContent = '';
+    editProfilePhotoMsg.textContent = '';
+    editProfileAvatar.src = safeImageSrc(miAvatar());
+    document.getElementById('edit-profile-email').value = currentUser.email || '';
+    saveProfileBtn.disabled = false;
+    saveProfileBtn.textContent = 'Guardar cambios';
+    editProfileModal.classList.add('active');
+    editProfileModal.setAttribute('aria-hidden', 'false');
+    setTimeout(() => editProfileName.focus(), 50);
+}
+
+function cerrarEditorDePerfil() {
+    if (!editProfileModal) return;
+    editProfileModal.classList.remove('active');
+    editProfileModal.setAttribute('aria-hidden', 'true');
+    fotoPendiente = null;
+    if (editProfilePhotoInput) editProfilePhotoInput.value = '';
+}
+
+function validarNombre() {
+    const nombre = normalizarNombre(editProfileName.value);
+    let error = '';
+    if (nombre.length < NOMBRE_MIN) error = `Escribe al menos ${NOMBRE_MIN} caracteres.`;
+    else if (nombre.length > NOMBRE_MAX) error = `Máximo ${NOMBRE_MAX} caracteres.`;
+    editProfileNameMsg.textContent = error;
+    editProfileName.setAttribute('aria-invalid', String(Boolean(error)));
+    return error ? null : nombre;
+}
+
+document.getElementById('edit-profile-btn')?.addEventListener('click', abrirEditorDePerfil);
+document.getElementById('close-edit-profile-btn')?.addEventListener('click', cerrarEditorDePerfil);
+document.getElementById('cancel-edit-profile-btn')?.addEventListener('click', cerrarEditorDePerfil);
+editProfileModal?.addEventListener('click', event => { if (event.target === editProfileModal) cerrarEditorDePerfil(); });
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && editProfileModal?.classList.contains('active')) cerrarEditorDePerfil();
+});
+// Validacion en linea: una vez marcado el error, se re-evalua al escribir.
+editProfileName?.addEventListener('input', () => {
+    if (editProfileName.getAttribute('aria-invalid') === 'true') validarNombre();
+});
+
+editProfilePhotoInput?.addEventListener('change', async () => {
+    const archivo = editProfilePhotoInput.files?.[0];
+    if (!archivo) return;
+    editProfilePhotoMsg.textContent = 'Preparando la foto…';
+    try {
+        fotoPendiente = await prepararFotoDePerfil(archivo);
+        editProfileAvatar.src = fotoPendiente;
+        editProfilePhotoMsg.textContent = 'Foto lista. Pulsa «Guardar cambios».';
+    } catch (error) {
+        fotoPendiente = null;
+        editProfilePhotoMsg.textContent = error.message;
+    } finally {
+        editProfilePhotoInput.value = '';
+    }
+});
+
+document.getElementById('edit-profile-photo-reset')?.addEventListener('click', () => {
+    fotoPendiente = currentUser?.photoURL || '';
+    editProfileAvatar.src = safeImageSrc(fotoPendiente);
+    editProfilePhotoMsg.textContent = 'Se usará la foto de tu cuenta de Google.';
+});
+
+editProfileForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!currentUser) return;
+    const nombre = validarNombre();
+    if (!nombre) { editProfileName.focus(); return; }
+    const avatar = fotoPendiente ?? miAvatar();
+    saveProfileBtn.disabled = true;
+    saveProfileBtn.textContent = 'Guardando…';
+    try {
+        await update(ref(db, `users/${currentUser.uid}`), { name: nombre, avatar });
+        perfilActual = { nombre, avatar };
+        pintarMiPerfil();
+        saveProfileBtn.textContent = '¡Guardado!';
+        setTimeout(cerrarEditorDePerfil, 800);
+    } catch (error) {
+        console.error('No se pudo guardar el perfil:', error);
+        saveProfileBtn.disabled = false;
+        saveProfileBtn.textContent = 'Guardar cambios';
+        editProfilePhotoMsg.textContent = 'No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.';
+    }
+});
+
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
@@ -739,6 +911,7 @@ onAuthStateChanged(auth, async (user) => {
         if (pendingAndroidFcmToken) saveAndroidFcmToken(pendingAndroidFcmToken);
 
         const userSnap = await get(ref(db, `users/${user.uid}`));
+        cargarPerfil(userSnap.val(), user);
         if (userSnap.exists() && userSnap.val().role) {
             userRole = userSnap.val().role;
             completeLogin();
@@ -756,6 +929,7 @@ onAuthStateChanged(auth, async (user) => {
         }
     } else {
         currentUser = null; isAdmin = false; userRole = null; allPostsCache = [];
+        perfilActual = { nombre: '', avatar: '' };
         if (postsListener) { postsListener(); postsListener = null; }
         if (followingListener) { followingListener(); followingListener = null; }
         if (userDirectoryListener) { userDirectoryListener(); userDirectoryListener = null; }
@@ -786,11 +960,11 @@ async function completeLogin() {
     loginScreen.classList.remove('active');
     appContainer.style.display = 'block';
 
-    headerAvatar.src = safeImageSrc(currentUser.photoURL);
-    headerUsername.textContent = currentUser.displayName;
+    headerAvatar.src = safeImageSrc(miAvatar());
+    headerUsername.textContent = miNombre();
 
     const inlineAvatar = document.getElementById('inline-avatar');
-    if (inlineAvatar) inlineAvatar.src = safeImageSrc(currentUser.photoURL);
+    if (inlineAvatar) inlineAvatar.src = safeImageSrc(miAvatar());
 
     adminBtns.forEach(btn => btn.style.display = isAdmin ? (btn.id==='add-event-btn'?'inline-flex': (btn.id==='nav-users-btn' ? 'flex' : 'flex')) : 'none');
 
@@ -878,7 +1052,7 @@ document.querySelectorAll('.role-card').forEach(card => {
                 // asigne 'estudiante', nunca un rol elevado directamente.
                 await set(ref(db, `users/${currentUser.uid}/role`), 'estudiante');
                 await set(ref(db, `roleRequests/${currentUser.uid}`), {
-                    name: currentUser.displayName || '',
+                    name: miNombre(''),
                     email: currentUser.email || '',
                     requestedRole: selectedRole,
                     status: 'pending',
@@ -990,7 +1164,7 @@ document.getElementById('publish-post-btn').addEventListener('click', async (e) 
     const btn = e.target; btn.textContent = 'Publicando...'; btn.disabled = true;
     try {
         const postData = {
-            author: { uid: currentUser.uid, name: currentUser.displayName, avatar: currentUser.photoURL },
+            author: { uid: currentUser.uid, name: miNombre(), avatar: miAvatar() },
             content: text,
             timestamp: Date.now()
         };
@@ -1157,7 +1331,7 @@ postsContainer.addEventListener('keypress', async (e) => {
 async function submitComment(postId, input) {
     if (!input.value.trim()) return;
     const txt = input.value.trim(); input.value = '';
-    await set(push(ref(db, `posts/${postId}/comments`)), { authorUid: currentUser.uid, authorName: currentUser.displayName, authorAvatar: currentUser.photoURL, text: txt, timestamp: Date.now() });
+    await set(push(ref(db, `posts/${postId}/comments`)), { authorUid: currentUser.uid, authorName: miNombre(), authorAvatar: miAvatar(), text: txt, timestamp: Date.now() });
     document.getElementById(`comments-${postId}`).classList.add('visible');
 }
 
@@ -1582,8 +1756,8 @@ async function submitComment(postId, input) {
     try {
         await set(push(ref(db, `posts/${postId}/comentarios`)), {
             autorId: currentUser.uid,
-            autorNombre: currentUser.displayName || 'Usuario',
-            autorAvatar: currentUser.photoURL || '',
+            autorNombre: miNombre(),
+            autorAvatar: miAvatar(),
             texto: text,
             timestamp: Date.now()
         });
@@ -1634,7 +1808,7 @@ async function deletePostWithLog(postId) {
         const logId = push(ref(db, 'logs_moderacion')).key;
         updates[`logs_moderacion/${logId}`] = {
             moderadorId: currentUser.uid,
-            moderadorNombre: currentUser.displayName || 'Administrador',
+            moderadorNombre: miNombre('Administrador'),
             postId,
             autorPostId: post.author?.uid || post.autorId || '',
             accion: 'eliminar_publicacion',
@@ -1713,7 +1887,7 @@ async function sendTeacherMessage() {
     try {
         await set(ref(db, `mensajes_profesor/${dia}/${currentUser.uid}/${slot}`), {
             autorId: currentUser.uid,
-            autorNombre: currentUser.displayName || 'Profesor',
+            autorNombre: miNombre('Profesor'),
             texto,
             timestamp: Date.now(),
             dia
@@ -1751,7 +1925,7 @@ document.getElementById('publish-post-btn').addEventListener('click', async even
     try {
         const flagged = containsProhibitedWord(text);
         const postData = {
-            author: { uid: currentUser.uid, name: currentUser.displayName || 'Usuario', avatar: currentUser.photoURL || '' },
+            author: { uid: currentUser.uid, name: miNombre(), avatar: miAvatar() },
             authorRole: normalizeRole(userRole),
             content: text,
             timestamp: Date.now(),
@@ -2551,7 +2725,7 @@ async function sendChatMessage() {
     const msgData = {
         senderId: currentUser.uid,
         sender: currentUser.uid,
-        senderName: currentUser.displayName || 'Usuario',
+        senderName: miNombre(),
         senderRole: userRole || (isAdmin ? 'admin' : ''),
         text: text,
         timestamp
