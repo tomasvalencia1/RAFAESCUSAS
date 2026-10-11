@@ -61,7 +61,7 @@
       "$dia": {
         "$profesorId": {
           "$slot": {
-            ".write": "auth != null && auth.uid === $profesorId && (root.child('users').child(auth.uid).child('role').val() === 'profesor' || root.child('users').child(auth.uid).child('role').val() === 'maestro') && !data.exists() && newData.exists() && ($slot === '1' || $slot === '2' || $slot === '3')",
+            ".write": "auth != null && ((auth.uid === $profesorId && (root.child('users').child(auth.uid).child('role').val() === 'profesor' || root.child('users').child(auth.uid).child('role').val() === 'maestro' || root.child('admins').child(auth.uid).val() === true) && !data.exists() && newData.exists() && ($slot === '1' || $slot === '2' || $slot === '3')) || (root.child('admins').child(auth.uid).val() === true && data.exists() && !newData.exists()))",
             ".validate": "newData.hasChildren(['autorId', 'autorNombre', 'texto', 'timestamp', 'dia']) && newData.child('autorId').val() === auth.uid && newData.child('autorNombre').isString() && newData.child('texto').isString() && newData.child('texto').val().length <= 180 && newData.child('timestamp').isNumber() && newData.child('dia').val() === $dia"
           }
         }

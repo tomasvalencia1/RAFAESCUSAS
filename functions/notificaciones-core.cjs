@@ -224,7 +224,12 @@ async function dispatchNotifications(db, messaging) {
   }
   for (const item of flattenTeacherMessages(teacherRoot)) {
     const message = item.value;
-    await processEvent({ eventId: safeKey(`teacher_${item.id}`), timestamp: Number(message.timestamp || 0), targets: usersWithDevices.filter(uid => uid !== message.autorId),
+    const timestamp = Number(message.timestamp || 0);
+    // Un administrador puede borrar un aviso y su hueco volver a usarse el mismo
+    // dia: si lo enviado en ese hueco era otro aviso, este cuenta como nuevo.
+    const base = safeKey(`teacher_${item.id}`);
+    const eventId = sent[base] && Number(sent[base]) !== timestamp ? safeKey(`teacher_${item.id}_${timestamp}`) : base;
+    await processEvent({ eventId, timestamp, targets: usersWithDevices.filter(uid => uid !== message.autorId),
       title: `Anuncio de ${message.autorNombre || 'profesorado'}`, body: String(message.texto || 'Hay un nuevo anuncio.').slice(0, 120), type: 'teacher_message', entityId: item.id });
   }
   for (const [id, post] of asEntries(posts)) {

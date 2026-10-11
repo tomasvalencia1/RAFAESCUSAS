@@ -686,6 +686,18 @@
     border-radius: var(--radius-md);
   }
   .teacher-message strong { color: var(--c-brand); font-size: var(--fs-sm); }
+  /* Papelera de administrador en cada aviso */
+  .teacher-message { position: relative; }
+  .teacher-message:has(.teacher-message__delete) { padding-inline-end: calc(var(--tap) + var(--space-2)); }
+  .teacher-message__delete {
+    position: absolute; inset-block-start: var(--space-1); inset-inline-end: var(--space-1);
+    display: inline-flex; align-items: center; justify-content: center;
+    width: var(--tap); height: var(--tap);
+    border-radius: var(--radius-md); color: var(--c-text-mute); cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+  .teacher-message__delete:hover { background: var(--c-error-soft); color: var(--c-error); }
+  .teacher-message__delete[disabled] { opacity: 0.5; cursor: wait; }
   .teacher-message p { font-size: var(--fs-sm); margin-block-start: var(--space-1); }
   .teacher-message small, .teacher-message time { font-size: var(--fs-xs); color: var(--c-text-mute); }
 
@@ -1592,6 +1604,7 @@
 .delete-news-btn i,
 .delete-report-btn i,
 .delete-event-btn i,
+.teacher-message__delete i,
 .feed-tab i,
 .mas-item__icon i {
   line-height: 1;

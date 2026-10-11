@@ -42,6 +42,13 @@ const PARCHES = [
     antes: `auth != null && ((!data.exists() && newData.child('userId').val() === auth.uid && newData.child('texto').isString() && newData.child('texto').val().length <= 1000 && newData.child('estado').val() === 'pendiente') || (data.exists() && ${ES_DIRECTIVO}))`,
     despues: `auth != null && ((!data.exists() && newData.child('userId').val() === auth.uid && newData.child('texto').isString() && newData.child('texto').val().length <= 1000 && newData.child('estado').val() === 'pendiente') || (data.exists() && (${ES_DIRECTIVO} || ${ES_ADMIN})))`,
   },
+  // Avisos del profesorado: los administradores pueden publicar (en su propio
+  // espacio, con los mismos huecos 1-3 por dia) y borrar cualquier aviso.
+  {
+    ruta: ['mensajes_profesor', '$dia', '$profesorId', '$slot', '.write'],
+    antes: "auth != null && auth.uid === $profesorId && (root.child('users').child(auth.uid).child('role').val() === 'profesor' || root.child('users').child(auth.uid).child('role').val() === 'maestro') && !data.exists() && newData.exists() && ($slot === '1' || $slot === '2' || $slot === '3')",
+    despues: `auth != null && ((auth.uid === $profesorId && (root.child('users').child(auth.uid).child('role').val() === 'profesor' || root.child('users').child(auth.uid).child('role').val() === 'maestro' || ${ES_ADMIN}) && !data.exists() && newData.exists() && ($slot === '1' || $slot === '2' || $slot === '3')) || (${ES_ADMIN} && data.exists() && !newData.exists()))`,
+  },
 ];
 
 function ordenado(value) {

@@ -283,6 +283,11 @@ function canDeletePost(post) {
     return canManageContent() || authorId === currentUser.uid;
 }
 
+// Pueden publicar avisos del profesorado: profesores y administradores.
+function puedePublicarAvisos() {
+    return isProfessor() || isAdmin;
+}
+
 function isProfessor() {
     return ['profesor', 'maestro'].includes(normalizeRole(userRole));
 }
@@ -1975,16 +1980,38 @@ function updateTeacherComposer() {
     const exceedsWords = words > 15;
     teacherMessageCount.textContent = `${words}/15 palabras`;
     teacherMessageCount.style.color = exceedsWords ? 'var(--danger-red)' : '';
-    sendTeacherMessageBtn.disabled = !isProfessor() || !teacherMessageInput.value.trim() || exceedsWords || sentToday >= 3;
+    sendTeacherMessageBtn.disabled = !puedePublicarAvisos() || !teacherMessageInput.value.trim() || exceedsWords || sentToday >= 3;
     if (teacherMessageLimit) teacherMessageLimit.textContent = sentToday >= 3 ? 'Ya usaste tus 3 mensajes de hoy.' : `${3 - sentToday} mensaje${3 - sentToday === 1 ? '' : 's'} disponible${3 - sentToday === 1 ? '' : 's'} hoy.`;
 }
 
 function renderTeacherMessages() {
     if (!teacherMessagesList) return;
     const latest = teacherMessagesCache.slice(0, 20);
-    teacherMessagesList.innerHTML = latest.length ? latest.map(message => `<article class="teacher-message"><strong>${escapeHTML(message.autorNombre || 'Profesor')}</strong><p>${escapeHTML(message.texto || '')}</p><time>${new Date(message.timestamp || Date.now()).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}</time></article>`).join('') : '<p class="empty-state">Aún no hay anuncios del profesorado.</p>';
+    teacherMessagesList.innerHTML = latest.length ? latest.map(message => `<article class="teacher-message">${botonBorrarAviso(message)}<strong>${escapeHTML(message.autorNombre || 'Profesor')}</strong><p>${escapeHTML(message.texto || '')}</p><time>${new Date(message.timestamp || Date.now()).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}</time></article>`).join('') : '<p class="empty-state">Aún no hay anuncios del profesorado.</p>';
     updateTeacherComposer();
 }
+
+function botonBorrarAviso(message) {
+    if (!isAdmin || !message.autorId || !message._slot || !message.dia) return '';
+    return `<button class="teacher-message__delete" type="button" data-borrar-aviso data-dia="${escapeAttribute(message.dia)}" data-autor="${escapeAttribute(message.autorId)}" data-slot="${escapeAttribute(message._slot)}" aria-label="Borrar el aviso de ${escapeAttribute(message.autorNombre || 'Profesor')}"><i class='bx bx-trash'></i></button>`;
+}
+
+// Un administrador borra cualquier aviso, tras confirmarlo.
+teacherMessagesList?.addEventListener('click', async event => {
+    const boton = event.target.closest('[data-borrar-aviso]');
+    if (!boton || !isAdmin) return;
+    const confirmado = await openConfirmModal({ title: 'Borrar aviso', message: 'El aviso desaparecerá para todos. Esta acción no se puede deshacer.', confirmLabel: 'Borrar', destructive: true });
+    if (!confirmado) return;
+    boton.disabled = true;
+    const { dia, autor, slot } = boton.dataset;
+    try {
+        await remove(ref(db, `mensajes_profesor/${dia}/${autor}/${slot}`));
+    } catch (error) {
+        console.error('No se pudo borrar el aviso:', error);
+        boton.disabled = false;
+        alert('No se pudo borrar el aviso. Inténtalo de nuevo.');
+    }
+});
 
 function loadTeacherMessages() {
     if (teacherMessagesListener) teacherMessagesListener();
@@ -1996,7 +2023,7 @@ function loadTeacherMessages() {
 }
 
 async function sendTeacherMessage() {
-    if (!isProfessor() || !currentUser || !teacherMessageInput) return;
+    if (!puedePublicarAvisos() || !currentUser || !teacherMessageInput) return;
     const texto = teacherMessageInput.value.trim();
     const words = countWords(texto);
     const dia = todayKey();
@@ -2024,7 +2051,7 @@ async function sendTeacherMessage() {
 function configureCommunityVisibility() {
     const contentManager = canManageContent();
     document.querySelectorAll('.moderation-only').forEach(element => { element.style.display = contentManager ? 'flex' : 'none'; });
-    if (teacherMessageComposer) teacherMessageComposer.style.display = isProfessor() ? 'block' : 'none';
+    if (teacherMessageComposer) teacherMessageComposer.style.display = puedePublicarAvisos() ? 'block' : 'none';
     updateTeacherComposer();
 }
 
