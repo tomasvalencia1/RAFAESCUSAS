@@ -471,9 +471,46 @@ function getChatSenderName(message, targetUser, isMe) {
 }
 
 // === THEME LOGIC ===
-// Flat, light visual system shared by the website and Capacitor WebView.
-document.documentElement.setAttribute('data-theme', 'dark');
-localStorage.setItem('theme', 'dark');
+// El tema inicial ya lo aplica el script en linea de index.html antes de pintar,
+// para que no haya parpadeo. Aqui solo se expone el conmutador y se escucha al
+// sistema mientras el usuario no haya elegido un tema de forma explicita.
+const TEMA_CLAVE = 'rafaconecta-tema';
+
+function temaActual() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+
+function aplicarTema(tema, recordar = true) {
+    document.documentElement.setAttribute('data-theme', tema);
+    if (recordar) {
+        try { localStorage.setItem(TEMA_CLAVE, tema); } catch (e) { /* almacenamiento no disponible */ }
+    }
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) {
+        const esOscuro = tema === 'dark';
+        btn.setAttribute('aria-pressed', String(esOscuro));
+        const icono = btn.querySelector('i');
+        if (icono) icono.className = esOscuro ? 'bx bx-sun' : 'bx bx-moon';
+        const etiqueta = btn.querySelector('strong');
+        if (etiqueta) etiqueta.textContent = esOscuro ? 'Tema claro' : 'Tema oscuro';
+    }
+}
+
+// Sincroniza el estado visual del conmutador con el tema ya aplicado.
+aplicarTema(temaActual(), false);
+
+document.getElementById('theme-toggle-btn')?.addEventListener('click', () => {
+    aplicarTema(temaActual() === 'dark' ? 'light' : 'dark');
+});
+
+// Si el usuario nunca eligio tema, seguir al sistema.
+try {
+    if (!localStorage.getItem(TEMA_CLAVE)) {
+        matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (ev) => {
+            if (!localStorage.getItem(TEMA_CLAVE)) aplicarTema(ev.matches ? 'dark' : 'light', false);
+        });
+    }
+} catch (e) { /* almacenamiento no disponible */ }
 
 // === PROFILE POPOVER LOGIC ===
 function openProfilePopover() {

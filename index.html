@@ -25,19 +25,42 @@
     <meta property="twitter:title" content="IE Rafael Uribe Uribe - RafaConecta">
     <meta property="twitter:description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Mantente al día con nuestra comunidad.">
     <meta property="twitter:image" content="https://rafaexcusas.vercel.app/logo.png">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#FBFAF9" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#171312" media="(prefers-color-scheme: dark)">
+
+    <!-- Tema: se aplica antes de pintar para evitar el parpadeo de tema. -->
+    <script>
+        (() => {
+            try {
+                const guardado = localStorage.getItem('rafaconecta-tema');
+                const tema = guardado || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', tema);
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+
     <!-- Módulos de Firebase y Lógica -->
-    <script type="module" src="app.js?v=8"></script>
-    <!-- Estilos y Fuentes -->
+    <script type="module" src="app.js?v=9"></script>
+
+    <!-- Iconos -->
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-    <link rel="stylesheet" href="https://rawcdn.githack.com/pattespatte/vanilla-css-design-system/refs/tags/v1.0.2/styles/vanilla-combined.min.css">
-    <link rel="stylesheet" href="styles.css?v=8">
+
+    <!-- Fuentes: Inter (interfaz) y Fraunces (marca) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&display=swap">
+
+    <link rel="stylesheet" href="styles.css?v=9">
 </head>
-<body data-theme="dark">
+<body>
 
     <!-- Initial Auth Loading Screen -->
     <div id="auth-loading-screen" class="auth-loading-overlay active">
         <div class="auth-loading-card">
-            <img src="logo.png" alt="Logo IE" class="school-logo large" style="width: 76px; height: 76px; object-fit: contain; margin: 0 auto 18px; display: block;">
+            <img src="logo.png" alt="" class="school-logo large" width="76" height="76">
             <div class="auth-loading-spinner" aria-hidden="true">
                 <span class="auth-loading-spinner-bar"></span>
             </div>
@@ -49,7 +72,7 @@
     <!-- Login Screen -->
     <div id="login-screen" class="login-overlay">
         <div class="login-card">
-            <img src="logo.png" alt="Logo IE" class="school-logo large" style="width: 80px; height: 80px; object-fit: contain; margin: 0 auto 16px; display: block;">
+            <img src="logo.png" alt="Escudo de la IE Rafael Uribe Uribe" class="school-logo large" width="80" height="80" fetchpriority="high">
             <h2>RafaConecta</h2>
             <p>IE Rafael Uribe Uribe</p>
             <button id="login-google-btn" class="btn-primary login-btn">
@@ -63,7 +86,7 @@
         <!-- Top Header -->
         <header class="header">
             <div class="logo-container">
-                <img src="logo.png" alt="Logo IE" class="school-logo" style="width: 40px; height: 40px; object-fit: contain;">
+                <img src="logo.png" alt="Escudo de la IE Rafael Uribe Uribe" class="school-logo" width="36" height="36" fetchpriority="high">
                 <h1 class="logo-text">IE Rafael Uribe Uribe</h1>
             </div>
             <div class="search-bar user-search-bar" id="user-search">
@@ -145,6 +168,10 @@
                     </div>
                     <p class="profile-note">Manten tu rol correcto para ver las herramientas disponibles. Si algo no coincide, solicita ajuste a un administrador.</p>
                     <div class="popover-actions">
+                        <button class="theme-toggle-btn" id="theme-toggle-btn" type="button" aria-pressed="false">
+                            <i class='bx bx-moon'></i>
+                            <strong>Tema oscuro</strong>
+                        </button>
                         <button class="logout-btn" id="logout-btn" type="button">
                             <i class='bx bx-log-out'></i> Cerrar sesión
                         </button>
@@ -176,10 +203,10 @@
             <!-- Center Feed -->
             <section class="feed-section">
                 <!-- Inline Create Post Widget -->
-                <div class="glass-card inline-create-post" id="open-modal-btn-feed" style="display: flex; align-items: center; gap: 16px; cursor: pointer;">
-                    <img src="https://i.pravatar.cc/150?img=68" id="inline-avatar" class="avatar-small">
-                    <div class="inline-post-input" style="flex: 1; background: var(--input-bg); padding: 12px 20px; border-radius: 24px; color: var(--text-muted); font-size: 14px; border: 1px solid var(--border-color);">¿Qué está pasando en la institución?</div>
-                    <button class="icon-btn" style="color:var(--primary-blue);"><i class='bx bx-image-add'></i></button>
+                <div class="glass-card inline-create-post" id="open-modal-btn-feed">
+                    <img src="logo.png" alt="" id="inline-avatar" class="avatar-small" width="34" height="34">
+                    <span class="inline-post-input">¿Qué está pasando en la institución?</span>
+                    <button class="icon-btn icon-btn--accent" type="button" aria-label="Añadir una foto"><i class='bx bx-image-add'></i></button>
                 </div>
                 <section class="user-search-mobile" aria-labelledby="mobile-user-search-title">
                     <div class="user-search-mobile-heading"><i class='bx bx-user-plus'></i><h2 id="mobile-user-search-title">Encontrar personas</h2></div>
@@ -285,20 +312,19 @@
                 </div>
                 <div class="modal-body">
                     <textarea id="post-textarea" placeholder="¿Qué hay de nuevo en la institución?" rows="4"></textarea>
-                    <div id="image-preview-container" style="display: none; position: relative; margin-bottom: 20px;">
-                        <img id="post-image-preview" src="" alt="Vista previa" style="width: 100%; border-radius: 12px; max-height: 300px; object-fit: cover; border: 1px solid var(--border-color);">
-                        <button id="remove-image-btn" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center;"><i class='bx bx-x'></i></button>
+                    <div id="image-preview-container" class="image-preview" style="display: none;">
+                        <img id="post-image-preview" src="" alt="Vista previa de la imagen adjunta">
+                        <button id="remove-image-btn" type="button" aria-label="Quitar la imagen"><i class='bx bx-x'></i></button>
                     </div>
                 </div>
-                <div class="modal-footer" style="justify-content: space-between; align-items: center;">
-                    <button class="action-btn cancel-btn" id="cancel-post-btn" style="background: var(--surface-3); border: 1px solid var(--border-color); color: var(--text-primary);">Regresar</button>
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <label for="post-image-input" class="action-btn" style="cursor: pointer; color: var(--primary-2); background: var(--surface-2); margin: 0; padding: 10px 14px;">
-                            <i class='bx bx-image-add'></i> <span style="font-size: 14px;">Foto</span>
+                <div class="modal-footer modal-footer--split">
+                    <button class="action-btn cancel-btn" id="cancel-post-btn" type="button">Regresar</button>
+                    <div class="modal-footer-group">
+                        <label for="post-image-input" class="action-btn action-btn--file">
+                            <i class='bx bx-image-add'></i> <span>Foto</span>
                         </label>
-                        <input type="file" id="post-image-input" accept="image/*" style="display: none;">
-                        
-                        <button class="btn-primary" id="publish-post-btn">Publicar</button>
+                        <input type="file" id="post-image-input" accept="image/*" hidden>
+                        <button class="btn-primary" id="publish-post-btn" type="button">Publicar</button>
                     </div>
                 </div>
             </div>
@@ -348,8 +374,8 @@
                 <div class="modal-header">
                     <h2>Próximos Eventos</h2>
                     <div>
-                        <button id="add-event-btn" class="btn-primary admin-only" style="display: none; padding: 8px 16px; font-size: 14px; margin-right: 10px; display: inline-flex;">+ Crear Evento</button>
-                        <button class="close-modal-btn" id="close-events-view-btn" style="display: inline-flex;"><i class='bx bx-x'></i></button>
+                        <button id="add-event-btn" class="btn-primary btn-primary--sm admin-only" type="button" style="display: none;">+ Crear Evento</button>
+                        <button class="close-modal-btn" id="close-events-view-btn" type="button" aria-label="Cerrar"><i class='bx bx-x'></i></button>
                     </div>
                 </div>
                 <div class="modal-body">
@@ -430,18 +456,18 @@
 
         <!-- Games Modal -->
         <div class="modal-overlay" id="games-modal">
-            <div class="modal-content" style="max-width: 500px; text-align: center;">
+            <div class="modal-content games-modal-content">
                 <div class="modal-header">
                     <h2>Juegos y Retos</h2>
                     <button class="close-modal-btn" id="close-games-modal-btn"><i class='bx bx-x'></i></button>
                 </div>
-                <div class="modal-body" style="padding-top: 10px;">
-                    <p style="color: var(--text-muted); margin-bottom: 20px;">¡Tres en Raya! Juega contra ti mismo o un amigo a tu lado.</p>
-                    <div id="tic-tac-toe-board" style="display: grid; grid-template-columns: repeat(3, 100px); gap: 10px; justify-content: center; margin: 0 auto 20px auto;">
+                <div class="modal-body">
+                    <p class="modal-intro">¡Tres en Raya! Juega contra ti mismo o un amigo a tu lado.</p>
+                    <div id="tic-tac-toe-board" class="ttt-board">
                         <!-- JS will populate the grid -->
                     </div>
-                    <h3 id="game-status-text" style="color: var(--primary-blue); min-height: 24px; margin-bottom: 20px;">Tu turno (X)</h3>
-                    <button class="btn-primary" id="reset-game-btn" style="margin: 0 auto;">Reiniciar Juego</button>
+                    <h3 id="game-status-text" class="game-status" aria-live="polite">Tu turno (X)</h3>
+                    <button class="btn-primary" id="reset-game-btn" type="button">Reiniciar Juego</button>
                 </div>
             </div>
         </div>
@@ -449,10 +475,10 @@
 
     <!-- Role Selection Screen -->
         <div id="role-selection-screen" class="modal-overlay">
-            <div class="modal-content" style="max-width: 640px;">
-                <div class="modal-header" style="justify-content: center; margin-bottom: 8px; text-align: center; flex-direction: column; gap: 10px;">
+            <div class="modal-content role-modal-content">
+                <div class="modal-header modal-header--stacked">
                     <h2>¡Bienvenido a la red!</h2>
-                    <p style="color: var(--text-muted);">Selecciona tu rol en la institución para continuar</p>
+                    <p class="modal-intro">Selecciona tu rol en la institución para continuar</p>
                 </div>
                 <p class="role-selection-hint">
                     <i class='bx bxs-shield-alt-2'></i>
@@ -540,12 +566,12 @@
 
         <!-- Admin Users Modal -->
         <div class="modal-overlay" id="admin-users-modal">
-            <div class="modal-content" style="max-width: 800px; max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-content admin-modal-content">
                 <div class="modal-header">
                     <h2>Gestión de Usuarios</h2>
                     <button class="close-modal-btn" id="close-users-modal-btn" type="button" aria-label="Cerrar"><i class='bx bx-x'></i></button>
                 </div>
-                <div class="modal-body" style="flex: 1; overflow-y: auto;">
+                <div class="modal-body">
                     <div class="admin-users-search">
                         <i class='bx bx-search'></i>
                         <input type="text" id="admin-user-search-input" placeholder="Buscar usuario por nombre, correo o rol...">
