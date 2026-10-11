@@ -9,7 +9,8 @@ La aplicación existente usa **Firebase Realtime Database (RTDB)**, no Firestore
 - `app.js`: feed por seguimiento, vencimiento inmediato a las 24 horas, publicaciones marcadas, follow, comentarios en `posts/{postId}/comentarios`, soporte, anuncios de profesores y panel de moderación.
 - `database.rules.json`: único bloque de reglas RTDB para los nodos nuevos y los ya utilizados por la app.
 - `.github/workflows/cleanup-expired-posts.yml` y `functions/cleanup-expired-posts.cjs`: limpieza programada gratis por GitHub Actions, sin Cloud Functions.
-- `.github/workflows/send-relevant-notifications.yml` y `functions/send-relevant-notifications.cjs`: notificaciones FCM gratuitas por GitHub Actions para chats, noticias, eventos, anuncios, publicaciones de personas seguidas y solicitudes de soporte.
+- Notificaciones push: `api/notificar.js` (función de Vercel) las envía al momento; la app la llama tras publicar. `.github/workflows/send-relevant-notifications.yml` es el respaldo periódico. Ambos usan la misma lógica, `functions/notificaciones-core.cjs` (Vercel lo hace vía REST con `functions/adaptadores-rest.cjs`, sin dependencias). Requiere la variable `FIREBASE_SERVICE_ACCOUNT` en Vercel y el secreto homónimo en GitHub. El botón "Probar notificaciones" del perfil envía una prueba a los teléfonos propios.
+- `.github/workflows/publish-database-rules.yml`: añade a las reglas vivas los `.indexOn` que necesita el despachador, sin tocar permisos.
 - `APK_NOTIFICACIONES_ANDROID.md`: única integración nativa necesaria para que la APK obtenga su token FCM y reciba notificaciones en segundo plano.
 - `functions/index.js`: alternativa opcional para quien habilite Cloud Functions/Blaze; no es necesaria para la solución gratuita.
 

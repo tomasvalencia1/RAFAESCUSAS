@@ -357,6 +357,55 @@ async function initializeAndroidNotifications() {
     }
 }
 
+// === AVISO AL DESPACHADOR DE NOTIFICACIONES ===
+// Tras publicar algo notificable se avisa a /api/notificar (Vercel), que envia las
+// notificaciones al momento. Se agrupan los avisos seguidos en uno solo. Si falla,
+// no pasa nada: el respaldo de GitHub Actions lo recoge mas tarde.
+let avisoNotificacionesPendiente = null;
+function avisarDespachadorDeNotificaciones() {
+    clearTimeout(avisoNotificacionesPendiente);
+    avisoNotificacionesPendiente = setTimeout(async () => {
+        try {
+            const token = await auth.currentUser?.getIdToken();
+            if (!token) return;
+            await fetch('/api/notificar', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, keepalive: true });
+        } catch (error) { /* las notificaciones nunca bloquean la app */ }
+    }, 1200);
+}
+
+// === PRUEBA DE NOTIFICACIONES (panel de perfil) ===
+// Envia una notificacion de prueba solo a los telefonos de quien la pide.
+const testNotificationsBtn = document.getElementById('test-notifications-btn');
+if (testNotificationsBtn) testNotificationsBtn.addEventListener('click', async () => {
+    const etiqueta = testNotificationsBtn.querySelector('strong');
+    const mostrar = (texto, ms = 6000) => {
+        if (etiqueta) etiqueta.textContent = texto;
+        setTimeout(() => { if (etiqueta) etiqueta.textContent = 'Probar notificaciones'; testNotificationsBtn.disabled = false; }, ms);
+    };
+    testNotificationsBtn.disabled = true;
+    if (etiqueta) etiqueta.textContent = 'Enviando…';
+    try {
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) return mostrar('Inicia sesión primero');
+        const res = await fetch('/api/notificar', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prueba: true })
+        });
+        const datos = await res.json().catch(() => ({}));
+        if (res.status === 503) return mostrar('Falta configurar el servidor');
+        if (!res.ok) return mostrar('No se pudo enviar la prueba');
+        if (datos.motivo === 'sin-dispositivos') {
+            // En la APK, se pide de nuevo el token para que el telefono quede registrado.
+            if (window.AndroidFCM?.requestToken) window.AndroidFCM.requestToken();
+            return mostrar(window.AndroidFCM ? 'Registrando este teléfono… prueba otra vez' : 'Ningún teléfono registrado');
+        }
+        mostrar(datos.entregadas ? `Enviada a ${datos.entregadas} teléfono(s)` : 'No se pudo entregar');
+    } catch (error) {
+        mostrar('Sin conexión con el servidor');
+    }
+});
+
 async function signInWithAndroidGoogle(idToken) {
     if (!idToken) {
         setLoginButtonLoading(false);
@@ -947,6 +996,7 @@ document.getElementById('publish-post-btn').addEventListener('click', async (e) 
         }
 
         await set(push(ref(db, 'posts')), postData);
+        avisarDespachadorDeNotificaciones();
         postModal.classList.remove('active');
         document.getElementById('post-textarea').value = '';
         resetImagePreview();
@@ -1665,6 +1715,7 @@ async function sendTeacherMessage() {
             timestamp: Date.now(),
             dia
         });
+        avisarDespachadorDeNotificaciones();
         teacherMessageInput.value = '';
         updateTeacherComposer();
     } catch (error) {
@@ -1707,6 +1758,7 @@ document.getElementById('publish-post-btn').addEventListener('click', async even
         };
         if (currentPostImageBase64) postData.imageBase64 = currentPostImageBase64;
         await set(push(ref(db, 'posts')), postData);
+        avisarDespachadorDeNotificaciones();
         postModal.classList.remove('active');
         document.getElementById('post-textarea').value = '';
         resetImagePreview();
@@ -1808,6 +1860,7 @@ document.getElementById('send-support-btn')?.addEventListener('click', async eve
     button.disabled = true; button.textContent = 'Enviando...';
     try {
         await set(push(ref(db, 'soporte')), { userId: currentUser.uid, texto: text, timestamp: Date.now(), estado: 'pendiente' });
+        avisarDespachadorDeNotificaciones();
         supportText.value = '';
         button.textContent = '¡Solicitud enviada!';
         setTimeout(() => { supportModal?.classList.remove('active'); button.textContent = 'Enviar solicitud'; button.disabled = false; }, 1200);
@@ -1826,6 +1879,7 @@ document.getElementById('publish-news-btn').onclick = async (e) => {
     if(!t || !d || !isAdmin) return;
     hapticTap([10,30,10]);
     await set(push(ref(db, 'news')), { title: t, desc: d, timestamp: Date.now() });
+    avisarDespachadorDeNotificaciones();
     newsModal.classList.remove('active'); document.getElementById('news-title-input').value=''; document.getElementById('news-desc-input').value='';
 };
 
@@ -1885,6 +1939,7 @@ document.getElementById('publish-event-btn').onclick = async () => {
     if(!title || !date || !isAdmin) return;
     hapticTap([10,30,10]);
     await set(push(ref(db, 'events')), { title, date, timestamp: Date.now() });
+    avisarDespachadorDeNotificaciones();
     eventCreateModal.classList.remove('active'); document.getElementById('event-title-input').value=''; document.getElementById('event-date-input').value='';
 };
 
@@ -2505,6 +2560,7 @@ async function sendChatMessage() {
             lastMessage: text,
             lastTimestamp: timestamp
         });
+        avisarDespachadorDeNotificaciones();
     } catch (error) {
         console.error('No se pudo enviar el mensaje:', error);
         chatMessageInput.value = text;
