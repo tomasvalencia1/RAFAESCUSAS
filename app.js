@@ -471,17 +471,19 @@ function getChatSenderName(message, targetUser, isMe) {
 }
 
 // === THEME LOGIC ===
-// El tema inicial ya lo aplica el script en linea de index.html antes de pintar,
-// para que no haya parpadeo. Aqui solo se expone el conmutador y se escucha al
-// sistema mientras el usuario no haya elegido un tema de forma explicita.
+// El tema oscuro es el predeterminado. El script en linea de index.html lo aplica
+// antes de pintar, para que no haya parpadeo; aqui solo vive el conmutador. El tema
+// unicamente cambia cuando el usuario lo elige, nunca por la preferencia del sistema.
 const TEMA_CLAVE = 'rafaconecta-tema';
 
 function temaActual() {
-    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
 }
 
 function aplicarTema(tema, recordar = true) {
     document.documentElement.setAttribute('data-theme', tema);
+    // Color de la barra del navegador y de la barra de estado en la PWA.
+    document.getElementById('meta-theme-color')?.setAttribute('content', tema === 'light' ? '#FBFAF9' : '#171312');
     if (recordar) {
         try { localStorage.setItem(TEMA_CLAVE, tema); } catch (e) { /* almacenamiento no disponible */ }
     }
@@ -502,15 +504,6 @@ aplicarTema(temaActual(), false);
 document.getElementById('theme-toggle-btn')?.addEventListener('click', () => {
     aplicarTema(temaActual() === 'dark' ? 'light' : 'dark');
 });
-
-// Si el usuario nunca eligio tema, seguir al sistema.
-try {
-    if (!localStorage.getItem(TEMA_CLAVE)) {
-        matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (ev) => {
-            if (!localStorage.getItem(TEMA_CLAVE)) aplicarTema(ev.matches ? 'dark' : 'light', false);
-        });
-    }
-} catch (e) { /* almacenamiento no disponible */ }
 
 // === PROFILE POPOVER LOGIC ===
 function openProfilePopover() {
@@ -1232,11 +1225,82 @@ function buildCommentsHtml(post, postId) {
     }).join('');
 }
 
+// === PESTAÑAS DEL FEED: INICIO / DESCUBRIR ===
+// Las dos pestañas comparten #posts-container, asi que todas las escuchas
+// delegadas (me gusta, comentar, borrar, seguir) funcionan igual en ambas.
+const FEED_PAGE_SIZE = 10;
+let feedMode = 'inicio';
+let feedLimit = FEED_PAGE_SIZE;
+const feedSection = document.querySelector('.feed-section');
+const feedTabs = document.querySelectorAll('[data-feed-tab]');
+
+// Descubrir: todas las publicaciones vigentes de la comunidad, menos las propias.
+// No depende de a quien sigues, para que una tarjeta no desaparezca al pulsar
+// "Seguir". Las marcadas para revision solo las ven quienes moderan.
+function isPostVisibleInDiscover(post) {
+    if (!currentUser || isExpiredStudentPost(post)) return false;
+    const authorId = post.author?.uid || post.autorId;
+    if (!authorId || authorId === currentUser.uid) return false;
+    return !post.flagged || canManageContent();
+}
+
+function setFeedMode(mode) {
+    if (!['inicio', 'descubrir'].includes(mode) || mode === feedMode) return;
+    feedMode = mode;
+    feedLimit = FEED_PAGE_SIZE;
+    feedSection?.setAttribute('data-feed', mode);
+    feedTabs.forEach(tab => {
+        const active = tab.dataset.feedTab === mode;
+        tab.setAttribute('aria-selected', String(active));
+        tab.tabIndex = active ? 0 : -1;
+    });
+    postsContainer?.setAttribute('aria-labelledby', `feed-tab-${mode}`);
+    // Lienzo limpio: cada pestaña tiene su propio conjunto y orden de tarjetas.
+    if (postsContainer) postsContainer.innerHTML = '';
+    renderCommunityFeed();
+}
+
+feedTabs.forEach(tab => {
+    tab.addEventListener('click', () => setFeedMode(tab.dataset.feedTab));
+    // Patron de pestañas accesible: las flechas cambian de pestaña.
+    tab.addEventListener('keydown', event => {
+        if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+        event.preventDefault();
+        const next = tab.dataset.feedTab === 'inicio' ? 'descubrir' : 'inicio';
+        setFeedMode(next);
+        document.getElementById(`feed-tab-${next}`)?.focus();
+    });
+});
+
+// "Inicio" en la barra lateral no tenia manejador; ahora vuelve a la pestaña
+// Inicio y sube. El de la barra inferior conserva su onclick y ademas cambia de pestaña.
+const navHomeBtn = document.getElementById('nav-home-btn');
+if (navHomeBtn) navHomeBtn.addEventListener('click', event => {
+    event.preventDefault();
+    setFeedMode('inicio');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+if (mobileHomeBtn) mobileHomeBtn.addEventListener('click', () => setFeedMode('inicio'));
+
 function renderCommunityFeed() {
     if (!postsContainer || !currentUser) return;
-    const visiblePosts = allPostsCache.filter(isPostVisibleInFeed);
+    const isDiscover = feedMode === 'descubrir';
+    const matchingPosts = allPostsCache.filter(isDiscover ? isPostVisibleInDiscover : isPostVisibleInFeed);
+    // Descubrir carga de 10 en 10 (las imagenes viajan en base64 dentro de cada
+    // publicacion). Inicio conserva su comportamiento: todo de una vez.
+    const visiblePosts = isDiscover ? matchingPosts.slice(0, feedLimit) : matchingPosts;
+
+    // Retira todo lo que no sea una tarjeta: avisos de carga o de feed vacio y el
+    // boton "Ver mas". Antes la reconciliacion nunca los quitaba y el aviso de
+    // "aun no hay publicaciones" se quedaba al final de un feed con publicaciones.
+    [...postsContainer.children].forEach(child => {
+        if (!child.matches('.post-card[id]')) child.remove();
+    });
+
     if (!visiblePosts.length) {
-        postsContainer.innerHTML = '<div class="glass-card loading-spinner">Aún no hay publicaciones de personas que sigues. Sigue a alguien o espera un anuncio del profesorado.</div>';
+        postsContainer.innerHTML = isDiscover
+            ? '<div class="glass-card loading-spinner">Todavía no hay publicaciones de la comunidad para descubrir.</div>'
+            : '<div class="glass-card loading-spinner">Aún no hay publicaciones de personas que sigues. Sigue a alguien o espera un anuncio del profesorado.</div>';
         renderModerationQueue();
         return;
     }
@@ -1312,7 +1376,7 @@ function renderCommunityFeed() {
                     <div class="post-header-actions">${flagged}${canFollow ? `<button class="action-btn follow-btn ${followsAuthor ? 'following' : ''}" data-author-id="${escapeAttribute(authorId)}" data-following="${followsAuthor}" type="button">${followsAuthor ? 'Siguiendo' : 'Seguir'}</button>` : ''}${canDel ? `<button class="action-btn delete-post-btn" aria-label="Eliminar publicaci\u00f3n" data-id="${postIdSafe}" type="button"><i class='bx bx-trash'></i></button>` : ''}</div>
                 </div>
                 ${post.content ? `<div class="post-content">${escapeHTML(post.content)}</div>` : ''}
-                ${imageSrc ? `<img src="${escapeAttribute(imageSrc)}" alt="Imagen adjunta" class="post-image-full">` : ''}
+                ${imageSrc ? `<img src="${escapeAttribute(imageSrc)}" alt="Imagen adjunta" class="post-image-full" decoding="async">` : ''}
                 <div class="post-actions"><button class="action-btn like-btn ${liked ? 'liked' : ''}" data-id="${postIdSafe}" type="button"><i class='bx ${liked ? 'bxs-heart' : 'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button><button class="action-btn comment-btn" data-id="${postIdSafe}" type="button"><i class='bx bx-message-rounded'></i><span>${Object.keys(comments).length}</span></button></div>
                 <div class="comments-section" id="comments-${postIdSafe}"><div class="comments-list">${buildCommentsHtml(post, post.id)}</div><div class="comment-input-area"><input type="text" maxlength="500" placeholder="Escribe un comentario..." class="new-comment-input" data-id="${postIdSafe}"><button class="comment-submit-btn" data-id="${postIdSafe}" type="button" aria-label="Publicar comentario"><i class='bx bxs-send'></i></button></div></div>
             `;
@@ -1323,6 +1387,19 @@ function renderCommunityFeed() {
             }
         }
     });
+
+    if (isDiscover && matchingPosts.length > visiblePosts.length) {
+        const remaining = matchingPosts.length - visiblePosts.length;
+        const moreBtn = document.createElement('button');
+        moreBtn.type = 'button';
+        moreBtn.className = 'action-btn feed-more-btn';
+        moreBtn.innerHTML = `Ver más publicaciones <small>(${remaining})</small>`;
+        moreBtn.addEventListener('click', () => {
+            feedLimit += FEED_PAGE_SIZE;
+            renderCommunityFeed();
+        });
+        postsContainer.appendChild(moreBtn);
+    }
     renderModerationQueue();
 }
 

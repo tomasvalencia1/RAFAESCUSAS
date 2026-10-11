@@ -16,7 +16,9 @@
 /* ========================================================== 1 · RESET ===== */
 @layer reset {
   *, *::before, *::after { box-sizing: border-box; }
-  * { margin: 0; }
+  /* Sin el destello azul que Android pinta al tocar un elemento: la respuesta
+     al toque la dan los estados :active de cada componente (ver 5.27). */
+  * { margin: 0; -webkit-tap-highlight-color: transparent; }
   html { -webkit-text-size-adjust: 100%; }
   body { -webkit-font-smoothing: antialiased; }
   img, picture, svg, video { display: block; max-width: 100%; height: auto; }
@@ -130,6 +132,11 @@
     --gutter: clamp(1rem, 0.6rem + 2vw, 2rem);
     --tap: 44px;
 
+    /* Separacion entre elementos de una lista. Un solo sitio para ajustarla:
+       tarjetas (publicaciones, eventos, avisos) y filas densas (contactos, tareas). */
+    --gap-tarjetas: var(--space-4);
+    --gap-filas: var(--space-2);
+
     /* Alias de compatibilidad: los usa el HTML/JS heredado. No borrar. */
     --primary: var(--c-primary);
     --primary-2: var(--c-primary);
@@ -148,6 +155,11 @@
 
   /* Solo dentro de la APK / PWA en Android se compensa la barra de estado. */
   body.is-webview { --safe-top: env(safe-area-inset-top, 0px); }
+
+  /* En pantallas grandes las tarjetas respiran un poco mas. */
+  @media (min-width: 1024px) {
+    :root { --gap-tarjetas: var(--space-5); }
+  }
 
   /* --- Tema oscuro: re-mapeo de roles, no inversión --------------------- */
   :root[data-theme="dark"] {
@@ -278,20 +290,54 @@
   /* --- Rejilla principal ------------------------------------------------ */
   .main-layout {
     display: grid;
-    gap: var(--space-6);
+    gap: var(--gap-tarjetas);
     width: 100%;
     max-width: var(--container);
     margin-inline: auto;
     padding-inline: var(--gutter);
-    padding-block: var(--space-6) calc(var(--mobile-bar-h) + var(--space-8));
+    padding-block: var(--space-4) calc(var(--mobile-bar-h) + var(--space-8));
     align-items: start;
   }
-  .left-sidebar, .right-sidebar { display: none; }
+  @media (min-width: 768px) {
+    .main-layout { gap: var(--space-6); padding-block-start: var(--space-6); }
+  }
+  .left-sidebar { display: none; }
 
-  /* ≥768 px: aparece la columna de utilidades */
+  /* Movil: Noticias y Reportes Rapidos en una franja deslizable encima del
+     feed, a todo el ancho de la pantalla. Antes del rediseno se mostraban aqui
+     como dos tarjetas completas; la franja ocupa menos y deja ver el feed. */
+  .right-sidebar {
+    order: -1;
+    display: flex; gap: var(--space-3);
+    min-width: 0;
+    margin-inline: calc(var(--gutter) * -1);
+    padding-inline: var(--gutter);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--gutter);
+    scrollbar-width: none;
+  }
+  .right-sidebar::-webkit-scrollbar { display: none; }
+  .right-sidebar > * {
+    flex: 0 0 min(84%, 20rem);
+    scroll-snap-align: start;
+    display: flex; flex-direction: column;
+    max-height: 11rem;   /* cabecera + dos elementos; el resto se desplaza dentro */
+  }
+  .right-sidebar .widget-content { overflow-y: auto; min-height: 0; }
+
+  /* ≥768 px: la franja se convierte en la columna de utilidades */
   @media (min-width: 768px) {
     .main-layout { grid-template-columns: minmax(0, 1fr) 19rem; }
-    .right-sidebar { display: grid; gap: var(--space-4); position: sticky; inset-block-start: calc(var(--header-h) + var(--safe-top) + var(--space-4)); }
+    .right-sidebar {
+      order: 0;
+      display: grid; gap: var(--space-4);
+      margin-inline: 0; padding-inline: 0;
+      overflow: visible; scroll-snap-type: none;
+      position: sticky; inset-block-start: calc(var(--header-h) + var(--safe-top) + var(--space-4));
+    }
+    .right-sidebar > * { display: block; max-height: none; }
+    .right-sidebar .widget-content { overflow: visible; }
   }
 
   /* ≥1024 px: aparece la navegación lateral y desaparece la barra inferior */
@@ -306,7 +352,11 @@
     }
   }
 
-  .feed-section { display: grid; gap: var(--space-4); min-width: 0; }
+  .feed-section { display: grid; gap: var(--gap-tarjetas); min-width: 0; }
+
+  /* Contenedor de publicaciones. No tenia ninguna regla: por eso las tarjetas
+     quedaban pegadas unas a otras. */
+  #posts-container { display: grid; gap: var(--gap-tarjetas); min-width: 0; }
 }
 
 /* ===================================================== 5 · COMPONENTES ==== */
@@ -385,7 +435,7 @@
   .search-bar:focus-within { border-color: var(--c-primary); box-shadow: 0 0 0 3px var(--c-primary-soft); }
 
   .user-search-results {
-    display: grid; gap: var(--space-1);
+    display: grid; gap: var(--gap-filas);
   }
   .user-search-results-desktop {
     position: absolute; inset-block-start: calc(100% + var(--space-2));
@@ -537,6 +587,7 @@
   }
   .badge.sin-rol { background: var(--c-bg-sunken); color: var(--c-text-mute); }
   .badge.warning { background: var(--c-warning-soft); color: var(--c-warning); }
+  .badge.success { background: var(--c-success-soft); color: var(--c-success); }
 
   /* --- 5.6 Banner de rol pendiente. Sin franja lateral. ------------------- */
   .pending-role-banner {
@@ -603,8 +654,31 @@
   }
 
   /* --- 5.10 Mensajes del profesorado. Sin franja lateral. ------------------ */
-  .teacher-messages-panel { padding: var(--space-5); display: grid; gap: var(--space-4); }
-  .teacher-messages-list { display: grid; gap: var(--space-3); }
+  .teacher-messages-panel { padding: var(--space-4); display: grid; gap: var(--space-3); }
+  @media (min-width: 768px) { .teacher-messages-panel { padding: var(--space-5); gap: var(--space-4); } }
+  /* Fila deslizable de avisos: el panel tiene siempre la misma altura, haya 1
+     aviso o 20 (app.js muestra hasta 20). En vertical, con varios profesores
+     publicando, empujaba las publicaciones varias pantallas hacia abajo. */
+  .teacher-messages-list {
+    display: flex; gap: var(--space-3);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    /* Sangra hasta el borde del panel para que la siguiente tarjeta asome. */
+    margin-inline: calc(var(--space-4) * -1);
+    padding-inline: var(--space-4);
+    scroll-padding-inline: var(--space-4);
+  }
+  @media (min-width: 768px) {
+    .teacher-messages-list {
+      margin-inline: calc(var(--space-5) * -1);
+      padding-inline: var(--space-5);
+      scroll-padding-inline: var(--space-5);
+    }
+  }
+  .teacher-messages-list::-webkit-scrollbar { display: none; }
+  .teacher-messages-list > .teacher-message { flex: 0 0 min(85%, 22rem); scroll-snap-align: start; }
+  .teacher-messages-list > .empty-state { flex: 1; }
   .teacher-message {
     padding: var(--space-4);
     background: var(--c-brand-soft);
@@ -744,6 +818,37 @@
   .header-title h2 { font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.06em; color: var(--c-text-2); }
   .widget-content { padding: var(--space-4) var(--space-5); display: grid; gap: var(--space-4); }
   .widget-content > * + * { padding-block-start: var(--space-4); border-block-start: 1px solid var(--c-border); }
+
+  /* Elementos que genera app.js en Noticias, Reportes y Eventos. No tenian
+     estilos propios: el boton de borrar de una noticia ocupaba una linea entera
+     encima del titulo. Los botones de borrar traen `color:red` en linea; aqui se
+     sustituye por el gris atenuado del sistema, y el rojo de error al pasar por encima. */
+  .news-item { position: relative; display: grid; gap: 2px; min-width: 0; }
+  .news-item:has(.delete-news-btn) { padding-inline-end: 40px; }
+  .news-item h3 { font-size: var(--fs-sm); font-weight: 600; }
+  .news-item p { font-size: var(--fs-xs); color: var(--c-text-mute); }
+  .news-item .delete-news-btn {
+    position: absolute; inset-block-start: -6px; inset-inline-end: -6px;
+    min-width: 36px; min-height: 36px; margin: 0; padding: 0;
+  }
+
+  .report-item { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-width: 0; }
+  .report-item > div:last-child { gap: var(--space-2) !important; }
+  .report-info { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-size: var(--fs-sm); font-weight: 600; }
+  .report-info i { color: var(--c-success); font-size: 1.1rem; flex-shrink: 0; }
+  .report-item .delete-report-btn {
+    min-width: 32px; min-height: 32px; padding: 0;
+    color: var(--c-text-mute) !important; font-size: 1.1rem !important;
+  }
+
+  .event-info { display: grid; gap: 2px; min-width: 0; }
+  .event-info h3 { font-size: var(--fs-sm); font-weight: 600; }
+  .event-date { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--fs-xs); color: var(--c-text-mute); }
+  .event-item .delete-event-btn { color: var(--c-text-mute) !important; }
+
+  :is(.news-item .delete-news-btn, .report-item .delete-report-btn, .event-item .delete-event-btn):hover {
+    color: var(--c-error) !important; background: var(--c-error-soft);
+  }
 
   /* --- 5.15 Estados vacíos y de carga -------------------------------------- */
   .empty-state, .loading-spinner {
@@ -967,7 +1072,7 @@
   .chat-search { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); }
   .chat-search i { color: var(--c-text-mute); }
 
-  .contacts-list { flex: 1; overflow-y: auto; padding: var(--space-2); display: grid; gap: var(--space-1); align-content: start; }
+  .contacts-list { flex: 1; overflow-y: auto; padding: var(--space-2); display: grid; gap: var(--gap-filas); align-content: start; }
   .contact-item {
     /* El JS conmuta display flex/none al filtrar. */
     display: flex; align-items: center; gap: var(--space-3);
@@ -1064,7 +1169,7 @@
   .users-table-body > *:last-child { border-block-end: 0; }
 
   /* --- 5.22 Eventos y tareas ----------------------------------------------------- */
-  .event-list { display: grid; gap: var(--space-3); }
+  .event-list { display: grid; gap: var(--gap-tarjetas); }
   .event-list > * {
     display: flex; align-items: center; gap: var(--space-3);
     padding: var(--space-4);
@@ -1103,7 +1208,7 @@
     padding: var(--space-5) var(--space-5) var(--space-2);
   }
   .task-list-heading h3 { font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.06em; color: var(--c-text-2); }
-  .task-list { display: grid; gap: var(--space-2); padding-inline: var(--space-5); overflow-y: auto; }
+  .task-list { display: grid; gap: var(--gap-filas); padding-inline: var(--space-5); overflow-y: auto; }
   .task-list > * {
     display: flex; align-items: center; gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
@@ -1128,7 +1233,7 @@
 
   /* --- 5.23 Moderación ------------------------------------------------------------ */
   .moderation-modal-content { max-width: 40rem; }
-  .moderation-posts-list { display: grid; gap: var(--space-3); }
+  .moderation-posts-list { display: grid; gap: var(--gap-tarjetas); }
   .moderation-posts-list > * {
     padding: var(--space-4);
     background: var(--c-surface-2);
@@ -1237,6 +1342,151 @@
   }
 
   .admin-modal-content { max-width: 50rem; }
+
+  /* --- 5.27 Pestañas del feed: Inicio · Descubrir --------------------------------- */
+  .feed-tabs {
+    display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-1);
+    padding: var(--space-1);
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-pill);
+    box-shadow: var(--elev-1);
+  }
+  .feed-tab {
+    display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+    min-height: var(--tap);
+    border-radius: var(--radius-pill);
+    color: var(--c-text-2); font-size: var(--fs-sm); font-weight: 600; cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+  .feed-tab i { font-size: 1.15rem; }
+  .feed-tab:not([aria-selected="true"]):hover { background: var(--c-bg-sunken); color: var(--c-text); }
+  .feed-tab[aria-selected="true"] { background: var(--c-primary); color: var(--c-on-primary); }
+
+  /* Que muestra cada pestaña. "Encontrar personas" vive en Descubrir; los
+     avisos del profesorado, en Inicio. */
+  .feed-section[data-feed="inicio"] .user-search-mobile { display: none; }
+  .feed-section[data-feed="descubrir"] .teacher-messages-panel { display: none; }
+
+  /* Sin avisos y sin compositor (no es profesor): el panel no ocupa espacio.
+     Navegadores sin :has() simplemente lo siguen mostrando. */
+  .teacher-messages-panel:has(.teacher-messages-list > .empty-state:only-child):has(#teacher-message-composer[style*="none"]) {
+    display: none;
+  }
+
+  /* Carga progresiva del feed */
+  .feed-more-btn { width: 100%; }
+  .feed-more-btn small { color: var(--c-text-mute); font-weight: 500; }
+
+  /* --- 5.28 Barra inferior: boton "Más" y secciones desplazadas a la hoja ---------- */
+  .mobile-nav-item { position: relative; }
+  .mobile-bottom-bar .en-mas { display: none !important; } /* gana al display:flex en linea que pone app.js */
+  .mas-btn__count {
+    position: absolute; inset-block-start: 6px; inset-inline-start: calc(50% + 6px);
+    font-size: 0.62rem; min-width: 18px; height: 18px;
+  }
+
+  /* El boton flotante de soporte pasa a la hoja "Más" en movil y tableta:
+     flotaba encima de las tarjetas. En escritorio sigue flotando. */
+  .support-fab { display: none; }
+  @media (min-width: 1024px) { .support-fab { display: inline-flex; } }
+
+  /* --- 5.29 Hoja "Más" ----------------------------------------------------------- */
+  /* <dialog> nativo: atrapa el foco, cierra con Esc y deja el fondo inerte. */
+  .mas-sheet {
+    position: fixed; inset: auto 0 0 0;
+    width: 100%; max-width: none;
+    max-height: 85vh; max-height: 85dvh;
+    margin: 0; padding: 0 0 var(--safe-bottom);
+    border: 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    background: var(--c-surface); color: var(--c-text);
+    box-shadow: var(--elev-5);
+    overflow-y: auto; overscroll-behavior: contain;
+  }
+  .mas-sheet::backdrop { background: hsl(14 16% 11% / 0.55); }
+  .mas-sheet[open] { animation: mas-sube var(--dur-slow) var(--ease-out); }
+  @keyframes mas-sube { from { transform: translateY(100%); } to { transform: none; } }
+  @media (min-width: 768px) {
+    .mas-sheet {
+      inset: auto 0 var(--space-6) 0; margin-inline: auto;
+      max-width: 30rem; border-radius: var(--radius-xl);
+    }
+  }
+
+  .mas-sheet__head {
+    position: relative;
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+    padding: var(--space-6) var(--space-5) var(--space-2);
+  }
+  .mas-sheet__grip {
+    position: absolute; inset-block-start: var(--space-2); inset-inline-start: 50%;
+    width: 40px; height: 4px; translate: -50% 0;
+    border-radius: var(--radius-pill); background: var(--c-border-strong);
+  }
+  .mas-sheet__head h2 { font-size: var(--fs-lg); }
+
+  .mas-grid {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5) var(--space-6);
+  }
+  .mas-item {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2);
+    min-height: 88px; padding: var(--space-3) var(--space-2);
+    background: var(--c-surface-2);
+    border: 1px solid var(--c-border); border-radius: var(--radius-lg);
+    color: var(--c-text); font-size: var(--fs-xs); font-weight: 600; text-align: center;
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+  }
+  .mas-item:hover { border-color: var(--c-border-strong); }
+  .mas-item__icon {
+    display: grid; place-items: center;
+    width: 40px; height: 40px; border-radius: var(--radius-md);
+    background: var(--c-primary-soft); color: var(--c-primary);
+    font-size: 1.35rem;
+  }
+  .mas-item__badge {
+    position: absolute; inset-block-start: var(--space-2); inset-inline-end: var(--space-2);
+  }
+
+  /* --- 5.30 Respuesta al toque -----------------------------------------------------
+     Sustituye al destello azul de Android: una leve compresion al pulsar. */
+  :is(.btn-primary, .action-btn, .cancel-btn, .text-action-btn, .btn-small, .icon-btn,
+      .follow-btn, .user-search-follow-btn, .comment-submit-btn, .send-message-btn,
+      .close-modal-btn, .close-chat-btn, .back-to-contacts-btn, .profile-back-btn,
+      .logout-btn, .theme-toggle-btn, .support-fab, .btn-approve, .btn-reject,
+      .feed-tab, .mas-item, .role-card, .task-complete-btn, .task-delete-btn):active {
+    transform: scale(0.96);
+    transition-duration: 80ms;
+  }
+  :is(.nav-item, .contact-item, .user-profile-header, .inline-create-post,
+      .profile-info-row, .user-search-result):active { background: var(--c-hover); }
+  .mobile-nav-item i { transition: transform var(--dur-fast) var(--ease-out); }
+  .mobile-nav-item:active i { transform: scale(0.88); }
+
+  /* En pantallas tactiles el :hover se queda "pegado" despues de tocar: el boton
+     seguia oscurecido o levantado hasta tocar otra cosa. Aqui se neutraliza. */
+  @media (hover: none) {
+    .btn-primary:hover { transform: none; background: var(--c-primary); }
+    .btn-primary.danger-btn:hover { background: var(--c-error); }
+    .role-card:hover { transform: none; box-shadow: none; border-color: var(--c-border); }
+    .post-card:hover { box-shadow: var(--elev-1); border-color: var(--c-border); }
+    .inline-create-post:hover, .mas-item:hover { border-color: var(--c-border); }
+    :is(.icon-btn, .like-btn, .comment-btn, .close-modal-btn, .close-chat-btn,
+        .back-to-contacts-btn, .profile-back-btn, .user-profile-header, .profile-info-row,
+        .user-search-result, .delete-post-btn, .delete-comment-btn, .delete-news-btn,
+        .delete-report-btn, .delete-event-btn, .text-action-btn,
+        .nav-item:not(.active), .contact-item:not(.active),
+        .feed-tab:not([aria-selected="true"])):hover { background-color: transparent; }
+    :is(.action-btn, .cancel-btn, .btn-small, .theme-toggle-btn):not(.like-btn):not(.comment-btn):not([class*="delete-"]):hover {
+      background-color: var(--c-surface);
+    }
+    :is(.like-btn:not(.liked), .comment-btn, .nav-item:not(.active), .icon-btn,
+        .feed-tab:not([aria-selected="true"])):hover { color: var(--c-text-2); }
+    .mobile-nav-item:not(.active):not(.create-btn):hover { color: var(--c-text-mute); }
+  }
 }
 
 /* ====================================================== 6 · UTILIDADES ==== */
@@ -1273,6 +1523,15 @@
   line-height: 1;
 }
 
+/* En Reportes, app.js usa el propio <i> como boton de borrar: hay que centrar el
+   glifo en su caja de toque, igual que el + de Crear. */
+.report-item .delete-report-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 /* Iconos dentro de controles centrados con flex. */
 .nav-item i,
 .icon-btn i,
@@ -1293,6 +1552,8 @@
 .delete-comment-btn i,
 .delete-news-btn i,
 .delete-report-btn i,
-.delete-event-btn i {
+.delete-event-btn i,
+.feed-tab i,
+.mas-item__icon i {
   line-height: 1;
 }

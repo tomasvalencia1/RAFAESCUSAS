@@ -26,24 +26,28 @@
     <meta property="twitter:description" content="RafaConecta, red social oficial de la Institución Educativa Rafael Uribe Uribe. Mantente al día con nuestra comunidad.">
     <meta property="twitter:image" content="https://rafaexcusas.vercel.app/logo.png">
     <meta name="color-scheme" content="light dark">
-    <meta name="theme-color" content="#FBFAF9" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#171312" media="(prefers-color-scheme: dark)">
+    <!-- Color de la barra del navegador; lo sincroniza el tema elegido. -->
+    <meta name="theme-color" content="#171312" id="meta-theme-color">
 
-    <!-- Tema: se aplica antes de pintar para evitar el parpadeo de tema. -->
+    <!-- Tema: oscuro por defecto. Solo cambia si el usuario elige otro desde la app.
+         Se aplica antes de pintar para evitar el parpadeo. -->
     <script>
         (() => {
             try {
                 const guardado = localStorage.getItem('rafaconecta-tema');
-                const tema = guardado || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                const tema = guardado === 'light' ? 'light' : 'dark';
                 document.documentElement.setAttribute('data-theme', tema);
+                document.getElementById('meta-theme-color')?.setAttribute('content', tema === 'light' ? '#FBFAF9' : '#171312');
             } catch (e) {
-                document.documentElement.setAttribute('data-theme', 'light');
+                document.documentElement.setAttribute('data-theme', 'dark');
             }
         })();
     </script>
 
     <!-- Módulos de Firebase y Lógica -->
-    <script type="module" src="app.js?v=9"></script>
+    <script type="module" src="app.js?v=10"></script>
+    <!-- Navegacion por configuracion: barra inferior y hoja "Más" -->
+    <script type="module" src="navegacion.js?v=10"></script>
 
     <!-- Iconos -->
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
@@ -53,7 +57,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&display=swap">
 
-    <link rel="stylesheet" href="styles.css?v=9">
+    <link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body>
 
@@ -201,12 +205,16 @@
             </aside>
 
             <!-- Center Feed -->
-            <section class="feed-section">
+            <section class="feed-section" data-feed="inicio">
                 <!-- Inline Create Post Widget -->
                 <div class="glass-card inline-create-post" id="open-modal-btn-feed">
                     <img src="logo.png" alt="" id="inline-avatar" class="avatar-small" width="34" height="34">
                     <span class="inline-post-input">¿Qué está pasando en la institución?</span>
                     <button class="icon-btn icon-btn--accent" type="button" aria-label="Añadir una foto"><i class='bx bx-image-add'></i></button>
+                </div>
+                <div class="feed-tabs" role="tablist" aria-label="Publicaciones">
+                    <button class="feed-tab" id="feed-tab-inicio" type="button" role="tab" aria-selected="true" aria-controls="posts-container" data-feed-tab="inicio"><i class='bx bx-home-alt'></i><span>Inicio</span></button>
+                    <button class="feed-tab" id="feed-tab-descubrir" type="button" role="tab" aria-selected="false" aria-controls="posts-container" data-feed-tab="descubrir" tabindex="-1"><i class='bx bx-compass'></i><span>Descubrir</span></button>
                 </div>
                 <section class="user-search-mobile" aria-labelledby="mobile-user-search-title">
                     <div class="user-search-mobile-heading"><i class='bx bx-user-plus'></i><h2 id="mobile-user-search-title">Encontrar personas</h2></div>
@@ -230,7 +238,7 @@
                     </div>
                     <div id="teacher-messages-list" class="teacher-messages-list"><p class="empty-state">Cargando mensajes…</p></div>
                 </section>
-                <div id="posts-container">
+                <div id="posts-container" role="tabpanel" aria-labelledby="feed-tab-inicio">
                     <div class="glass-card loading-spinner">Cargando publicaciones...</div>
                 </div>
             </section>
@@ -298,10 +306,25 @@
                     <i class='bx bx-user-check'></i>
                     <span>Roles</span>
                 </button>
+                <button class="mobile-nav-item mas-btn" id="mobile-more-btn" type="button" aria-haspopup="dialog" aria-controls="mas-sheet">
+                    <i class='bx bx-grid-alt'></i>
+                    <span>Más</span>
+                    <b class="nav-count mas-btn__count" id="mobile-more-count" hidden>0</b>
+                </button>
             </nav>
         </div>
 
         <button id="support-fab" class="support-fab" type="button" aria-label="Abrir soporte"><i class='bx bx-help-circle'></i><span>Soporte</span></button>
+
+        <!-- Hoja "Más": secciones que no caben en la barra inferior. La rellena navegacion.js. -->
+        <dialog id="mas-sheet" class="mas-sheet" aria-labelledby="mas-sheet-title">
+            <div class="mas-sheet__head">
+                <span class="mas-sheet__grip" aria-hidden="true"></span>
+                <h2 id="mas-sheet-title">Más opciones</h2>
+                <button class="close-modal-btn" id="mas-sheet-close" type="button" aria-label="Cerrar"><i class='bx bx-x'></i></button>
+            </div>
+            <nav class="mas-grid" id="mas-sheet-list" aria-label="Más secciones"></nav>
+        </dialog>
 
         <!-- Create Post Modal -->
         <div class="modal-overlay" id="post-modal">
