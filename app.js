@@ -1012,6 +1012,7 @@ supportInboxList?.addEventListener('click', async event => {
         await update(ref(db, `soporte/${boton.dataset.id}`), resolver
             ? { estado: 'resuelto', resueltoPor: currentUser.uid, resueltoPorNombre: miNombre(), resueltoEn: Date.now() }
             : { estado: 'pendiente', resueltoPor: null, resueltoPorNombre: null, resueltoEn: null });
+        if (resolver) avisarDespachadorDeNotificaciones();
     } catch (error) {
         console.error('No se pudo actualizar la solicitud:', error);
         boton.disabled = false;

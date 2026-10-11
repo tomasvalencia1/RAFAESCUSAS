@@ -49,6 +49,18 @@ async function readSince(db, path, field, since) {
   return (await db.ref(path).orderByChild(field).startAt(since).once('value')).val() || {};
 }
 
+// Como readSince, pero si la consulta falla (por ejemplo, porque el indice aun no
+// esta publicado justo despues de un despliegue) se omite solo esta parte y el
+// resto del despacho sigue adelante.
+async function readSinceOpcional(db, path, field, since) {
+  try {
+    return await readSince(db, path, field, since);
+  } catch (error) {
+    console.warn(`No se pudo consultar ${path} por ${field}; se omite en esta ejecución: ${error.message}`);
+    return {};
+  }
+}
+
 function flattenTeacherMessages(root) {
   const items = [];
   for (const [day, byTeacher] of asEntries(root)) {
@@ -155,11 +167,12 @@ async function dispatchNotifications(db, messaging) {
 
   // Solo lo nuevo. Las publicaciones se crean con `createdAt` o con `timestamp`
   // segun la version de la app, asi que se consultan los dos campos.
-  const [tokensByUser, news, events, support, chats, postsA, postsB, teacherRoot] = await Promise.all([
+  const [tokensByUser, news, events, support, supportResolved, chats, postsA, postsB, teacherRoot] = await Promise.all([
     readNode(db, 'fcmTokens'),
     readSince(db, 'news', 'timestamp', since),
     readSince(db, 'events', 'timestamp', since),
     readSince(db, 'soporte', 'timestamp', since),
+    readSinceOpcional(db, 'soporte', 'resueltoEn', since),
     readSince(db, 'chats', 'lastTimestamp', since),
     readSince(db, 'posts', 'createdAt', since),
     readSince(db, 'posts', 'timestamp', since),
@@ -233,6 +246,19 @@ async function dispatchNotifications(db, messaging) {
       title: autor ? `Solicitud de soporte de ${autor}`.slice(0, 80) : 'Nueva solicitud de soporte',
       body: texto ? (texto.length > 100 ? `${texto.slice(0, 99)}…` : texto) : 'Una persona necesita ayuda en RafaConecta.',
       type: 'support', entityId: id });
+  }
+
+  // Solicitud marcada como resuelta: se avisa a quien la escribio. El id del
+  // evento incluye la hora de resolucion, asi que reabrir y volver a resolver
+  // avisa otra vez. Quien resuelve su propia solicitud no recibe aviso.
+  for (const [id, ticket] of asEntries(supportResolved)) {
+    if (ticket?.estado !== 'resuelto' || !ticket?.userId || ticket.userId === ticket.resueltoPor) continue;
+    const resueltoEn = Number(ticket.resueltoEn || 0);
+    const texto = String(ticket.texto || '').replace(/\s+/g, ' ').trim();
+    await processEvent({ eventId: safeKey(`support_resolved_${id}_${resueltoEn}`), timestamp: resueltoEn, targets: [ticket.userId],
+      title: 'Tu solicitud de soporte fue resuelta',
+      body: texto ? `«${texto.length > 90 ? `${texto.slice(0, 89)}…` : texto}»` : 'Un administrador marcó tu solicitud como resuelta.',
+      type: 'support_resolved', entityId: id });
   }
 
   updates[`${STATE_PATH}/lastProcessedAt`] = runStartedAt;

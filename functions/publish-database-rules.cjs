@@ -23,7 +23,7 @@ const INDICES = {
   chats: ['lastTimestamp'],
   news: ['timestamp'],
   events: ['timestamp'],
-  soporte: ['timestamp'],
+  soporte: ['timestamp', 'resueltoEn'],
 };
 
 const ES_ADMIN = "root.child('admins').child(auth.uid).val() === true";
