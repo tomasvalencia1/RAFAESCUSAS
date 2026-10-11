@@ -45,9 +45,9 @@
     </script>
 
     <!-- Módulos de Firebase y Lógica -->
-    <script type="module" src="app.js?v=13"></script>
+    <script type="module" src="app.js?v=14"></script>
     <!-- Navegacion por configuracion: barra inferior y hoja "Más" -->
-    <script type="module" src="navegacion.js?v=11"></script>
+    <script type="module" src="navegacion.js?v=12"></script>
 
     <!-- Iconos -->
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
@@ -57,7 +57,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&display=swap">
 
-    <link rel="stylesheet" href="styles.css?v=12">
+    <link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body>
 
@@ -206,6 +206,7 @@
                     <a href="#" class="nav-item teacher-chat-only" id="nav-chat-btn"><i class='bx bx-chat'></i><span>Chat Maestro/Acudiente</span></a>
                     <a href="#" class="nav-item moderation-only" id="nav-moderation-btn" style="display: none;"><i class='bx bx-shield-quarter'></i><span>Moderación <b id="moderation-count" class="nav-count" hidden>0</b></span></a>
                     <a href="#" class="nav-item admin-only" id="nav-users-btn" style="display: none;"><i class='bx bx-group'></i><span>Usuarios</span></a>
+                    <a href="#" class="nav-item admin-only" id="nav-support-inbox-btn" style="display: none;"><i class='bx bx-support'></i><span>Buzón de soporte <b id="support-inbox-count" class="nav-count" hidden>0</b></span></a>
                 </nav>
                 <button class="btn-primary create-post-btn" id="open-modal-btn">
                     <i class='bx bx-plus'></i> <span>Crear Publicación</span>
@@ -664,6 +665,24 @@
             <div class="modal-footer">
                 <button class="action-btn cancel-btn" id="cancel-edit-profile-btn" type="button">Cancelar</button>
                 <button class="btn-primary" id="save-profile-btn" type="submit" form="edit-profile-form">Guardar cambios</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Buzon de soporte: todas las solicitudes, solo para administradores -->
+    <div class="modal-overlay" id="support-inbox-modal" aria-hidden="true">
+        <div class="modal-content support-inbox-content" role="dialog" aria-modal="true" aria-labelledby="support-inbox-title">
+            <div class="modal-header">
+                <div><span class="section-kicker">Administración</span><h2 id="support-inbox-title">Buzón de soporte</h2></div>
+                <button class="close-modal-btn" id="close-support-inbox-btn" type="button" aria-label="Cerrar"><i class='bx bx-x'></i></button>
+            </div>
+            <div class="feed-tabs support-inbox-filters" role="tablist" aria-label="Filtrar solicitudes">
+                <button class="feed-tab" type="button" role="tab" aria-selected="true" data-support-filter="pendiente">Pendientes <b class="support-filter-count" id="support-count-pendiente">0</b></button>
+                <button class="feed-tab" type="button" role="tab" aria-selected="false" data-support-filter="resuelto">Resueltas</button>
+                <button class="feed-tab" type="button" role="tab" aria-selected="false" data-support-filter="todas">Todas</button>
+            </div>
+            <div class="modal-body">
+                <div id="support-inbox-list" class="support-inbox-list" aria-live="polite"><p class="empty-state">Cargando solicitudes…</p></div>
             </div>
         </div>
     </div>

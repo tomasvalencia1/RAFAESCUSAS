@@ -1362,6 +1362,26 @@
   .field-error { font-size: var(--fs-xs); font-weight: 600; color: var(--c-error); }
   .field-error:empty, #edit-profile-photo-msg:empty { display: none; }
 
+  /* --- 5.26c Buzon de soporte (administradores) --------------------------------------- */
+  .support-inbox-content { max-width: 40rem; }
+  /* Doble clase: .feed-tabs (definida mas abajo) fija 2 columnas y ganaria. */
+  .feed-tabs.support-inbox-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: var(--space-4) var(--space-5) 0; }
+  .support-filter-count { margin-inline-start: var(--space-1); font-variant-numeric: tabular-nums; }
+  .support-inbox-list { display: grid; gap: var(--gap-tarjetas); }
+  .support-ticket {
+    display: grid; gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--c-surface-2);
+    border: 1px solid var(--c-border); border-radius: var(--radius-md);
+  }
+  .support-ticket__head { display: flex; align-items: center; gap: var(--space-3); }
+  .support-ticket__who { display: grid; min-width: 0; flex: 1; }
+  .support-ticket__who strong { font-size: var(--fs-sm); }
+  .support-ticket__who span { font-size: var(--fs-xs); color: var(--c-text-mute); overflow-wrap: anywhere; }
+  .support-ticket__text { font-size: var(--fs-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .support-ticket__actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; }
+  .support-ticket__meta { font-size: var(--fs-xs); color: var(--c-text-mute); margin-inline-end: auto; }
+
   /* --- 5.27 Pestañas del feed: Inicio · Descubrir --------------------------------- */
   .feed-tabs {
     display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-1);

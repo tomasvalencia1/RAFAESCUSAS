@@ -903,6 +903,122 @@ editProfileForm?.addEventListener('submit', async event => {
     }
 });
 
+// === BUZON DE SOPORTE (solo administradores) ===
+// Todas las solicitudes del Centro de soporte. Las reglas solo permiten listar el
+// nodo `soporte` a quien figura en admins/{uid}. Al llegar una nueva, el
+// despachador de notificaciones avisa a los administradores.
+let supportInboxListener = null;
+let supportTicketsCache = [];
+let supportFilter = 'pendiente';
+const supportInboxModal = document.getElementById('support-inbox-modal');
+const supportInboxList = document.getElementById('support-inbox-list');
+const supportInboxCount = document.getElementById('support-inbox-count');
+
+function datosDeUsuario(uid) {
+    if (uid && uid === currentUser?.uid) return { name: miNombre(), avatar: miAvatar(), email: currentUser.email };
+    return userDirectoryCache.find(user => user.uid === uid) || {};
+}
+
+function renderSupportTicket(ticket) {
+    const usuario = datosDeUsuario(ticket.userId);
+    const resuelto = ticket.estado === 'resuelto';
+    const detalle = [usuario.email ? escapeHTML(usuario.email) : '', ticket.timestamp ? formatPostTime(ticket.timestamp) : '']
+        .filter(Boolean).join(' · ');
+    const id = escapeAttribute(ticket.id);
+    const acciones = resuelto
+        ? `<span class="support-ticket__meta">Resuelta por ${escapeHTML(ticket.resueltoPorNombre || 'un administrador')}${ticket.resueltoEn ? ` · ${formatPostTime(ticket.resueltoEn)}` : ''}</span>
+           <button class="text-action-btn" type="button" data-support-action="reabrir" data-id="${id}">Reabrir</button>`
+        : `<button class="btn-primary btn-primary--sm" type="button" data-support-action="resolver" data-id="${id}"><i class='bx bx-check'></i> Marcar como resuelta</button>`;
+    return `<article class="support-ticket${resuelto ? ' is-resuelto' : ''}">
+        <header class="support-ticket__head">
+            <img class="avatar-small" src="${escapeAttribute(safeImageSrc(usuario.avatar))}" alt="" width="34" height="34">
+            <div class="support-ticket__who"><strong>${escapeHTML(usuario.name || 'Usuario')}</strong><span>${detalle}</span></div>
+            <span class="badge ${resuelto ? 'success' : 'warning'}">${resuelto ? 'Resuelta' : 'Pendiente'}</span>
+        </header>
+        <p class="support-ticket__text">${escapeHTML(ticket.texto || '')}</p>
+        <footer class="support-ticket__actions">${acciones}</footer>
+    </article>`;
+}
+
+function renderSupportInbox() {
+    const pendientes = supportTicketsCache.filter(ticket => ticket.estado !== 'resuelto').length;
+    if (supportInboxCount) {
+        supportInboxCount.textContent = String(pendientes);
+        supportInboxCount.hidden = pendientes === 0;
+    }
+    const contadorFiltro = document.getElementById('support-count-pendiente');
+    if (contadorFiltro) contadorFiltro.textContent = String(pendientes);
+    if (!supportInboxList) return;
+
+    const visibles = supportTicketsCache.filter(ticket => supportFilter === 'todas'
+        || (supportFilter === 'resuelto' ? ticket.estado === 'resuelto' : ticket.estado !== 'resuelto'));
+    supportInboxList.innerHTML = visibles.length
+        ? visibles.map(renderSupportTicket).join('')
+        : `<p class="empty-state">${supportFilter === 'pendiente' ? 'No hay solicitudes pendientes. Todo al día.' : 'No hay solicitudes en esta vista.'}</p>`;
+}
+
+function loadSupportInbox() {
+    if (supportInboxListener) { supportInboxListener(); supportInboxListener = null; }
+    supportTicketsCache = [];
+    if (!isAdmin) return;
+    supportInboxListener = onValue(ref(db, 'soporte'), snapshot => {
+        supportTicketsCache = Object.entries(snapshot.val() || {})
+            .map(([id, ticket]) => ({ id, ...(ticket || {}) }))
+            .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        renderSupportInbox();
+    }, error => {
+        console.error('No se pudo cargar el buzón de soporte:', error);
+        if (supportInboxList) supportInboxList.innerHTML = '<p class="empty-state">No se pudo cargar el buzón de soporte. Inténtalo de nuevo en unos minutos.</p>';
+    });
+}
+
+function abrirBuzonDeSoporte() {
+    if (!isAdmin || !supportInboxModal) return;
+    renderSupportInbox();
+    supportInboxModal.classList.add('active');
+    supportInboxModal.setAttribute('aria-hidden', 'false');
+}
+
+function cerrarBuzonDeSoporte() {
+    if (!supportInboxModal) return;
+    supportInboxModal.classList.remove('active');
+    supportInboxModal.setAttribute('aria-hidden', 'true');
+}
+
+document.getElementById('nav-support-inbox-btn')?.addEventListener('click', event => {
+    event.preventDefault();
+    abrirBuzonDeSoporte();
+});
+document.getElementById('close-support-inbox-btn')?.addEventListener('click', cerrarBuzonDeSoporte);
+supportInboxModal?.addEventListener('click', event => { if (event.target === supportInboxModal) cerrarBuzonDeSoporte(); });
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && supportInboxModal?.classList.contains('active')) cerrarBuzonDeSoporte();
+});
+
+document.querySelectorAll('[data-support-filter]').forEach(boton => {
+    boton.addEventListener('click', () => {
+        supportFilter = boton.dataset.supportFilter;
+        document.querySelectorAll('[data-support-filter]').forEach(b => b.setAttribute('aria-selected', String(b === boton)));
+        renderSupportInbox();
+    });
+});
+
+supportInboxList?.addEventListener('click', async event => {
+    const boton = event.target.closest('[data-support-action]');
+    if (!boton || !isAdmin || !currentUser) return;
+    const resolver = boton.dataset.supportAction === 'resolver';
+    boton.disabled = true;
+    try {
+        await update(ref(db, `soporte/${boton.dataset.id}`), resolver
+            ? { estado: 'resuelto', resueltoPor: currentUser.uid, resueltoPorNombre: miNombre(), resueltoEn: Date.now() }
+            : { estado: 'pendiente', resueltoPor: null, resueltoPorNombre: null, resueltoEn: null });
+    } catch (error) {
+        console.error('No se pudo actualizar la solicitud:', error);
+        boton.disabled = false;
+        boton.textContent = 'No se pudo guardar. Reintentar';
+    }
+});
+
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
@@ -935,6 +1051,8 @@ onAuthStateChanged(auth, async (user) => {
         if (userDirectoryListener) { userDirectoryListener(); userDirectoryListener = null; }
         if (teacherMessagesListener) { teacherMessagesListener(); teacherMessagesListener = null; }
         if (moderationConfigListener) { moderationConfigListener(); moderationConfigListener = null; }
+        if (supportInboxListener) { supportInboxListener(); supportInboxListener = null; }
+        supportTicketsCache = [];
         followingIds = {}; userDirectoryCache = []; followActionIds.clear(); teacherMessagesCache = [];
         [userSearchInput, mobileUserSearchInput].forEach(input => {
             if (input) { input.value = ''; input.setAttribute('aria-expanded', 'false'); }
@@ -1725,6 +1843,7 @@ function loadUserDirectory() {
                 .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es-CO', { sensitivity: 'base' }))
             : [];
         renderUserDirectoryResults();
+        if (supportTicketsCache.length) renderSupportInbox();
     }, error => {
         console.error('No se pudo cargar el directorio de usuarios:', error);
         userDirectoryCache = [];
@@ -1915,6 +2034,7 @@ function initializeCommunityFeatures() {
     loadUserDirectory();
     loadPosts();
     loadTeacherMessages();
+    loadSupportInbox();
 }
 
 document.getElementById('publish-post-btn').addEventListener('click', async event => {

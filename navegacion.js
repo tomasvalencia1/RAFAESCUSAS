@@ -18,6 +18,7 @@ export const SECCIONES = [
   { id: 'noticias',   etiqueta: 'Noticias',   icono: 'bx-broadcast',      accion: 'ir-a-noticias' },
   { id: 'juegos',     etiqueta: 'Juegos',     icono: 'bx-joystick',       destino: 'nav-games-btn' },
   { id: 'moderacion', etiqueta: 'Moderación', icono: 'bx-shield-quarter', destino: 'nav-moderation-btn', contador: 'moderation-count' },
+  { id: 'buzon',      etiqueta: 'Buzón de soporte', icono: 'bx-support', destino: 'nav-support-inbox-btn', contador: 'support-inbox-count' },
   { id: 'roles',      etiqueta: 'Roles',      icono: 'bx-user-check',     destino: 'mobile-users-btn' },
   { id: 'soporte',    etiqueta: 'Soporte',    icono: 'bx-help-circle',    destino: 'support-fab' },
   { id: 'tema',       etiqueta: 'Tema',       icono: 'bx-moon',           destino: 'theme-toggle-btn' },
@@ -47,8 +48,9 @@ function temaOscuro() {
   return document.documentElement.getAttribute('data-theme') === 'dark';
 }
 
-function pendientesDeModeracion() {
-  const fuente = document.getElementById('moderation-count');
+// Cifra de pendientes que muestra app.js en el elemento `contador` de una seccion.
+function pendientes(seccion) {
+  const fuente = seccion?.contador && document.getElementById(seccion.contador);
   if (!fuente || fuente.hidden) return 0;
   return Number(fuente.textContent) || 0;
 }
@@ -78,12 +80,12 @@ function organizar() {
 
 function actualizarContador() {
   if (!contadorMas || !botonMas) return;
-  const moderacionEnHoja = seccionesEnHoja.some((s) => s.id === 'moderacion');
-  const n = moderacionEnHoja ? pendientesDeModeracion() : 0;
+  // El boton Mas suma los pendientes de todas las secciones que hay dentro de la hoja.
+  const n = seccionesEnHoja.reduce((total, s) => total + pendientes(s), 0);
   contadorMas.hidden = n === 0;
   contadorMas.textContent = String(n);
   botonMas.setAttribute('aria-label', n
-    ? `Más opciones, ${n} ${n === 1 ? 'publicación pendiente' : 'publicaciones pendientes'} de revisión`
+    ? `Más opciones, ${n} ${n === 1 ? 'asunto pendiente' : 'asuntos pendientes'}`
     : 'Más opciones');
 }
 
@@ -109,7 +111,7 @@ function crearItem(seccion) {
   boton.append(caja, texto);
 
   if (seccion.contador) {
-    const n = pendientesDeModeracion();
+    const n = pendientes(seccion);
     if (n > 0) {
       const insignia = document.createElement('b');
       insignia.className = 'nav-count mas-item__badge';
@@ -166,9 +168,9 @@ SECCIONES.forEach((s) => {
   const el = s.destino && document.getElementById(s.destino);
   if (el) observador.observe(el, { attributes: true, attributeFilter: ['style'] });
 });
-const contadorModeracion = document.getElementById('moderation-count');
-if (contadorModeracion) {
-  observador.observe(contadorModeracion, { attributes: true, attributeFilter: ['hidden'], childList: true, characterData: true, subtree: true });
-}
+SECCIONES.filter((s) => s.contador).forEach((s) => {
+  const el = document.getElementById(s.contador);
+  if (el) observador.observe(el, { attributes: true, attributeFilter: ['hidden'], childList: true, characterData: true, subtree: true });
+});
 
 organizar();

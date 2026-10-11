@@ -174,6 +174,7 @@ async function dispatchNotifications(db, messaging) {
   // Nodos auxiliares: solo se descargan si hay algo que los necesite.
   const following = Object.keys(posts).length ? await readNode(db, 'siguiendo') : {};
   const users = Object.keys(support).length ? await readNode(db, 'users') : {};
+  const admins = Object.keys(support).length ? await readNode(db, 'admins') : {};
 
   const updates = {};
   const invalidTokens = [];
@@ -220,10 +221,18 @@ async function dispatchNotifications(db, messaging) {
       title: `Nueva publicación de ${post?.author?.name || post?.autorNombre || 'una persona que sigues'}`,
       body: 'Hay una publicación nueva en RafaConecta.', type: 'post', entityId: id });
   }
+  // Soporte: a los administradores (tienen el buzon de soporte) y a los directivos.
+  // Solo lo recibe ese equipo, asi que la notificacion incluye quien escribe y un extracto.
+  const administradores = asEntries(admins).filter(([, activo]) => activo === true).map(([uid]) => uid);
   const directivos = asEntries(users).filter(([, user]) => user?.role === 'directivo').map(([uid]) => uid);
+  const equipoDeSoporte = [...new Set([...administradores, ...directivos])];
   for (const [id, ticket] of asEntries(support)) {
-    await processEvent({ eventId: safeKey(`support_${id}`), timestamp: Number(ticket?.timestamp || 0), targets: directivos.filter(uid => uid !== ticket.userId),
-      title: 'Nueva solicitud de soporte', body: 'Una persona necesita ayuda en RafaConecta.', type: 'support', entityId: id });
+    const autor = String(users?.[ticket?.userId]?.name || '').trim();
+    const texto = String(ticket?.texto || '').replace(/\s+/g, ' ').trim();
+    await processEvent({ eventId: safeKey(`support_${id}`), timestamp: Number(ticket?.timestamp || 0), targets: equipoDeSoporte.filter(uid => uid !== ticket.userId),
+      title: autor ? `Solicitud de soporte de ${autor}`.slice(0, 80) : 'Nueva solicitud de soporte',
+      body: texto ? (texto.length > 100 ? `${texto.slice(0, 99)}…` : texto) : 'Una persona necesita ayuda en RafaConecta.',
+      type: 'support', entityId: id });
   }
 
   updates[`${STATE_PATH}/lastProcessedAt`] = runStartedAt;
