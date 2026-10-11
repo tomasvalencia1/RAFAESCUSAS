@@ -4,3 +4,8 @@ firebase-debug.log
 firebase-debug.*.log
 .env
 .env.*
+
+# Herramientas locales de desarrollo y diseño (no forman parte de la app)
+.claude/
+design/
+design-preview.html

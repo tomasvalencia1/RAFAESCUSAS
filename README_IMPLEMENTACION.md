@@ -4,15 +4,14 @@ La aplicación existente usa **Firebase Realtime Database (RTDB)**, no Firestore
 
 ## Archivos y responsabilidades
 
-- `index.html`: enlace al Vanilla CSS Design System, modales de confirmación/soporte/moderación, botón flotante de soporte, compositor y lista de anuncios docentes.
-- `styles.css`: tokens claros y reglas de reemplazo flat para las tarjetas, navegación, modales y los nuevos componentes. No elimina el CSS anterior para no romper vistas que aún dependen de él.
+- `index.html`: modales de confirmación/soporte/moderación, botón flotante de soporte, compositor y lista de anuncios docentes. Sin dependencias de CSS externas: solo los iconos de Boxicons y las fuentes.
+- `styles.css`: sistema de diseño completo en capas (`@layer reset, tokens, base, layout, components, utilities`). Un único `:root` con la paleta derivada del escudo institucional, escala tipográfica modular con `clamp()`, espaciado base 4px y temas claro y oscuro vía `data-theme`.
 - `app.js`: feed por seguimiento, vencimiento inmediato a las 24 horas, publicaciones marcadas, follow, comentarios en `posts/{postId}/comentarios`, soporte, anuncios de profesores y panel de moderación.
 - `database.rules.json`: único bloque de reglas RTDB para los nodos nuevos y los ya utilizados por la app.
 - `.github/workflows/cleanup-expired-posts.yml` y `functions/cleanup-expired-posts.cjs`: limpieza programada gratis por GitHub Actions, sin Cloud Functions.
 - `.github/workflows/send-relevant-notifications.yml` y `functions/send-relevant-notifications.cjs`: notificaciones FCM gratuitas por GitHub Actions para chats, noticias, eventos, anuncios, publicaciones de personas seguidas y solicitudes de soporte.
 - `APK_NOTIFICACIONES_ANDROID.md`: única integración nativa necesaria para que la APK obtenga su token FCM y reciba notificaciones en segundo plano.
 - `functions/index.js`: alternativa opcional para quien habilite Cloud Functions/Blaze; no es necesaria para la solución gratuita.
-- `design-preview.html`: pantalla estática antes/después para validar el diseño.
 
 ## Modelo RTDB añadido
 
