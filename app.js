@@ -722,9 +722,12 @@ logoutBtn.addEventListener('click', async (event) => {
         await signOut(auth);
     } catch (error) {
         console.error('No se pudo cerrar sesión:', error);
+        alert('No se pudo cerrar la sesión. Inténtalo de nuevo.');
+    } finally {
+        // Se restaura siempre, no solo si falla: si no, al volver a iniciar sesión
+        // en la misma pestaña el botón seguía en "Cerrando sesión..." y desactivado.
         logoutBtn.disabled = false;
         logoutBtn.innerHTML = "<i class='bx bx-log-out'></i> Cerrar sesión";
-        alert('No se pudo cerrar la sesión. Inténtalo de nuevo.');
     }
 });
 
