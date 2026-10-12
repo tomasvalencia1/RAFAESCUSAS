@@ -61,6 +61,28 @@ async function readSinceOpcional(db, path, field, since) {
   }
 }
 
+// --- Moderacion en el servidor ---
+// La app marca como "pendiente de revision" lo que contiene palabras prohibidas,
+// pero un cliente manipulado podria saltarse esa marca. El despachador repite la
+// comprobacion con la misma normalizacion que la app (sin tildes, minusculas).
+const PALABRAS_PROHIBIDAS_POR_DEFECTO = ['groseria', 'idiota', 'mierda', 'puta', 'malparido', 'gonorrea'];
+
+function normalizarTexto(texto) {
+  return String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+function listaDePalabras(valor) {
+  const candidatas = Array.isArray(valor) ? valor : Object.values(valor || {});
+  const palabras = candidatas.map(p => normalizarTexto(p).trim()).filter(Boolean);
+  return palabras.length ? [...new Set(palabras)] : PALABRAS_PROHIBIDAS_POR_DEFECTO;
+}
+
+function contienePalabraProhibida(texto, palabras) {
+  const normal = normalizarTexto(texto);
+  const fichas = normal.split(/[^a-z0-9]+/).filter(Boolean);
+  return palabras.some(p => (p.includes(' ') ? normal.includes(p) : fichas.includes(p)));
+}
+
 function flattenTeacherMessages(root) {
   const items = [];
   for (const [day, byTeacher] of asEntries(root)) {
@@ -185,9 +207,25 @@ async function dispatchNotifications(db, messaging) {
   const usersWithDevices = Object.keys(tokensByUser);
 
   // Nodos auxiliares: solo se descargan si hay algo que los necesite.
-  const following = Object.keys(posts).length ? await readNode(db, 'siguiendo') : {};
-  const users = Object.keys(support).length ? await readNode(db, 'users') : {};
+  const hayPosts = Object.keys(posts).length > 0;
+  const following = hayPosts ? await readNode(db, 'siguiendo') : {};
   const admins = Object.keys(support).length ? await readNode(db, 'admins') : {};
+  const palabrasProhibidas = hayPosts
+    ? listaDePalabras((await db.ref('configuracion/moderacion/palabrasProhibidas').once('value')).val())
+    : PALABRAS_PROHIBIDAS_POR_DEFECTO;
+
+  // Nombre real de cada persona, leido de su perfil (users/{uid}/name), nunca del
+  // que escribe el cliente en el mensaje: asi nadie firma con el nombre de otro.
+  // Se piden solo los perfiles necesarios, no el nodo users entero.
+  const nombres = new Map();
+  const nombreDe = async (uid, respaldo) => {
+    if (!uid) return respaldo;
+    if (!nombres.has(uid)) {
+      const valor = (await db.ref(`users/${uid}/name`).once('value')).val();
+      nombres.set(uid, typeof valor === 'string' ? valor.trim() : '');
+    }
+    return nombres.get(uid) || respaldo;
+  };
 
   const updates = {};
   const invalidTokens = [];
@@ -207,9 +245,11 @@ async function dispatchNotifications(db, messaging) {
     const message = item.value;
     const senderId = message.senderId || message.sender || message.uid || '';
     const targets = asEntries(item.chat.participants).filter(([, active]) => active === true).map(([uid]) => uid).filter(uid => uid !== senderId);
+    const timestamp = Number(message.timestamp || 0);
+    if (!timestamp || timestamp <= since || sent[safeKey(`chat_${item.id}`)]) continue;
     await processEvent({
-      eventId: safeKey(`chat_${item.id}`), timestamp: Number(message.timestamp || 0), targets,
-      title: `Mensaje de ${message.senderName || 'RafaConecta'}`,
+      eventId: safeKey(`chat_${item.id}`), timestamp, targets,
+      title: `Mensaje de ${await nombreDe(senderId, 'RafaConecta')}`,
       body: 'Tienes un nuevo mensaje en el chat institucional.', type: 'chat', entityId: item.id
     });
   }
@@ -229,23 +269,34 @@ async function dispatchNotifications(db, messaging) {
     // dia: si lo enviado en ese hueco era otro aviso, este cuenta como nuevo.
     const base = safeKey(`teacher_${item.id}`);
     const eventId = sent[base] && Number(sent[base]) !== timestamp ? safeKey(`teacher_${item.id}_${timestamp}`) : base;
+    if (!timestamp || timestamp <= since || sent[eventId]) continue;
     await processEvent({ eventId, timestamp, targets: usersWithDevices.filter(uid => uid !== message.autorId),
-      title: `Anuncio de ${message.autorNombre || 'profesorado'}`, body: String(message.texto || 'Hay un nuevo anuncio.').slice(0, 120), type: 'teacher_message', entityId: item.id });
+      title: `Anuncio de ${await nombreDe(message.autorId, message.autorNombre || 'profesorado')}`, body: String(message.texto || 'Hay un nuevo anuncio.').slice(0, 120), type: 'teacher_message', entityId: item.id });
   }
   for (const [id, post] of asEntries(posts)) {
+    const timestamp = Number(post?.createdAt || post?.timestamp || 0);
+    if (!timestamp || timestamp <= since || sent[safeKey(`post_${id}`)]) continue;
+    // Una publicacion pendiente de revision no se anuncia. Si el cliente no la
+    // marco pero contiene palabras prohibidas, se marca aqui.
+    if (!post?.flagged && contienePalabraProhibida(post?.content, palabrasProhibidas)) {
+      updates[`posts/${id}/flagged`] = true;
+      updates[`posts/${id}/reason`] = 'lenguaje inapropiado';
+      continue;
+    }
+    if (post?.flagged) continue;
     const authorId = post?.author?.uid || post?.autorId || '';
     const followers = asEntries(following).filter(([, list]) => Boolean(list?.[authorId])).map(([uid]) => uid);
-    await processEvent({ eventId: safeKey(`post_${id}`), timestamp: Number(post?.createdAt || post?.timestamp || 0), targets: followers,
-      title: `Nueva publicación de ${post?.author?.name || post?.autorNombre || 'una persona que sigues'}`,
+    await processEvent({ eventId: safeKey(`post_${id}`), timestamp, targets: followers,
+      title: `Nueva publicación de ${await nombreDe(authorId, 'una persona que sigues')}`,
       body: 'Hay una publicación nueva en RafaConecta.', type: 'post', entityId: id });
   }
-  // Soporte: a los administradores (tienen el buzon de soporte) y a los directivos.
-  // Solo lo recibe ese equipo, asi que la notificacion incluye quien escribe y un extracto.
-  const administradores = asEntries(admins).filter(([, activo]) => activo === true).map(([uid]) => uid);
-  const directivos = asEntries(users).filter(([, user]) => user?.role === 'directivo').map(([uid]) => uid);
-  const equipoDeSoporte = [...new Set([...administradores, ...directivos])];
+  // Soporte: solo a los administradores, que son quienes tienen el buzon. La
+  // notificacion incluye quien escribe y un extracto.
+  const equipoDeSoporte = asEntries(admins).filter(([, activo]) => activo === true).map(([uid]) => uid);
   for (const [id, ticket] of asEntries(support)) {
-    const autor = String(users?.[ticket?.userId]?.name || '').trim();
+    const timestamp = Number(ticket?.timestamp || 0);
+    if (!timestamp || timestamp <= since || sent[safeKey(`support_${id}`)]) continue;
+    const autor = String(await nombreDe(ticket?.userId, '')).trim();
     const texto = String(ticket?.texto || '').replace(/\s+/g, ' ').trim();
     await processEvent({ eventId: safeKey(`support_${id}`), timestamp: Number(ticket?.timestamp || 0), targets: equipoDeSoporte.filter(uid => uid !== ticket.userId),
       title: autor ? `Solicitud de soporte de ${autor}`.slice(0, 80) : 'Nueva solicitud de soporte',

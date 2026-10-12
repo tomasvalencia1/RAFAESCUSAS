@@ -3,7 +3,7 @@ name: Asegurar índices de la base de datos
 on:
   push:
     branches: [main]
-    paths: [database.rules.json, functions/publish-database-rules.cjs]
+    paths: [database.rules.json, functions/publish-database-rules.cjs, functions/reglas-seguridad.cjs, functions/migrar-datos.cjs]
   workflow_dispatch:
 
 permissions:
@@ -16,7 +16,7 @@ concurrency:
 jobs:
   publicar:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
       - name: Descargar código
         uses: actions/checkout@v4
@@ -35,3 +35,9 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node functions/publish-database-rules.cjs
+
+      # Solo se ejecuta si las reglas se publicaron bien (un paso fallido detiene el job).
+      - name: Migrar los datos a la nueva estructura
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node functions/migrar-datos.cjs

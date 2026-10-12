@@ -54,16 +54,19 @@ async function removeExpiredPosts(db) {
   const now = Date.now();
   const updates = {};
 
+  let count = 0;
   snapshot.forEach((child) => {
     const post = child.val() || {};
     const createdAt = Number(post.createdAt || post.timestamp || 0);
     if (post.authorRole === 'estudiante' && createdAt && now >= createdAt + STUDENT_POST_TTL_MS) {
-      updates[child.key] = null;
+      // La imagen vive aparte (imagenesPosts) y se borra en la misma escritura.
+      updates[`posts/${child.key}`] = null;
+      updates[`imagenesPosts/${child.key}`] = null;
+      count += 1;
     }
   });
 
-  const count = Object.keys(updates).length;
-  if (count) await postsRef.update(updates);
+  if (count) await db.ref().update(updates);
   console.log(`Limpieza terminada: ${count} publicación(es) de estudiante eliminada(s).`);
 }
 

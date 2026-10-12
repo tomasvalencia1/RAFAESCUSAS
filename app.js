@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getAuth, signInWithPopup, signInWithRedirect, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
-import { getDatabase, ref, onValue, push, set, remove, get, update } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
+import { getDatabase, ref, onValue, push, set, remove, get, update, query, orderByChild, orderByKey, limitToLast, startAt, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAeUsf3QGFT3_J-k_KmvdJk61AMSiizOvI",
@@ -18,8 +18,6 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 const provider = new GoogleAuthProvider();
 const isAndroidDevice = /Android/i.test(navigator.userAgent);
-const isIOSDevice = /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 let lastHapticTime = 0;
 window.hapticTap = function(type = 1) {
@@ -242,7 +240,6 @@ let personalTasksCache = [];
 let personalTasksListener = null;
 let taskCalendarDate = new Date();
 let selectedTaskDate = null;
-const initialAuthLoadingStartedAt = Date.now();
 let hasResolvedInitialAuth = false;
 let initialAuthFinishPromise = null;
 let isLoginInProgress = false;
@@ -515,13 +512,49 @@ function getChatMessageSenderId(message) {
     return message?.senderId || message?.sender || message?.uid || message?.userId || message?.authorUid || message?.authorId || message?.from || '';
 }
 
+// El nombre sale del perfil real de quien envia (por su id), nunca del nombre
+// guardado en el mensaje: asi nadie puede firmar con el nombre de otro.
 function getChatSenderName(message, targetUser, isMe) {
-    if (message.senderName) return sanitizeName(message.senderName);
     if (isMe) return sanitizeName(miNombre());
     const senderId = getChatMessageSenderId(message);
-    if (senderId === targetUser?.uid) return sanitizeName(targetUser.name || 'Contacto');
-    const cachedUser = allContactsCache.find(user => user.uid === senderId);
-    return sanitizeName(cachedUser?.name || 'Contacto');
+    if (senderId === targetUser?.uid && targetUser.name) return sanitizeName(targetUser.name);
+    return sanitizeName(nombreVisible(senderId, message.senderName || 'Contacto'));
+}
+
+// === DIRECTORIO: NOMBRE Y FOTO REALES DE CADA PERSONA ===
+// Lo que se muestra de cada autor (publicaciones, comentarios, chat, avisos) se
+// toma de su perfil en users/{uid}, no de la copia que guarda cada mensaje.
+// Las copias solo se usan si la persona ya no esta en el directorio.
+let directorioPorUid = new Map();
+
+function perfilDe(uid) {
+    if (!uid) return null;
+    if (uid === currentUser?.uid) return { name: miNombre(), avatar: miAvatar() };
+    return directorioPorUid.get(uid) || null;
+}
+
+function nombreVisible(uid, respaldo = 'Usuario') {
+    return perfilDe(uid)?.name || respaldo || 'Usuario';
+}
+
+function avatarVisible(uid, respaldo = '') {
+    const perfil = perfilDe(uid);
+    return perfil ? (perfil.avatar || '') : respaldo;
+}
+
+// Los elementos marcados con data-nombre-de / data-foto-de se actualizan cuando
+// llega o cambia el directorio (puede llegar despues que las publicaciones).
+function refrescarAutoresVisibles() {
+    document.querySelectorAll('[data-nombre-de]').forEach(el => {
+        const perfil = perfilDe(el.dataset.nombreDe);
+        if (perfil?.name && el.textContent !== perfil.name) el.textContent = perfil.name;
+    });
+    document.querySelectorAll('[data-foto-de]').forEach(img => {
+        const perfil = perfilDe(img.dataset.fotoDe);
+        if (!perfil) return;
+        const src = safeImageSrc(perfil.avatar);
+        if (img.getAttribute('src') !== src) img.src = src;
+    });
 }
 
 // === THEME LOGIC ===
@@ -655,15 +688,11 @@ function setLoginButtonLoading(isLoading) {
 function finishInitialAuthCheck() {
     if (initialAuthFinishPromise) return initialAuthFinishPromise;
 
-    // La comprobación de sesión sigue ocurriendo de inmediato. Este retardo solo
-    // garantiza que la pantalla inicial permanezca visible por cinco segundos.
-    const remainingLoadingTime = Math.max(0, 5000 - (Date.now() - initialAuthLoadingStartedAt));
-    initialAuthFinishPromise = new Promise((resolve) => {
-        setTimeout(() => {
-            hasResolvedInitialAuth = true;
-            authLoadingScreen.classList.remove('active');
-            resolve();
-        }, remainingLoadingTime);
+    // La pantalla de carga dura solo lo que tarda en confirmarse la sesion: antes
+    // se forzaban 5 segundos en cada apertura aunque todo estuviera listo.
+    initialAuthFinishPromise = Promise.resolve().then(() => {
+        hasResolvedInitialAuth = true;
+        authLoadingScreen.classList.remove('active');
     });
 
     return initialAuthFinishPromise;
@@ -694,23 +723,23 @@ loginGoogleBtn.addEventListener('click', async () => {
             return;
         }
 
-        // Safari bloquea el almacenamiento de terceros que requiere el flujo
-        // con redirección entre Vercel y firebaseapp.com. El popup se abre
-        // directamente desde el toque del usuario y conserva la sesión al volver.
-        if (isIOSDevice) {
+        // Ventana emergente en todos los navegadores. La redireccion falla en los
+        // que bloquean el almacenamiento de terceros (Safari y Chrome recientes,
+        // tambien en Android), porque la web (vercel.app) y Firebase Auth
+        // (firebaseapp.com) estan en dominios distintos. La redireccion queda solo
+        // como respaldo si el navegador bloquea la ventana.
+        try {
             await signInWithPopup(auth, provider);
-        } else {
-            const isMobile = /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            if (isMobile) {
-                await signInWithRedirect(auth, provider);
-            } else {
-                await signInWithPopup(auth, provider);
-            }
+        } catch (error) {
+            if (error?.code !== 'auth/popup-blocked' && error?.code !== 'auth/operation-not-supported-in-this-environment') throw error;
+            await signInWithRedirect(auth, provider);
         }
     }
     catch (error) {
-        console.error(error);
         setLoginButtonLoading(false);
+        // Cerrar la ventana de Google no es un error: solo se vuelve al boton.
+        if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request') return;
+        console.error(error);
         alert("Hubo un error al iniciar sesión.");
     }
 });
@@ -898,6 +927,7 @@ editProfileForm?.addEventListener('submit', async event => {
         await update(ref(db, `users/${currentUser.uid}`), { name: nombre, avatar });
         perfilActual = { nombre, avatar };
         pintarMiPerfil();
+        refrescarAutoresVisibles();
         saveProfileBtn.textContent = '¡Guardado!';
         setTimeout(cerrarEditorDePerfil, 800);
     } catch (error) {
@@ -921,7 +951,25 @@ const supportInboxCount = document.getElementById('support-inbox-count');
 
 function datosDeUsuario(uid) {
     if (uid && uid === currentUser?.uid) return { name: miNombre(), avatar: miAvatar(), email: currentUser.email };
-    return userDirectoryCache.find(user => user.uid === uid) || {};
+    const perfil = directorioPorUid.get(uid) || {};
+    return { ...perfil, email: correosPorUid[uid] || '' };
+}
+
+// === CORREOS (solo administradores) ===
+// Los correos no estan en el nodo publico users: viven en privado/{uid}, que
+// solo pueden leer su dueno y los administradores.
+let correosPorUid = {};
+let correosListener = null;
+
+function cargarCorreosParaAdmin() {
+    if (correosListener) { correosListener(); correosListener = null; }
+    correosPorUid = {};
+    if (!isAdmin) return;
+    correosListener = onValue(ref(db, 'privado'), snapshot => {
+        correosPorUid = Object.fromEntries(Object.entries(snapshot.val() || {}).map(([uid, datos]) => [uid, datos?.email || '']));
+        if (supportTicketsCache.length) renderSupportInbox();
+        if (adminUsersModal?.classList.contains('active')) renderAdminUsers(adminUserSearchInput ? adminUserSearchInput.value : '');
+    }, error => console.warn('No se pudieron cargar los correos:', error));
 }
 
 function renderSupportTicket(ticket) {
@@ -1025,29 +1073,78 @@ supportInboxList?.addEventListener('click', async event => {
     }
 });
 
+// Una lectura que no responde (sin conexion, red inestable) no debe dejar la app
+// colgada en la pantalla de carga: pasado este tiempo se considera un fallo.
+const ESPERA_MAXIMA_MS = 15000;
+function conLimiteDeTiempo(promesa, ms = ESPERA_MAXIMA_MS) {
+    let temporizador;
+    return Promise.race([
+        promesa,
+        new Promise((_, rechazar) => { temporizador = setTimeout(() => rechazar(new Error('Tiempo de espera agotado')), ms); })
+    ]).finally(() => clearTimeout(temporizador));
+}
+
+// Solo se aceptan fotos de Google (las reglas rechazan otras direcciones).
+function fotoDeGoogle(url) {
+    return /^https:\/\/lh[3-6]\.googleusercontent\.com\//.test(url || '') ? url : '';
+}
+
+async function prepararSesion(user) {
+    currentUser = user;
+    const [adminSnap, userSnap] = await conLimiteDeTiempo(Promise.all([
+        get(ref(db, `admins/${user.uid}`)),
+        get(ref(db, `users/${user.uid}`))
+    ]));
+    isAdmin = adminSnap.exists() && adminSnap.val() === true;
+    if (pendingAndroidFcmToken) saveAndroidFcmToken(pendingAndroidFcmToken);
+    // El correo vive en privado/{uid}: solo lo leen su dueno y los administradores.
+    if (user.email) set(ref(db, `privado/${user.uid}/email`), user.email).catch(error => console.warn('No se pudo guardar el correo privado:', error));
+
+    const perfil = userSnap.val() || {};
+    cargarPerfil(perfil, user);
+    if (perfil.role) {
+        userRole = perfil.role;
+        completeLogin();
+        return;
+    }
+
+    await finishInitialAuthCheck();
+    loginScreen.classList.remove('active');
+    roleSelectionScreen.classList.add('active');
+    // Perfil publico inicial. Solo se completan los campos que falten, para no
+    // pisar un nombre o una foto que la persona ya hubiera cambiado.
+    const inicial = {};
+    if (!perfil.name && user.displayName) inicial.name = user.displayName.slice(0, 60);
+    if (perfil.avatar === undefined) inicial.avatar = fotoDeGoogle(user.photoURL);
+    if (!perfil.createdAt) inicial.createdAt = serverTimestamp();
+    if (Object.keys(inicial).length) await update(ref(db, `users/${user.uid}`), inicial);
+}
+
+// Si el arranque falla, la pantalla de carga muestra el motivo y un boton para
+// reintentar, en lugar de quedarse para siempre en "Comprobando sesion...".
+function mostrarFalloDeArranque(user) {
+    const mensaje = document.getElementById('auth-loading-msg');
+    const reintentar = document.getElementById('auth-retry-btn');
+    authLoadingScreen.classList.add('active', 'has-error');
+    if (mensaje) mensaje.textContent = 'No se pudo conectar con RafaConecta. Revisa tu conexión a internet.';
+    if (!reintentar) return;
+    reintentar.hidden = false;
+    reintentar.onclick = async () => {
+        reintentar.hidden = true;
+        authLoadingScreen.classList.remove('has-error');
+        if (mensaje) mensaje.textContent = 'Comprobando sesión...';
+        try { await prepararSesion(user); }
+        catch (error) { console.error('El arranque volvió a fallar:', error); mostrarFalloDeArranque(user); }
+    };
+}
+
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        currentUser = user;
-        const adminSnap = await get(ref(db, `admins/${user.uid}`));
-        isAdmin = adminSnap.exists() && adminSnap.val() === true;
-        if (pendingAndroidFcmToken) saveAndroidFcmToken(pendingAndroidFcmToken);
-
-        const userSnap = await get(ref(db, `users/${user.uid}`));
-        cargarPerfil(userSnap.val(), user);
-        if (userSnap.exists() && userSnap.val().role) {
-            userRole = userSnap.val().role;
-            completeLogin();
-        } else {
-            await finishInitialAuthCheck();
-            loginScreen.classList.remove('active');
-            roleSelectionScreen.classList.add('active');
-
-            await set(ref(db, `users/${user.uid}`), {
-                name: user.displayName,
-                email: user.email,
-                avatar: user.photoURL || "https://i.pravatar.cc/150?img=68",
-                createdAt: Date.now()
-            });
+        try {
+            await prepararSesion(user);
+        } catch (error) {
+            console.error('No se pudo preparar la sesión:', error);
+            mostrarFalloDeArranque(user);
         }
     } else {
         currentUser = null; isAdmin = false; userRole = null; allPostsCache = [];
@@ -1058,8 +1155,12 @@ onAuthStateChanged(auth, async (user) => {
         if (teacherMessagesListener) { teacherMessagesListener(); teacherMessagesListener = null; }
         if (moderationConfigListener) { moderationConfigListener(); moderationConfigListener = null; }
         if (supportInboxListener) { supportInboxListener(); supportInboxListener = null; }
-        supportTicketsCache = [];
-        followingIds = {}; userDirectoryCache = []; followActionIds.clear(); teacherMessagesCache = [];
+        if (correosListener) { correosListener(); correosListener = null; }
+        detenerEscuchasDeAdmin();
+        [newsListener, reportsListener, eventsListener].forEach(cancelar => cancelar?.());
+        newsListener = reportsListener = eventsListener = null;
+        supportTicketsCache = []; correosPorUid = {};
+        followingIds = {}; userDirectoryCache = []; directorioPorUid = new Map(); followActionIds.clear(); teacherMessagesCache = [];
         [userSearchInput, mobileUserSearchInput].forEach(input => {
             if (input) { input.value = ''; input.setAttribute('aria-expanded', 'false'); }
         });
@@ -1112,6 +1213,7 @@ async function completeLogin() {
     }
 
     initializeCommunityFeatures();
+    cargarCorreosParaAdmin();
     initializeAndroidNotifications();
     loadNews();
     loadReports();
@@ -1231,9 +1333,17 @@ addEventBtn.onclick = () => eventCreateModal.classList.add('active');
 document.getElementById('close-event-create-btn').onclick = () => eventCreateModal.classList.remove('active');
 
 // Image upload and compression logic
+// Las reglas aceptan imagenes JPEG de hasta 300.000 caracteres en base64.
+const IMAGEN_POST_MAX = 280000;
+
 postImageInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (!/^image\//.test(file.type)) {
+        alert('Elige un archivo de imagen.');
+        resetImagePreview();
+        return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -1255,10 +1365,25 @@ postImageInput.addEventListener('change', (e) => {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
 
-            currentPostImageBase64 = canvas.toDataURL('image/jpeg', 0.7);
+            let calidad = 0.7;
+            let datos = canvas.toDataURL('image/jpeg', calidad);
+            while (datos.length > IMAGEN_POST_MAX && calidad > 0.3) {
+                calidad -= 0.1;
+                datos = canvas.toDataURL('image/jpeg', calidad);
+            }
+            if (datos.length > IMAGEN_POST_MAX) {
+                alert('La imagen es demasiado pesada. Prueba con otra.');
+                resetImagePreview();
+                return;
+            }
+            currentPostImageBase64 = datos;
 
             postImagePreview.src = currentPostImageBase64;
             imagePreviewContainer.style.display = 'block';
+        };
+        img.onerror = () => {
+            alert('No se pudo leer la imagen.');
+            resetImagePreview();
         };
         img.src = event.target.result;
     };
@@ -1274,191 +1399,6 @@ function resetImagePreview() {
     postImageInput.value = '';
     imagePreviewContainer.style.display = 'none';
     postImagePreview.src = '';
-}
-
-// Legacy post renderer retained only as migration reference. The application
-// below uses the RTDB-aware social feed with expiry, follows and moderation.
-if (false) {
-// === POSTS LOGIC ===
-document.getElementById('publish-post-btn').addEventListener('click', async (e) => {
-    const text = document.getElementById('post-textarea').value.trim();
-    if ((!text && !currentPostImageBase64) || !currentUser) return;
-    hapticTap([10,30,10]);
-
-    const btn = e.target; btn.textContent = 'Publicando...'; btn.disabled = true;
-    try {
-        const postData = {
-            author: { uid: currentUser.uid, name: miNombre(), avatar: miAvatar() },
-            content: text,
-            timestamp: Date.now()
-        };
-        if (currentPostImageBase64) {
-            postData.imageBase64 = currentPostImageBase64;
-        }
-
-        await set(push(ref(db, 'posts')), postData);
-        avisarDespachadorDeNotificaciones();
-        postModal.classList.remove('active');
-        document.getElementById('post-textarea').value = '';
-        resetImagePreview();
-    } catch (error) { console.error(error); }
-    finally { btn.textContent = 'Publicar'; btn.disabled = false; }
-});
-
-function loadPosts() {
-    onValue(ref(db, 'posts'), (snapshot) => {
-        if (!snapshot.exists()) {
-            postsContainer.innerHTML = '<div class="glass-card loading-spinner">No hay publicaciones aún.</div>';
-            allPostsCache = [];
-            return;
-        }
-
-        const postsArray = Object.entries(snapshot.val()).map(([id, data]) => ({id, ...data})).sort((a,b) => b.timestamp - a.timestamp);
-        allPostsCache = postsArray;
-
-        const newPostIds = new Set(postsArray.map(p => 'post-' + escapeAttribute(p.id)));
-        
-        // Eliminar posts que ya no existen
-        Array.from(postsContainer.children).forEach(child => {
-            if (child.id && child.id.startsWith('post-')) {
-                if (!newPostIds.has(child.id)) child.remove();
-            } else if (child.classList.contains('loading-spinner')) {
-                child.remove();
-            }
-        });
-
-        postsArray.forEach((post, index) => {
-            const minutesAgo = Math.floor((Date.now() - post.timestamp) / 60000);
-            const timeStr = minutesAgo < 60 ? `Hace ${minutesAgo} min` : (minutesAgo < 1440 ? `Hace ${Math.floor(minutesAgo/60)} horas` : `Hace ${Math.floor(minutesAgo/1440)} días`);
-
-            const likesCount = post.likes ? Object.keys(post.likes).length : 0;
-            const myLike = post.likes && post.likes[currentUser.uid] ? true : false;
-            const postId = escapeAttribute(post.id);
-            const domId = 'post-' + postId;
-            const authorName = escapeHTML(post.author?.name || 'Usuario');
-            const authorAvatar = escapeAttribute(safeImageSrc(post.author?.avatar));
-            const postContent = escapeHTML(post.content);
-            const postImageSrc = safeImageSrc(post.imageBase64, '');
-
-            const imageHtml = postImageSrc ? `<img src="${escapeAttribute(postImageSrc)}" alt="Imagen adjunta" class="post-image-full">` : '';
-
-            const commentsHtml = post.comments ? Object.values(post.comments).map(c => {
-                const commentId = Object.keys(post.comments).find(key => post.comments[key] === c);
-                const safeCommentId = escapeAttribute(commentId);
-                const commentAvatar = escapeAttribute(safeImageSrc(c.authorAvatar));
-                const commentAuthor = escapeHTML(c.authorName || 'Usuario');
-                const commentText = escapeHTML(c.text);
-                return `
-                <div class="comment">
-                    <img src="${commentAvatar}" class="avatar" alt="Avatar">
-                    <div class="comment-content">
-                        <div class="comment-text-group">
-                            <strong>${commentAuthor}</strong>${commentText}
-                        </div>
-                        ${isAdmin ? `<button class="action-btn delete-comment-btn" data-post-id="${postId}" data-comment-id="${safeCommentId}"><i class='bx bx-x'></i></button>` : ''}
-                    </div>
-                </div>`;
-            }).join('') : '';
-
-            let postEl = document.getElementById(domId);
-            
-            if (postEl) {
-                const likeBtn = postEl.querySelector('.like-btn');
-                if (likeBtn) {
-                    likeBtn.className = `action-btn like-btn ${myLike?'liked':''}`;
-                    likeBtn.innerHTML = `<i class='bx ${myLike?'bxs-heart':'bx-heart'}'></i><span class="likes-count">${likesCount}</span>`;
-                }
-                
-                const commentBtn = postEl.querySelector('.comment-btn');
-                if (commentBtn) {
-                    commentBtn.innerHTML = `<i class='bx bx-message-rounded'></i>${post.comments ? Object.keys(post.comments).length : 0}`;
-                }
-                
-                const commentsList = postEl.querySelector('.comments-list');
-                if (commentsList && commentsList.innerHTML !== commentsHtml) {
-                    commentsList.innerHTML = commentsHtml;
-                }
-                
-                const metaSpan = postEl.querySelector('.post-meta');
-                if(metaSpan) metaSpan.textContent = timeStr;
-
-            } else {
-                postEl = document.createElement('article');
-                postEl.className = 'post-card';
-                postEl.id = domId;
-                postEl.innerHTML = `
-                    <div class="post-header">
-                        <div class="user-info">
-                            <img src="${authorAvatar}" alt="Avatar" class="avatar">
-                            <div class="user-details"><span class="username">${authorName}</span><span class="post-meta">${timeStr}</span></div>
-                        </div>
-                        ${isAdmin ? `<button class="action-btn delete-post-btn" data-id="${postId}"><i class='bx bx-trash'></i></button>` : ''}
-                    </div>
-                    ${post.content ? `<div class="post-content">${postContent}</div>` : ''}
-                    ${imageHtml}
-                    <div class="post-actions">
-                        <button class="action-btn like-btn ${myLike?'liked':''}" data-id="${postId}"><i class='bx ${myLike?'bxs-heart':'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button>
-                        <button class="action-btn comment-btn" data-id="${postId}"><i class='bx bx-message-rounded'></i>${post.comments ? Object.keys(post.comments).length : 0}</button>
-                    </div>
-                    <div class="comments-section" id="comments-${postId}">
-                        <div class="comments-list">${commentsHtml}</div>
-                        <div class="comment-input-area">
-                            <input type="text" placeholder="Escribe un comentario..." class="new-comment-input" data-id="${postId}">
-                            <button class="comment-submit-btn" data-id="${postId}"><i class='bx bxs-send'></i></button>
-                        </div>
-                    </div>
-                `;
-            }
-
-            if (postsContainer.children[index] !== postEl) {
-                postsContainer.insertBefore(postEl, postsContainer.children[index]);
-            }
-        });
-    });
-}
-
-// Interacciones en posts (delegadas)
-postsContainer.addEventListener('click', async (e) => {
-    if (e.target.closest('.delete-post-btn') && isAdmin) {
-        if(confirm("¿Eliminar publicación?")) await remove(ref(db, `posts/${e.target.closest('.delete-post-btn').dataset.id}`));
-    }
-    const deleteCommentBtn = e.target.closest('.delete-comment-btn');
-    if (deleteCommentBtn && isAdmin) {
-        if(confirm("¿Eliminar comentario?")) {
-            const postId = deleteCommentBtn.dataset.postId;
-            const commentId = deleteCommentBtn.dataset.commentId;
-            await remove(ref(db, `posts/${postId}/comments/${commentId}`));
-        }
-    }
-    const likeBtn = e.target.closest('.like-btn');
-    if (likeBtn) {
-        const id = likeBtn.dataset.id;
-        const likeRef = ref(db, `posts/${id}/likes/${currentUser.uid}`);
-        const snap = await get(likeRef);
-        if (snap.exists()) {
-            await remove(likeRef);
-        } else {
-            await set(likeRef, true);
-        }
-    }
-    const commentBtn = e.target.closest('.comment-btn');
-    if (commentBtn) document.getElementById(`comments-${commentBtn.dataset.id}`).classList.toggle('visible');
-
-    const submitBtn = e.target.closest('.comment-submit-btn');
-    if (submitBtn) await submitComment(submitBtn.dataset.id, document.querySelector(`.new-comment-input[data-id="${escapeSelector(submitBtn.dataset.id)}"]`));
-});
-
-postsContainer.addEventListener('keypress', async (e) => {
-    if (e.key === 'Enter' && e.target.classList.contains('new-comment-input')) await submitComment(e.target.dataset.id, e.target);
-});
-
-async function submitComment(postId, input) {
-    if (!input.value.trim()) return;
-    const txt = input.value.trim(); input.value = '';
-    await set(push(ref(db, `posts/${postId}/comments`)), { authorUid: currentUser.uid, authorName: miNombre(), authorAvatar: miAvatar(), text: txt, timestamp: Date.now() });
-    document.getElementById(`comments-${postId}`).classList.add('visible');
-}
-
 }
 
 // === COMMUNITY FEED, EXPIRY, COMMENTS, FOLLOWS & MODERATION ===
@@ -1543,15 +1483,21 @@ function postExpiryLabel(post) {
 function formatPostTime(timestamp) {
     const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
     if (minutes < 60) return `Hace ${minutes} min`;
-    if (minutes < 1440) return `Hace ${Math.floor(minutes / 60)} horas`;
-    return `Hace ${Math.floor(minutes / 1440)} días`;
+    const horas = Math.floor(minutes / 60);
+    if (minutes < 1440) return `Hace ${horas} ${horas === 1 ? 'hora' : 'horas'}`;
+    const dias = Math.floor(minutes / 1440);
+    return `Hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
 }
 
+// Inicio: lo propio, lo de profesores y directivos (aunque no los sigas) y lo de
+// quien sigues. Lo pendiente de revision solo lo ven su autor y quienes moderan.
+const ROLES_SIEMPRE_EN_INICIO = ['profesor', 'maestro', 'directivo'];
 function isPostVisibleInFeed(post) {
     if (!currentUser || isExpiredStudentPost(post)) return false;
     const authorId = post.author?.uid || post.autorId;
-    const authorRole = normalizeRole(post.authorRole);
-    return authorId === currentUser.uid || authorRole === 'profesor' || authorRole === 'maestro' || Boolean(followingIds[authorId]);
+    if (authorId === currentUser.uid) return true;
+    if (post.flagged && !canManageContent()) return false;
+    return ROLES_SIEMPRE_EN_INICIO.includes(normalizeRole(post.authorRole)) || Boolean(followingIds[authorId]);
 }
 
 function commentsForPost(post) {
@@ -1568,9 +1514,11 @@ function buildCommentsHtml(post, postId) {
     return comments.map(({ id: commentId, value: comment, path }) => {
         const authorId = comment.autorId || comment.authorUid || '';
         const canDelete = canManageContent();
+        const nombre = nombreVisible(authorId, comment.autorNombre || comment.authorName || 'Usuario');
+        const foto = avatarVisible(authorId, comment.autorAvatar || comment.authorAvatar);
         return `<div class="comment">
-            <img src="${escapeAttribute(safeImageSrc(comment.autorAvatar || comment.authorAvatar))}" class="avatar" alt="Avatar">
-            <div class="comment-content"><div class="comment-text-group"><strong>${escapeHTML(comment.autorNombre || comment.authorName || 'Usuario')}</strong>${escapeHTML(comment.texto || comment.text || '')}</div>
+            <img src="${escapeAttribute(safeImageSrc(foto))}" class="avatar" alt="" data-foto-de="${escapeAttribute(authorId)}">
+            <div class="comment-content"><div class="comment-text-group"><strong data-nombre-de="${escapeAttribute(authorId)}">${escapeHTML(nombre)}</strong>${escapeHTML(comment.texto || comment.text || '')}</div>
             ${canDelete ? `<button class="action-btn delete-comment-btn" aria-label="Eliminar comentario" data-post-id="${escapeAttribute(postId)}" data-comment-id="${escapeAttribute(commentId)}" data-comment-path="${path}" data-author-id="${escapeAttribute(authorId)}"><i class='bx bx-x'></i></button>` : ''}</div>
         </div>`;
     }).join('');
@@ -1670,72 +1618,20 @@ function renderCommunityFeed() {
     });
 
     visiblePosts.forEach((post, index) => {
-        const postId = post.id;
-        const existingEl = _existingMap.get(postId);
-        
+        const existingEl = _existingMap.get(post.id);
         if (existingEl) {
-            // Update only key data that may have changed without destroying the element
-            const likesBtn = existingEl.querySelector('.like-btn');
-            if (likesBtn) {
-                const likesCount = Object.keys(post.likes || {}).length;
-                const liked = Boolean(post.likes?.[currentUser.uid]);
-                const countSpan = likesBtn.querySelector('.likes-count');
-                if (countSpan) countSpan.textContent = likesCount;
-                likesBtn.classList.toggle('liked', liked);
-                const icon = likesBtn.querySelector('i');
-                if (icon) { icon.className = liked ? 'bx bxs-heart' : 'bx bx-heart'; }
-                likesBtn.dataset.id = postId;
-            }
-            // Update comment count
-            const commentBtn = existingEl.querySelector('.comment-btn span');
-            const comments = commentsForPost(post);
-            if (commentBtn) commentBtn.textContent = Object.keys(comments).length;
-            // Update follow button state
-            const followBtn = existingEl.querySelector('.follow-btn');
-            if (followBtn) {
-                const authorId = post.author?.uid || post.autorId || '';
-                const followsAuthor = Boolean(followingIds[authorId]);
-                followBtn.classList.toggle('following', followsAuthor);
-                followBtn.dataset.following = String(followsAuthor);
-                followBtn.textContent = followsAuthor ? 'Siguiendo' : 'Seguir';
-            }
-            // Reorder if needed
+            actualizarTarjeta(existingEl, post);
             if (postsContainer.children[index] !== existingEl) {
                 postsContainer.insertBefore(existingEl, postsContainer.children[index]);
             }
         } else {
-            // New post - create element from scratch
-            const postIdSafe = escapeAttribute(postId);
-            const authorId = post.author?.uid || post.autorId || '';
-            const authorName = escapeHTML(post.author?.name || post.autorNombre || 'Usuario');
-            const authorAvatar = escapeAttribute(safeImageSrc(post.author?.avatar || post.autorAvatar));
-            const comments = commentsForPost(post);
-            const likesCount = Object.keys(post.likes || {}).length;
-            const liked = Boolean(post.likes?.[currentUser.uid]);
-            const canFollow = authorId && authorId !== currentUser.uid;
-            const canDel = canDeletePost(post);
-            const followsAuthor = Boolean(followingIds[authorId]);
-            const imageSrc = safeImageSrc(post.imageBase64, '');
-            const expiry = authorId === currentUser.uid && normalizeRole(post.authorRole) === 'estudiante'
-                ? `<span class="post-expiry">${postExpiryLabel(post)}</span>` : '';
-            const flagged = canManageContent() && post.flagged ? '<span class="post-flag">Pendiente de revisi\u00f3n</span>' : '';
-            const newEl = document.createElement('article');
-            newEl.className = 'post-card';
-            newEl.id = `post-${postIdSafe}`;
-            newEl.innerHTML = `
-                <div class="post-header"><div class="user-info"><img src="${authorAvatar}" alt="Avatar" class="avatar"><div class="user-details"><span class="username">${authorName}</span><span class="post-meta">${formatPostTime(postCreatedAt(post))}</span>${expiry}</div></div>
-                    <div class="post-header-actions">${flagged}${canFollow ? `<button class="action-btn follow-btn ${followsAuthor ? 'following' : ''}" data-author-id="${escapeAttribute(authorId)}" data-following="${followsAuthor}" type="button">${followsAuthor ? 'Siguiendo' : 'Seguir'}</button>` : ''}${canDel ? `<button class="action-btn delete-post-btn" aria-label="Eliminar publicaci\u00f3n" data-id="${postIdSafe}" type="button"><i class='bx bx-trash'></i></button>` : ''}</div>
-                </div>
-                ${post.content ? `<div class="post-content">${escapeHTML(post.content)}</div>` : ''}
-                ${imageSrc ? `<img src="${escapeAttribute(imageSrc)}" alt="Imagen adjunta" class="post-image-full" decoding="async">` : ''}
-                <div class="post-actions"><button class="action-btn like-btn ${liked ? 'liked' : ''}" data-id="${postIdSafe}" type="button"><i class='bx ${liked ? 'bxs-heart' : 'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button><button class="action-btn comment-btn" data-id="${postIdSafe}" type="button"><i class='bx bx-message-rounded'></i><span>${Object.keys(comments).length}</span></button></div>
-                <div class="comments-section" id="comments-${postIdSafe}"><div class="comments-list">${buildCommentsHtml(post, post.id)}</div><div class="comment-input-area"><input type="text" maxlength="500" placeholder="Escribe un comentario..." class="new-comment-input" data-id="${postIdSafe}"><button class="comment-submit-btn" data-id="${postIdSafe}" type="button" aria-label="Publicar comentario"><i class='bx bxs-send'></i></button></div></div>
-            `;
+            const newEl = crearTarjeta(post);
             if (postsContainer.children[index]) {
                 postsContainer.insertBefore(newEl, postsContainer.children[index]);
             } else {
                 postsContainer.appendChild(newEl);
             }
+            prepararImagenDePost(newEl);
         }
     });
 
@@ -1754,6 +1650,119 @@ function renderCommunityFeed() {
     renderModerationQueue();
 }
 
+// Firma de los comentarios de una publicacion: si cambia (uno nuevo o uno
+// borrado), la lista se vuelve a dibujar.
+function firmaDeComentarios(post) {
+    return Object.keys(commentsForPost(post)).sort().join(',');
+}
+
+function crearTarjeta(post) {
+    const postId = post.id;
+    const postIdSafe = escapeAttribute(postId);
+    const authorId = post.author?.uid || post.autorId || '';
+    // Nombre y foto del perfil real del autor (la copia del post es solo respaldo).
+    const authorName = escapeHTML(nombreVisible(authorId, post.author?.name || post.autorNombre || 'Usuario'));
+    const authorAvatar = escapeAttribute(safeImageSrc(avatarVisible(authorId, post.author?.avatar || post.autorAvatar)));
+    const comments = commentsForPost(post);
+    const likesCount = Object.keys(post.likes || {}).length;
+    const liked = Boolean(post.likes?.[currentUser.uid]);
+    const canFollow = authorId && authorId !== currentUser.uid;
+    const canDel = canDeletePost(post);
+    const followsAuthor = Boolean(followingIds[authorId]);
+    // El rol no se puede falsificar (las reglas lo comprueban al publicar): se
+    // muestra junto a la hora para que nadie pase por profesor o directivo.
+    const rol = normalizeRole(post.authorRole) ? `${escapeHTML(formatRoleLabel(post.authorRole))} · ` : '';
+    const expiry = authorId === currentUser.uid && normalizeRole(post.authorRole) === 'estudiante'
+        ? `<span class="post-expiry">${postExpiryLabel(post)}</span>` : '';
+    const flagged = canManageContent() && post.flagged ? '<span class="post-flag">Pendiente de revisión</span>' : '';
+    // Imagen: las publicaciones antiguas la llevan dentro; las nuevas, aparte
+    // (imagenesPosts) y se descarga solo cuando la tarjeta se acerca a la pantalla.
+    const imagenAntigua = safeImageSrc(post.imageBase64, '');
+    const imagen = imagenAntigua
+        ? `<img src="${escapeAttribute(imagenAntigua)}" alt="Imagen adjunta" class="post-image-full" decoding="async">`
+        : (post.tieneImagen ? `<img alt="Imagen adjunta" class="post-image-full" data-imagen-post="${postIdSafe}" decoding="async">` : '');
+
+    const newEl = document.createElement('article');
+    newEl.className = 'post-card';
+    newEl.id = `post-${postIdSafe}`;
+    newEl.dataset.comentarios = firmaDeComentarios(post);
+    newEl.innerHTML = `
+        <div class="post-header"><div class="user-info"><img src="${authorAvatar}" alt="" class="avatar" data-foto-de="${escapeAttribute(authorId)}"><div class="user-details"><span class="username" data-nombre-de="${escapeAttribute(authorId)}">${authorName}</span><span class="post-meta">${rol}${formatPostTime(postCreatedAt(post))}</span>${expiry}</div></div>
+            <div class="post-header-actions">${flagged}${canFollow ? `<button class="action-btn follow-btn ${followsAuthor ? 'following' : ''}" data-author-id="${escapeAttribute(authorId)}" data-following="${followsAuthor}" type="button">${followsAuthor ? 'Siguiendo' : 'Seguir'}</button>` : ''}${canDel ? `<button class="action-btn delete-post-btn" aria-label="Eliminar publicación" data-id="${postIdSafe}" type="button"><i class='bx bx-trash'></i></button>` : ''}</div>
+        </div>
+        ${post.content ? `<div class="post-content">${escapeHTML(post.content)}</div>` : ''}
+        ${imagen}
+        <div class="post-actions"><button class="action-btn like-btn ${liked ? 'liked' : ''}" data-id="${postIdSafe}" type="button"><i class='bx ${liked ? 'bxs-heart' : 'bx-heart'}'></i><span class="likes-count">${likesCount}</span></button><button class="action-btn comment-btn" data-id="${postIdSafe}" type="button"><i class='bx bx-message-rounded'></i><span>${Object.keys(comments).length}</span></button></div>
+        <div class="comments-section" id="comments-${postIdSafe}"><div class="comments-list">${buildCommentsHtml(post, postId)}</div><div class="comment-input-area"><input type="text" maxlength="500" placeholder="Escribe un comentario..." class="new-comment-input" data-id="${postIdSafe}"><button class="comment-submit-btn" data-id="${postIdSafe}" type="button" aria-label="Publicar comentario"><i class='bx bxs-send'></i></button></div></div>
+    `;
+    return newEl;
+}
+
+// Actualiza una tarjeta ya pintada sin recrearla (conserva lo que se esta escribiendo).
+function actualizarTarjeta(el, post) {
+    const likesBtn = el.querySelector('.like-btn');
+    if (likesBtn) {
+        const liked = Boolean(post.likes?.[currentUser.uid]);
+        const countSpan = likesBtn.querySelector('.likes-count');
+        if (countSpan) countSpan.textContent = Object.keys(post.likes || {}).length;
+        likesBtn.classList.toggle('liked', liked);
+        const icon = likesBtn.querySelector('i');
+        if (icon) icon.className = liked ? 'bx bxs-heart' : 'bx bx-heart';
+    }
+    const commentCount = el.querySelector('.comment-btn span');
+    if (commentCount) commentCount.textContent = Object.keys(commentsForPost(post)).length;
+    // Antes solo cambiaba el contador: el comentario nuevo (o el borrado) no se
+    // veia hasta recargar la app.
+    const firma = firmaDeComentarios(post);
+    if (el.dataset.comentarios !== firma) {
+        const lista = el.querySelector('.comments-list');
+        if (lista) lista.innerHTML = buildCommentsHtml(post, post.id);
+        el.dataset.comentarios = firma;
+    }
+    const followBtn = el.querySelector('.follow-btn');
+    if (followBtn) {
+        const followsAuthor = Boolean(followingIds[post.author?.uid || post.autorId || '']);
+        followBtn.classList.toggle('following', followsAuthor);
+        followBtn.dataset.following = String(followsAuthor);
+        followBtn.textContent = followsAuthor ? 'Siguiendo' : 'Seguir';
+    }
+    // La marca de revision aparece o desaparece al moderar.
+    const acciones = el.querySelector('.post-header-actions');
+    const marca = acciones?.querySelector('.post-flag');
+    const debeMarcar = canManageContent() && Boolean(post.flagged);
+    if (debeMarcar && !marca) acciones?.insertAdjacentHTML('afterbegin', '<span class="post-flag">Pendiente de revisión</span>');
+    if (!debeMarcar && marca) marca.remove();
+}
+
+// --- Imagenes de las publicaciones, bajo demanda ---
+const imagenesDePosts = new Map(); // postId -> Promise<src | ''>
+const observadorDeImagenes = 'IntersectionObserver' in window
+    ? new IntersectionObserver(entradas => entradas.forEach(entrada => {
+        if (!entrada.isIntersecting) return;
+        observadorDeImagenes.unobserve(entrada.target);
+        cargarImagenDePost(entrada.target);
+    }), { rootMargin: '800px 0px' })
+    : null;
+
+function prepararImagenDePost(tarjeta) {
+    const img = tarjeta.querySelector('img[data-imagen-post]');
+    if (!img) return;
+    if (observadorDeImagenes) observadorDeImagenes.observe(img);
+    else cargarImagenDePost(img);
+}
+
+async function cargarImagenDePost(img) {
+    const id = img.dataset.imagenPost;
+    if (!imagenesDePosts.has(id)) {
+        imagenesDePosts.set(id, get(ref(db, `imagenesPosts/${id}`))
+            .then(snapshot => safeImageSrc(snapshot.val(), ''))
+            .catch(() => { imagenesDePosts.delete(id); return ''; }));
+    }
+    const src = await imagenesDePosts.get(id);
+    if (src) img.src = src;
+    else img.remove();
+}
+
 async function cleanupExpiredStudentPosts(posts) {
     // In the client fallback only an administrator can remove records, matching the
     // moderation delete permission. Everyone else still stops seeing them now.
@@ -1761,13 +1770,24 @@ async function cleanupExpiredStudentPosts(posts) {
     const expired = posts.filter(post => isExpiredStudentPost(post));
     if (!expired.length) return;
     const updates = {};
-    expired.forEach(post => { updates[`posts/${post.id}`] = null; });
+    expired.forEach(post => {
+        updates[`posts/${post.id}`] = null;
+        // Solo si tiene imagen aparte: borrar una ruta inexistente lo rechazan las reglas.
+        if (post.tieneImagen) updates[`imagenesPosts/${post.id}`] = null;
+    });
     try { await update(ref(db), updates); } catch (error) { console.warn('No se pudo limpiar publicaciones vencidas:', error); }
 }
 
+// El feed descarga solo las publicaciones mas recientes, y sin imagenes (van
+// aparte). Antes cada apertura bajaba todas, con sus imagenes dentro.
+const LIMITE_POSTS = 100;
+// Largo maximo de texto (el mismo que aceptan las reglas y el maxlength del HTML).
+const LIMITE_TEXTO_POST = 2000;
+const LIMITE_TEXTO_CHAT = 1000;
+
 function loadPosts() {
     if (postsListener) postsListener();
-    postsListener = onValue(ref(db, 'posts'), snapshot => {
+    postsListener = onValue(query(ref(db, 'posts'), orderByChild('createdAt'), limitToLast(LIMITE_POSTS)), snapshot => {
         allPostsCache = snapshot.exists()
             ? Object.entries(snapshot.val()).map(([id, data]) => ({ id, ...data })).sort((a, b) => postCreatedAt(b) - postCreatedAt(a))
             : [];
@@ -1842,13 +1862,14 @@ function loadUserDirectory() {
     if (!currentUser) return;
     if (userDirectoryListener) userDirectoryListener();
     userDirectoryListener = onValue(ref(db, 'users'), snapshot => {
-        userDirectoryCache = snapshot.exists()
-            ? Object.entries(snapshot.val())
-                .map(([uid, data]) => ({ uid, ...(data || {}) }))
-                .filter(user => user.uid !== currentUser.uid && Boolean(user.name))
-                .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es-CO', { sensitivity: 'base' }))
-            : [];
+        const todos = Object.entries(snapshot.val() || {}).map(([uid, data]) => ({ uid, ...(data || {}) }));
+        directorioPorUid = new Map(todos.map(user => [user.uid, user]));
+        userDirectoryCache = todos
+            .filter(user => user.uid !== currentUser.uid && Boolean(user.name))
+            .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es-CO', { sensitivity: 'base' }));
         renderUserDirectoryResults();
+        refrescarAutoresVisibles();
+        if (teacherMessagesCache.length) renderTeacherMessages();
         if (supportTicketsCache.length) renderSupportInbox();
     }, error => {
         console.error('No se pudo cargar el directorio de usuarios:', error);
@@ -1879,12 +1900,13 @@ async function submitComment(postId, input) {
     if (!text || !currentUser) return;
     input.value = '';
     try {
+        // La foto y el nombre que se muestran salen del perfil del autor; el
+        // nombre se guarda solo como respaldo. La hora la pone el servidor.
         await set(push(ref(db, `posts/${postId}/comentarios`)), {
             autorId: currentUser.uid,
-            autorNombre: miNombre(),
-            autorAvatar: miAvatar(),
-            texto: text,
-            timestamp: Date.now()
+            autorNombre: miNombre().slice(0, 60),
+            texto: text.slice(0, 500),
+            timestamp: serverTimestamp()
         });
         document.getElementById(`comments-${escapeSelector(postId)}`)?.classList.add('visible');
     } catch (error) {
@@ -1926,6 +1948,7 @@ async function deletePostWithLog(postId) {
     const shouldDelete = await openConfirmModal({ title: 'Eliminar publicación', message: 'Esta acción eliminará también sus comentarios y no se puede deshacer.', confirmLabel: 'Eliminar', destructive: true });
     if (!shouldDelete) return;
     const updates = { [`posts/${postId}`]: null };
+    if (post.tieneImagen) updates[`imagenesPosts/${postId}`] = null;
 
     // El historial de moderación registra solo acciones administrativas. Los
     // autores pueden retirar su propio contenido sin obtener permiso de logs.
@@ -1952,7 +1975,12 @@ async function deleteComment(postId, commentId, authorId, commentPath = 'comenta
     if (!currentUser || !canManageContent()) return;
     const confirmed = await openConfirmModal({ title: 'Eliminar comentario', message: '¿Quieres eliminar este comentario?', confirmLabel: 'Eliminar', destructive: true });
     if (!confirmed) return;
-    await remove(ref(db, `posts/${postId}/${commentPath}/${commentId}`));
+    try {
+        await remove(ref(db, `posts/${postId}/${commentPath}/${commentId}`));
+    } catch (error) {
+        console.error('No se pudo eliminar el comentario:', error);
+        alert('No se pudo eliminar el comentario. Inténtalo de nuevo.');
+    }
 }
 
 function renderModerationQueue() {
@@ -1987,13 +2015,13 @@ function updateTeacherComposer() {
 function renderTeacherMessages() {
     if (!teacherMessagesList) return;
     const latest = teacherMessagesCache.slice(0, 20);
-    teacherMessagesList.innerHTML = latest.length ? latest.map(message => `<article class="teacher-message">${botonBorrarAviso(message)}<strong>${escapeHTML(message.autorNombre || 'Profesor')}</strong><p>${escapeHTML(message.texto || '')}</p><time>${new Date(message.timestamp || Date.now()).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}</time></article>`).join('') : '<p class="empty-state">Aún no hay anuncios del profesorado.</p>';
+    teacherMessagesList.innerHTML = latest.length ? latest.map(message => `<article class="teacher-message">${botonBorrarAviso(message)}<strong>${escapeHTML(nombreVisible(message.autorId, message.autorNombre || 'Profesor'))}</strong><p>${escapeHTML(message.texto || '')}</p><time>${new Date(message.timestamp || Date.now()).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}</time></article>`).join('') : '<p class="empty-state">Aún no hay anuncios del profesorado.</p>';
     updateTeacherComposer();
 }
 
 function botonBorrarAviso(message) {
     if (!isAdmin || !message.autorId || !message._slot || !message.dia) return '';
-    return `<button class="teacher-message__delete" type="button" data-borrar-aviso data-dia="${escapeAttribute(message.dia)}" data-autor="${escapeAttribute(message.autorId)}" data-slot="${escapeAttribute(message._slot)}" aria-label="Borrar el aviso de ${escapeAttribute(message.autorNombre || 'Profesor')}"><i class='bx bx-trash'></i></button>`;
+    return `<button class="teacher-message__delete" type="button" data-borrar-aviso data-dia="${escapeAttribute(message.dia)}" data-autor="${escapeAttribute(message.autorId)}" data-slot="${escapeAttribute(message._slot)}" aria-label="Borrar el aviso de ${escapeAttribute(nombreVisible(message.autorId, message.autorNombre || 'Profesor'))}"><i class='bx bx-trash'></i></button>`;
 }
 
 // Un administrador borra cualquier aviso, tras confirmarlo.
@@ -2013,9 +2041,14 @@ teacherMessagesList?.addEventListener('click', async event => {
     }
 });
 
+// Solo los avisos de la ultima semana (los dias son las claves del nodo): antes
+// se descargaba todo el historial de avisos en cada apertura.
+const DIAS_DE_AVISOS = 7;
+
 function loadTeacherMessages() {
     if (teacherMessagesListener) teacherMessagesListener();
-    teacherMessagesListener = onValue(ref(db, 'mensajes_profesor'), snapshot => {
+    const desde = todayKey(new Date(Date.now() - DIAS_DE_AVISOS * 24 * 60 * 60 * 1000));
+    teacherMessagesListener = onValue(query(ref(db, 'mensajes_profesor'), orderByKey(), startAt(desde)), snapshot => {
         const root = snapshot.val() || {};
         teacherMessagesCache = Object.entries(root).flatMap(([dia, byTeacher]) => Object.values(byTeacher || {}).flatMap(slots => Object.entries(slots || {}).map(([slot, message]) => ({ ...message, dia: message.dia || dia, _slot: slot })))).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         renderTeacherMessages();
@@ -2072,17 +2105,25 @@ document.getElementById('publish-post-btn').addEventListener('click', async even
     button.textContent = 'Publicando...'; button.disabled = true;
     try {
         const flagged = containsProhibitedWord(text);
+        // La hora la pone el servidor (las reglas rechazan fechas futuras).
         const postData = {
-            author: { uid: currentUser.uid, name: miNombre(), avatar: miAvatar() },
+            author: { uid: currentUser.uid, name: miNombre().slice(0, 60), avatar: miAvatar() },
             authorRole: normalizeRole(userRole),
-            content: text,
-            timestamp: Date.now(),
-            createdAt: Date.now(),
+            content: text.slice(0, LIMITE_TEXTO_POST),
+            timestamp: serverTimestamp(),
+            createdAt: serverTimestamp(),
             flagged,
             reason: flagged ? 'lenguaje inapropiado' : null
         };
-        if (currentPostImageBase64) postData.imageBase64 = currentPostImageBase64;
-        await set(push(ref(db, 'posts')), postData);
+        const postId = push(ref(db, 'posts')).key;
+        const escritura = { [`posts/${postId}`]: postData };
+        // La imagen va aparte, en la misma escritura atomica: el feed no la descarga
+        // hasta que la tarjeta se acerca a la pantalla.
+        if (currentPostImageBase64) {
+            postData.tieneImagen = true;
+            escritura[`imagenesPosts/${postId}`] = currentPostImageBase64;
+        }
+        await update(ref(db), escritura);
         avisarDespachadorDeNotificaciones();
         postModal.classList.remove('active');
         document.getElementById('post-textarea').value = '';
@@ -2100,9 +2141,21 @@ postsContainer.addEventListener('click', async event => {
     if (followButton) return toggleFollow(followButton.dataset.authorId);
     const likeButton = event.target.closest('.like-btn');
     if (likeButton && currentUser) {
+        // Un toque a la vez por publicacion: dos toques rapidos no se pisan.
+        if (likeButton.dataset.guardando) return;
+        likeButton.dataset.guardando = '1';
+        const post = allPostsCache.find(item => item.id === likeButton.dataset.id);
         const likeRef = ref(db, `posts/${likeButton.dataset.id}/likes/${currentUser.uid}`);
-        const snapshot = await get(likeRef);
-        return snapshot.exists() ? remove(likeRef) : set(likeRef, true);
+        try {
+            if (post?.likes?.[currentUser.uid]) await remove(likeRef);
+            else await set(likeRef, true);
+        } catch (error) {
+            console.error('No se pudo guardar el me gusta:', error);
+            alert('No se pudo guardar tu me gusta. Inténtalo de nuevo.');
+        } finally {
+            delete likeButton.dataset.guardando;
+        }
+        return;
     }
     const commentButton = event.target.closest('.comment-btn');
     if (commentButton) return document.getElementById(`comments-${escapeSelector(commentButton.dataset.id)}`)?.classList.toggle('visible');
@@ -2152,7 +2205,15 @@ moderationPostsList?.addEventListener('click', async event => {
     const deleteButton = event.target.closest('.moderation-delete-btn');
     if (deleteButton) return deletePostWithLog(deleteButton.dataset.id);
     const dismissButton = event.target.closest('.moderation-dismiss-btn');
-    if (dismissButton && canManageContent()) await update(ref(db, `posts/${dismissButton.dataset.id}`), { flagged: false, reason: null });
+    if (!dismissButton || !canManageContent()) return;
+    dismissButton.disabled = true;
+    try {
+        await update(ref(db, `posts/${dismissButton.dataset.id}`), { flagged: false, reason: null });
+    } catch (error) {
+        console.error('No se pudo descartar la alerta:', error);
+        dismissButton.disabled = false;
+        alert('No se pudo descartar la alerta. Inténtalo de nuevo.');
+    }
 });
 
 function toggleSupportModal(open) {
@@ -2197,19 +2258,55 @@ document.getElementById('send-support-btn')?.addEventListener('click', async eve
 
 // === ADMIN WIDGETS LOGIC (News, Reports, Events) ===
 
+// Publica una sola vez aunque se toque varias veces: el boton queda bloqueado
+// mientras guarda y, si falla, se avisa en vez de no hacer nada.
+async function publicarUnaVez(boton, accion) {
+    if (!boton || boton.disabled) return;
+    const texto = boton.innerHTML;
+    boton.disabled = true;
+    boton.textContent = 'Publicando...';
+    try {
+        await accion();
+    } catch (error) {
+        console.error('No se pudo publicar:', error);
+        alert('No se pudo publicar. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+        boton.disabled = false;
+        boton.innerHTML = texto;
+    }
+}
+
+async function borrarConConfirmacion(pregunta, ruta) {
+    if (!confirm(pregunta)) return;
+    hapticTap(40);
+    try {
+        await remove(ref(db, ruta));
+    } catch (error) {
+        console.error('No se pudo borrar:', error);
+        alert('No se pudo borrar. Inténtalo de nuevo.');
+    }
+}
+
+let newsListener = null;
+let reportsListener = null;
+let eventsListener = null;
+
 // News
-document.getElementById('publish-news-btn').onclick = async (e) => {
+document.getElementById('publish-news-btn').onclick = (e) => {
     const t = document.getElementById('news-title-input').value.trim();
     const d = document.getElementById('news-desc-input').value.trim();
     if(!t || !d || !isAdmin) return;
     hapticTap([10,30,10]);
-    await set(push(ref(db, 'news')), { title: t, desc: d, timestamp: Date.now() });
-    avisarDespachadorDeNotificaciones();
-    newsModal.classList.remove('active'); document.getElementById('news-title-input').value=''; document.getElementById('news-desc-input').value='';
+    publicarUnaVez(e.currentTarget, async () => {
+        await set(push(ref(db, 'news')), { title: t, desc: d, timestamp: Date.now() });
+        avisarDespachadorDeNotificaciones();
+        newsModal.classList.remove('active'); document.getElementById('news-title-input').value=''; document.getElementById('news-desc-input').value='';
+    });
 };
 
 function loadNews() {
-    onValue(ref(db, 'news'), (snapshot) => {
+    newsListener?.();
+    newsListener = onValue(ref(db, 'news'), (snapshot) => {
         newsContainer.innerHTML = '';
         if (!snapshot.exists()) { newsContainer.innerHTML = '<p style="color:var(--text-muted);font-size:14px;">No hay noticias.</p>'; return; }
         const arr = Object.entries(snapshot.val()).map(([id, d]) => ({id, ...d})).sort((a,b)=>b.timestamp-a.timestamp);
@@ -2221,22 +2318,25 @@ function loadNews() {
             el.innerHTML = `${isAdmin ? `<button class="delete-news-btn" data-id="${itemId}"><i class='bx bx-trash'></i></button>` : ''}<h3>${title}</h3><p>${desc}</p>`;
             newsContainer.appendChild(el);
         });
-        if(isAdmin) document.querySelectorAll('.delete-news-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar noticia?")) { hapticTap(40); await remove(ref(db, `news/${e.currentTarget.dataset.id}`)); } });
+        if(isAdmin) document.querySelectorAll('.delete-news-btn').forEach(b => b.onclick = (e) => borrarConConfirmacion('¿Borrar noticia?', `news/${e.currentTarget.dataset.id}`));
     });
 }
 
 // Reports
-document.getElementById('publish-report-btn').onclick = async () => {
+document.getElementById('publish-report-btn').onclick = (e) => {
     const title = document.getElementById('report-title-input').value.trim();
     const status = document.getElementById('report-status-input').value;
     if(!title || !isAdmin) return;
     hapticTap([10,30,10]);
-    await set(push(ref(db, 'reports')), { title, status, timestamp: Date.now() });
-    reportModal.classList.remove('active'); document.getElementById('report-title-input').value='';
+    publicarUnaVez(e.currentTarget, async () => {
+        await set(push(ref(db, 'reports')), { title, status, timestamp: Date.now() });
+        reportModal.classList.remove('active'); document.getElementById('report-title-input').value='';
+    });
 };
 
 function loadReports() {
-    onValue(ref(db, 'reports'), (snapshot) => {
+    reportsListener?.();
+    reportsListener = onValue(ref(db, 'reports'), (snapshot) => {
         reportsContainer.innerHTML = '';
         if (!snapshot.exists()) { reportsContainer.innerHTML = '<p style="color:var(--text-muted);font-size:14px;">Sin reportes.</p>'; return; }
         const arr = Object.entries(snapshot.val()).map(([id, d]) => ({id, ...d})).sort((a,b)=>b.timestamp-a.timestamp);
@@ -2253,29 +2353,42 @@ function loadReports() {
                             </div>`;
             reportsContainer.appendChild(el);
         });
-        if(isAdmin) document.querySelectorAll('.delete-report-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar reporte?")) { hapticTap(40); await remove(ref(db, `reports/${e.target.dataset.id}`)); } });
+        if(isAdmin) document.querySelectorAll('.delete-report-btn').forEach(b => b.onclick = (e) => borrarConConfirmacion('¿Borrar reporte?', `reports/${e.target.dataset.id}`));
     });
 }
 
 // Events
-document.getElementById('publish-event-btn').onclick = async () => {
+document.getElementById('publish-event-btn').onclick = (e) => {
     const title = document.getElementById('event-title-input').value.trim();
     const date = document.getElementById('event-date-input').value;
     if(!title || !date || !isAdmin) return;
     hapticTap([10,30,10]);
-    await set(push(ref(db, 'events')), { title, date, timestamp: Date.now() });
-    avisarDespachadorDeNotificaciones();
-    eventCreateModal.classList.remove('active'); document.getElementById('event-title-input').value=''; document.getElementById('event-date-input').value='';
+    publicarUnaVez(e.currentTarget, async () => {
+        await set(push(ref(db, 'events')), { title, date, timestamp: Date.now() });
+        avisarDespachadorDeNotificaciones();
+        eventCreateModal.classList.remove('active'); document.getElementById('event-title-input').value=''; document.getElementById('event-date-input').value='';
+    });
 };
 
+function fechaDeEvento(fecha) {
+    const [anio, mes, dia] = (fecha || '').split('-').map(Number);
+    return new Date(anio, mes - 1, dia);
+}
+
 function loadEvents() {
-    onValue(ref(db, 'events'), (snapshot) => {
+    eventsListener?.();
+    eventsListener = onValue(ref(db, 'events'), (snapshot) => {
         eventsListContainer.innerHTML = '';
-        if (!snapshot.exists()) { eventsListContainer.innerHTML = '<p style="color:var(--text-muted);text-align:center;">No hay próximos eventos programados.</p>'; return; }
-        const arr = Object.entries(snapshot.val()).map(([id, d]) => ({id, ...d})).sort((a,b)=> (function(d){var p=(d||'').split('-').map(Number);return new Date(p[0],p[1]-1,p[2])})(a.date) - (function(d){var p=(d||'').split('-').map(Number);return new Date(p[0],p[1]-1,p[2])})(b.date));
+        // Solo los de hoy en adelante: los pasados ya no son "proximos eventos".
+        const hoy = todayKey();
+        const arr = Object.entries(snapshot.val() || {})
+            .map(([id, d]) => ({id, ...d}))
+            .filter(item => /^\d{4}-\d{2}-\d{2}$/.test(item.date || '') && item.date >= hoy)
+            .sort((a, b) => fechaDeEvento(a.date) - fechaDeEvento(b.date));
+        if (!arr.length) { eventsListContainer.innerHTML = '<p style="color:var(--text-muted);text-align:center;">No hay próximos eventos programados.</p>'; return; }
         arr.forEach(item => {
             const el = document.createElement('div'); el.className = 'event-item';
-            const _dp = (item.date||'').split('-').map(Number); const formattedDate = new Date(_dp[0], _dp[1]-1, _dp[2]).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'long' });
+            const formattedDate = fechaDeEvento(item.date).toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'long' });
             const itemId = escapeAttribute(item.id);
             const title = escapeHTML(item.title);
             const dateText = escapeHTML(formattedDate);
@@ -2285,7 +2398,7 @@ function loadEvents() {
             `;
             eventsListContainer.appendChild(el);
         });
-        if(isAdmin) document.querySelectorAll('.delete-event-btn').forEach(b => b.onclick = async (e) => { if(confirm("¿Borrar evento?")) { hapticTap(40); await remove(ref(db, `events/${e.target.closest('.delete-event-btn').dataset.id}`)); } });
+        if(isAdmin) document.querySelectorAll('.delete-event-btn').forEach(b => b.onclick = (e) => borrarConConfirmacion('¿Borrar evento?', `events/${e.target.closest('.delete-event-btn').dataset.id}`));
     });
 }
 
@@ -2738,29 +2851,39 @@ if (chatSearchInput) {
     });
 }
 
+// Id del chat entre dos personas: sus uid ordenados y unidos por "_". Las reglas
+// solo permiten crearlo a esas dos personas (nadie puede colarse ni bloquearlo).
 function getChatId(uid1, uid2) {
     return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
 }
 
-function getFallbackChatId(uid1, uid2) {
+// Algunos chats antiguos se crearon con el prefijo "v2_". Se siguen abriendo
+// para no perder su historial, pero los nuevos siempre usan el id principal.
+function getLegacyChatId(uid1, uid2) {
     return `v2_${getChatId(uid1, uid2)}`;
 }
 
-async function prepareChatParticipants(chatId, targetUid) {
-    const pRef = ref(db, `chats/${chatId}/participants`);
+// true si el chat existe y participo en el (las reglas solo dejan leerlo entonces).
+async function participoEnChat(chatId) {
     try {
-        await update(pRef, {
-            [currentUser.uid]: true,
-            [targetUid]: true
-        });
+        return (await get(ref(db, `chats/${chatId}/participants/${currentUser.uid}`))).exists();
     } catch (error) {
-        if (error.code === 'PERMISSION_DENIED' || (error.message && error.message.includes('PERMISSION_DENIED'))) {
-            // Ya existe y no tenemos permiso de escritura. Validamos que podemos leerlo.
-            await get(pRef);
-            return;
-        }
-        throw error;
+        return false;
     }
+}
+
+// Devuelve el id del chat con esa persona, creandolo si aun no existe, o null.
+async function resolverChat(targetUid) {
+    const principal = getChatId(currentUser.uid, targetUid);
+    if (await participoEnChat(principal)) return principal;
+    try {
+        await set(ref(db, `chats/${principal}/participants`), { [currentUser.uid]: true, [targetUid]: true });
+        return principal;
+    } catch (error) {
+        console.warn('No se pudo crear el chat principal:', error);
+    }
+    const antiguo = getLegacyChatId(currentUser.uid, targetUid);
+    return (await participoEnChat(antiguo)) ? antiguo : null;
 }
 
 async function openChat(targetUid) {
@@ -2789,22 +2912,11 @@ async function openChat(targetUid) {
     chatActiveRole.textContent = formatRoleLabel(targetUser.role);
     chatActiveRole.className = `badge ${getRoleClass(targetUser.role)}`;
 
-    activeChatId = getChatId(currentUser.uid, targetUid);
-
-    if (activeChatListener) activeChatListener();
-
-    try {
-        await prepareChatParticipants(activeChatId, targetUid);
-    } catch (error) {
-        console.warn('No se pudo preparar el chat principal, intentando chat alterno:', error);
-        activeChatId = getFallbackChatId(currentUser.uid, targetUid);
-        try {
-            await prepareChatParticipants(activeChatId, targetUid);
-        } catch (fallbackError) {
-            console.error('No se pudo preparar el chat:', fallbackError);
-            renderInlineStatus(conversationMessages, 'No se pudo abrir el chat. Revisa las reglas de Firebase para permitir leer y escribir chats.');
-            return;
-        }
+    if (activeChatListener) { activeChatListener(); activeChatListener = null; }
+    activeChatId = await resolverChat(targetUid);
+    if (!activeChatId) {
+        renderInlineStatus(conversationMessages, 'No se pudo abrir el chat. Inténtalo de nuevo en unos minutos.');
+        return;
     }
 
     const messagesRef = ref(db, `chats/${activeChatId}/messages`);
@@ -2864,28 +2976,28 @@ if (chatMessageInput) {
 }
 
 async function sendChatMessage() {
-    const text = chatMessageInput.value.trim();
+    const text = chatMessageInput.value.trim().slice(0, LIMITE_TEXTO_CHAT);
     if (!text || !activeChatId || !canUseTeacherChat()) return;
     hapticTap(15);
 
     chatMessageInput.value = '';
     sendMessageBtn.disabled = true;
-    const timestamp = Date.now();
-    const messageRef = push(ref(db, `chats/${activeChatId}/messages`));
+    const chatId = activeChatId;
+    const messageId = push(ref(db, `chats/${chatId}/messages`)).key;
+    // Mensaje y resumen del chat en una sola escritura. La hora la pone el
+    // servidor; el nombre se guarda solo como respaldo (se muestra el del perfil).
     const msgData = {
         senderId: currentUser.uid,
-        sender: currentUser.uid,
-        senderName: miNombre(),
-        senderRole: userRole || (isAdmin ? 'admin' : ''),
-        text: text,
-        timestamp
+        senderName: miNombre().slice(0, 60),
+        text,
+        timestamp: serverTimestamp()
     };
 
     try {
-        await set(messageRef, msgData);
-        await update(ref(db, `chats/${activeChatId}`), {
+        await update(ref(db, `chats/${chatId}`), {
+            [`messages/${messageId}`]: msgData,
             lastMessage: text,
-            lastTimestamp: timestamp
+            lastTimestamp: serverTimestamp()
         });
         avisarDespachadorDeNotificaciones();
     } catch (error) {
@@ -2899,10 +3011,25 @@ async function sendChatMessage() {
 }
 
 // === ADMIN USERS MANAGEMENT ===
+// Las escuchas se crean una sola vez por sesion. Antes cada apertura de la
+// ventana anadia dos nuevas sin cerrar las anteriores, y la lista se redibujaba
+// tantas veces como se hubiera abierto.
+let adminRoleRequestsListener = null;
+let adminUsersListener = null;
+
+function detenerEscuchasDeAdmin() {
+    adminRoleRequestsListener?.();
+    adminUsersListener?.();
+    adminRoleRequestsListener = adminUsersListener = null;
+    allAdminUsersCache = [];
+    allRoleRequestsCache = {};
+}
+
 function openAdminUsersModal() {
     if (!isAdmin) return;
     adminUsersModal.classList.add('active');
     loadAllUsersForAdmin();
+    renderAdminUsers(adminUserSearchInput ? adminUserSearchInput.value : '');
 }
 
 if (navUsersBtn) {
@@ -2920,12 +3047,12 @@ if (adminUserSearchInput) {
 }
 
 function loadAllUsersForAdmin() {
-    if (!isAdmin) return;
-    onValue(ref(db, 'roleRequests'), (snapshot) => {
+    if (!isAdmin || adminUsersListener) return;
+    adminRoleRequestsListener = onValue(ref(db, 'roleRequests'), (snapshot) => {
         allRoleRequestsCache = snapshot.exists() ? snapshot.val() : {};
         renderAdminUsers(adminUserSearchInput ? adminUserSearchInput.value : '');
     });
-    onValue(ref(db, 'users'), (snapshot) => {
+    adminUsersListener = onValue(ref(db, 'users'), (snapshot) => {
         if (!snapshot.exists()) {
             allAdminUsersCache = [];
             adminUsersList.innerHTML = '<div class="loading-spinner">No hay usuarios registrados.</div>';
@@ -2941,13 +3068,21 @@ function loadAllUsersForAdmin() {
     });
 }
 
+// Cambia el rol y, si habia una solicitud, la borra en la misma escritura: ya no
+// quedan solicitudes resueltas acumuladas en la base de datos.
+async function guardarRol(uid, rol) {
+    const cambios = { [`users/${uid}/role`]: rol };
+    if (allRoleRequestsCache?.[uid]) cambios[`roleRequests/${uid}`] = null;
+    await update(ref(db), cambios);
+}
+
 function renderAdminUsers(filter = '') {
     if (!isAdmin) return;
     const term = normalizeRole(filter);
     const users = allAdminUsersCache.filter(user => {
         const searchable = [
             user.name,
-            user.email,
+            correosPorUid[user.uid],
             user.role,
             formatRoleLabel(user.role)
         ].join(' ').toLowerCase();
@@ -2966,7 +3101,7 @@ function renderAdminUsers(filter = '') {
         const roleKey = getRoleClass(role);
         const avatar = escapeAttribute(safeImageSrc(user.avatar));
         const name = escapeHTML(user.name || 'Usuario');
-        const email = escapeHTML(user.email || 'Sin correo');
+        const email = escapeHTML(correosPorUid[user.uid] || 'Sin correo');
         const safeUid = escapeAttribute(user.uid);
         const safeRole = escapeAttribute(role);
         const pendingRequest = allRoleRequestsCache && allRoleRequestsCache[user.uid] && allRoleRequestsCache[user.uid].status === 'pending'
@@ -2977,7 +3112,7 @@ function renderAdminUsers(filter = '') {
         el.className = 'admin-user-item';
         el.innerHTML = `
             <div class="admin-user-info">
-                <img src="${avatar}" class="avatar-small">
+                <img src="${avatar}" class="avatar-small" alt="">
                 <div>
                     <h4>${name}</h4>
                     <p>${email}</p>
@@ -2988,7 +3123,7 @@ function renderAdminUsers(filter = '') {
                 ${role === 'maestro' ? '<p class="admin-legacy-hint">Rol antiguo "Maestro": vuelve a asignarlo como Profesor cuando puedas.</p>' : ''}
             </div>
             <div class="admin-user-action">
-                <select class="text-input role-select" data-uid="${safeUid}" data-current-role="${safeRole}">
+                <select class="text-input role-select" data-uid="${safeUid}" data-current-role="${safeRole}" aria-label="Rol de ${name}">
                     <option value="estudiante" ${role === 'estudiante' ? 'selected' : ''}>Estudiante</option>
                     <option value="profesor" ${(role === 'profesor' || role === 'maestro') ? 'selected' : ''}>Profesor</option>
                     <option value="padre" ${role === 'padre' ? 'selected' : ''}>Padre de familia</option>
@@ -3011,12 +3146,16 @@ function renderAdminUsers(filter = '') {
             const newRole = e.target.value;
             const uid = e.target.dataset.uid;
             const previousRole = e.target.dataset.currentRole;
-            if(confirm(`¿Cambiar rol a ${formatRoleLabel(newRole)}?`)) {
-                await set(ref(db, `users/${uid}/role`), newRole);
-                // Si tenía una solicitud pendiente, queda resuelta al cambiar el rol manualmente.
-                await set(ref(db, `roleRequests/${uid}/status`), 'approved').catch(() => {});
-            } else {
+            if (!confirm(`¿Cambiar rol a ${formatRoleLabel(newRole)}?`)) {
                 e.target.value = previousRole;
+                return;
+            }
+            try {
+                await guardarRol(uid, newRole);
+            } catch (error) {
+                console.error('No se pudo cambiar el rol:', error);
+                e.target.value = previousRole;
+                alert('No se pudo cambiar el rol. Inténtalo de nuevo.');
             }
         });
     });
@@ -3026,8 +3165,14 @@ function renderAdminUsers(filter = '') {
             const uid = btn.dataset.uid;
             const requestedRole = btn.dataset.role;
             if (!confirm(`¿Aprobar a este usuario como ${formatRoleLabel(requestedRole)}?`)) return;
-            await set(ref(db, `users/${uid}/role`), requestedRole);
-            await set(ref(db, `roleRequests/${uid}/status`), 'approved');
+            btn.disabled = true;
+            try {
+                await guardarRol(uid, requestedRole);
+            } catch (error) {
+                console.error('No se pudo aprobar la solicitud:', error);
+                btn.disabled = false;
+                alert('No se pudo aprobar la solicitud. Inténtalo de nuevo.');
+            }
         });
     });
 
@@ -3035,7 +3180,15 @@ function renderAdminUsers(filter = '') {
         btn.addEventListener('click', async () => {
             const uid = btn.dataset.uid;
             if (!confirm('¿Rechazar esta solicitud? El usuario seguirá como Estudiante.')) return;
-            await set(ref(db, `roleRequests/${uid}/status`), 'rejected');
+            btn.disabled = true;
+            try {
+                // Rechazar es borrar la solicitud: no queda registro basura.
+                await remove(ref(db, `roleRequests/${uid}`));
+            } catch (error) {
+                console.error('No se pudo rechazar la solicitud:', error);
+                btn.disabled = false;
+                alert('No se pudo rechazar la solicitud. Inténtalo de nuevo.');
+            }
         });
     });
 }

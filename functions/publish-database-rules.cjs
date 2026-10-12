@@ -12,7 +12,9 @@
  * Tras publicar, vuelve a leer las reglas y comprueba que el resultado es
  * exactamente el esperado; si no, restaura las anteriores.
  */
+const crypto = require('crypto');
 const { cert } = require('firebase-admin/app');
+const SEGURIDAD = require('./reglas-seguridad.cjs');
 
 const DATABASE_URL = process.env.RULES_DATABASE_URL || 'https://rafaescusas-default-rtdb.firebaseio.com';
 const NS = process.env.RULES_NS ? `?ns=${encodeURIComponent(process.env.RULES_NS)}` : '';
@@ -49,6 +51,13 @@ const PARCHES = [
     antes: "auth != null && auth.uid === $profesorId && (root.child('users').child(auth.uid).child('role').val() === 'profesor' || root.child('users').child(auth.uid).child('role').val() === 'maestro') && !data.exists() && newData.exists() && ($slot === '1' || $slot === '2' || $slot === '3')",
     despues: `auth != null && ((auth.uid === $profesorId && (root.child('users').child(auth.uid).child('role').val() === 'profesor' || root.child('users').child(auth.uid).child('role').val() === 'maestro' || ${ES_ADMIN}) && !data.exists() && newData.exists() && ($slot === '1' || $slot === '2' || $slot === '3')) || (${ES_ADMIN} && data.exists() && !newData.exists()))`,
   },
+  // Seguridad (ver reglas-seguridad.cjs): ramas completas. `antesHuella` es la
+  // huella SHA-256 de la rama de produccion que sustituyen; las nuevas no existian.
+  { ruta: ['users'], antesHuella: '1147c261a9468797dd8e33b695a7a820f6c59634c72faca075ea31c36ab5db28', despues: SEGURIDAD.users },
+  { ruta: ['posts'], antesHuella: '19888025e804ffa7cbc9cc0e245e5bd8cc01abcea43547502650c5b795e2fdcc', despues: SEGURIDAD.posts },
+  { ruta: ['chats'], antesHuella: '2d360570faa97c5b8c1362a49b72c03d50408fd1a1ac3e2ad68a7ec24297955f', despues: SEGURIDAD.chats },
+  { ruta: ['privado'], antes: undefined, despues: SEGURIDAD.privado },
+  { ruta: ['imagenesPosts'], antes: undefined, despues: SEGURIDAD.imagenesPosts },
 ];
 
 function ordenado(value) {
@@ -59,6 +68,9 @@ function ordenado(value) {
   return value;
 }
 const iguales = (a, b) => JSON.stringify(ordenado(a)) === JSON.stringify(ordenado(b));
+const huella = (valor) => crypto.createHash('sha256').update(JSON.stringify(ordenado(valor)) || '').digest('hex');
+// El valor vivo es el que el parche espera encontrar (texto exacto, rama o huella).
+const esElEsperado = (actual, p) => ('antesHuella' in p ? huella(actual) === p.antesHuella : iguales(actual, p.antes));
 
 async function accessToken() {
   if (process.env.RULES_ACCESS_TOKEN) return process.env.RULES_ACCESS_TOKEN; // solo para el emulador
@@ -104,8 +116,8 @@ async function main() {
   // 1) Parches de permisos: todos o ninguno.
   for (const p of PARCHES) {
     const actual = leerRuta(vivas, p.ruta);
-    if (actual === p.despues) continue; // ya aplicado
-    if (actual !== p.antes) {
+    if (iguales(actual, p.despues)) continue; // ya aplicado
+    if (!esElEsperado(actual, p)) {
       console.log(`::error::La regla ${p.ruta.join('/')} de producción no es la esperada. No se aplica ningún cambio de permisos: revísala a mano en la consola.`);
       process.exitCode = 1;
       return;
@@ -149,4 +161,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { PARCHES, INDICES };
+module.exports = { PARCHES, INDICES, huella };

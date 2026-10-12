@@ -1399,6 +1399,10 @@
   }
   .auth-loading-spinner-bar { display: none; }
   @keyframes rafa-spin { to { transform: rotate(360deg); } }
+  /* Arranque fallido (sin conexion): sin rueda, con el motivo y un boton */
+  .auth-loading-overlay.has-error .auth-loading-spinner { display: none; }
+  .auth-loading-overlay.has-error #auth-loading-msg { color: var(--c-text); }
+  .auth-retry-btn { width: 100%; margin-block-start: var(--space-5); }
 
   .login-btn { width: 100%; margin-block-start: var(--space-6); }
   .school-logo.large { margin-inline: auto; margin-block-end: var(--space-5); }
