@@ -56,7 +56,7 @@ const PARCHES = [
   // sustituyen; las nuevas no existian.
   { ruta: ['users'], antesHuella: '1147c261a9468797dd8e33b695a7a820f6c59634c72faca075ea31c36ab5db28', despues: SEGURIDAD.users },
   { ruta: ['posts'], antesHuella: '38f54c5d31f64bb5f277829e1ffaa68749221c1e7be6b85e8ed062f96fbea989', despues: SEGURIDAD.posts },
-  { ruta: ['chats'], antesHuella: '0e1bda23df40b1618caba325ef4cbaeecbb59adc5e3da267c19472b3bb56bb9a', despues: SEGURIDAD.chats },
+  { ruta: ['chats'], antesHuella: '2921ca65a3c06c61d464fb89820af90123c240b9039003ed6e2628ff763c4835', despues: SEGURIDAD.chats },
   { ruta: ['privado'], antes: undefined, despues: SEGURIDAD.privado },
   { ruta: ['imagenesPosts'], antes: undefined, despues: SEGURIDAD.imagenesPosts },
 ];
