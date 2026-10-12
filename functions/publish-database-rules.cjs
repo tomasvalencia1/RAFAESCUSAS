@@ -52,10 +52,11 @@ const PARCHES = [
     despues: `auth != null && ((auth.uid === $profesorId && (root.child('users').child(auth.uid).child('role').val() === 'profesor' || root.child('users').child(auth.uid).child('role').val() === 'maestro' || ${ES_ADMIN}) && !data.exists() && newData.exists() && ($slot === '1' || $slot === '2' || $slot === '3')) || (${ES_ADMIN} && data.exists() && !newData.exists()))`,
   },
   // Seguridad (ver reglas-seguridad.cjs): ramas completas. `antesHuella` es la
-  // huella SHA-256 de la rama de produccion que sustituyen; las nuevas no existian.
+  // huella SHA-256 de los permisos (sin indices) de la rama de produccion que
+  // sustituyen; las nuevas no existian.
   { ruta: ['users'], antesHuella: '1147c261a9468797dd8e33b695a7a820f6c59634c72faca075ea31c36ab5db28', despues: SEGURIDAD.users },
-  { ruta: ['posts'], antesHuella: '19888025e804ffa7cbc9cc0e245e5bd8cc01abcea43547502650c5b795e2fdcc', despues: SEGURIDAD.posts },
-  { ruta: ['chats'], antesHuella: '2d360570faa97c5b8c1362a49b72c03d50408fd1a1ac3e2ad68a7ec24297955f', despues: SEGURIDAD.chats },
+  { ruta: ['posts'], antesHuella: '38f54c5d31f64bb5f277829e1ffaa68749221c1e7be6b85e8ed062f96fbea989', despues: SEGURIDAD.posts },
+  { ruta: ['chats'], antesHuella: '0e1bda23df40b1618caba325ef4cbaeecbb59adc5e3da267c19472b3bb56bb9a', despues: SEGURIDAD.chats },
   { ruta: ['privado'], antes: undefined, despues: SEGURIDAD.privado },
   { ruta: ['imagenesPosts'], antes: undefined, despues: SEGURIDAD.imagenesPosts },
 ];
@@ -68,7 +69,12 @@ function ordenado(value) {
   return value;
 }
 const iguales = (a, b) => JSON.stringify(ordenado(a)) === JSON.stringify(ordenado(b));
-const huella = (valor) => crypto.createHash('sha256').update(JSON.stringify(ordenado(valor)) || '').digest('hex');
+// La huella cubre solo los permisos: los .indexOn se gestionan aparte (INDICES)
+// y su forma puede variar (texto o lista) sin que cambie ningun permiso.
+const sinIndices = (v) => (Array.isArray(v) ? v.map(sinIndices) : (v && typeof v === 'object')
+  ? Object.keys(v).filter(k => k !== '.indexOn').reduce((acc, k) => { acc[k] = sinIndices(v[k]); return acc; }, {})
+  : v);
+const huella = (valor) => crypto.createHash('sha256').update(JSON.stringify(ordenado(sinIndices(valor))) || '').digest('hex');
 // El valor vivo es el que el parche espera encontrar (texto exacto, rama o huella).
 const esElEsperado = (actual, p) => ('antesHuella' in p ? huella(actual) === p.antesHuella : iguales(actual, p.antes));
 
