@@ -392,6 +392,16 @@
   .btn-primary.danger-btn { background: var(--c-error); }
   .btn-primary.danger-btn:hover { background: color-mix(in oklab, var(--c-error) 85%, black); }
 
+  /* Onda al pulsar (app.js inserta un span.ripple): fuera del flujo para que
+     el boton no cambie de tamano. */
+  .btn-primary { position: relative; overflow: hidden; }
+  .btn-primary .ripple {
+    position: absolute; border-radius: 50%; pointer-events: none;
+    background: currentColor; opacity: 0.25; transform: scale(0);
+    animation: onda 500ms var(--ease-out) forwards;
+  }
+  @keyframes onda { to { transform: scale(2); opacity: 0; } }
+
   .create-post-btn { width: 100%; }
 
   .action-btn, .cancel-btn, .text-action-btn, .btn-small {
@@ -735,8 +745,15 @@
   }
   .post-card:hover { box-shadow: var(--elev-3); border-color: var(--c-border-strong); }
 
-  .post-header { display: flex; align-items: center; gap: var(--space-3); }
-  .user-info { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex: 1; }
+  /* Si las acciones (revision, Seguir, borrar) no caben junto al autor, bajan
+     a una segunda linea en vez de aplastar su nombre. */
+  .post-header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+  .user-info { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex: 1 1 8rem; }
+  .post-header-actions {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end;
+    gap: var(--space-2); margin-inline-start: auto;
+  }
+  .post-expiry { font-size: var(--fs-xs); color: var(--c-error); font-weight: 600; }
   .user-details { display: grid; gap: 1px; min-width: 0; }
   .username { font-size: var(--fs-sm); font-weight: 600; }
   .post-meta { font-size: var(--fs-xs); color: var(--c-text-mute); display: flex; gap: var(--space-2); flex-wrap: wrap; }
@@ -1048,7 +1065,7 @@
   /* --- 5.20 Chat ------------------------------------------------------------- */
   .chat-panel {
     position: fixed; inset: 0; z-index: var(--z-modal);
-    display: none; background: var(--c-bg);
+    display: none; background: var(--c-bg); overflow: hidden;
     padding-block: var(--safe-top) var(--safe-bottom);
   }
   .chat-panel.active { display: flex; }
@@ -1099,6 +1116,15 @@
   .contact-name { font-size: var(--fs-sm); font-weight: 500; }
 
   .chat-conversation { flex: 1; flex-direction: column; min-width: 0; }
+  /* En movil la lista ocupa todo el ancho: la conversacion se abre encima */
+  @media (max-width: 767px) {
+    .chat-conversation {
+      position: absolute; inset: var(--safe-top) 0 var(--safe-bottom);
+      z-index: 1; background: var(--c-bg);
+    }
+    .chat-conversation.active { animation: chat-entra var(--dur-base) var(--ease-out); }
+  }
+  @keyframes chat-entra { from { transform: translateX(100%); } to { transform: none; } }
   .conversation-header {
     display: flex; align-items: center; gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
@@ -1114,6 +1140,29 @@
   .chat-active-info h3 { font-size: var(--fs-sm); }
 
   .conversation-messages { flex: 1; overflow-y: auto; padding: var(--space-4); display: grid; gap: var(--space-2); align-content: start; }
+
+  /* Mensajes: burbujas propias a la derecha, recibidas a la izquierda */
+  .chat-msg { display: flex; flex-direction: column; max-width: min(80%, 32rem); }
+  .chat-msg.sent { justify-self: end; align-items: flex-end; }
+  .chat-msg.received { justify-self: start; align-items: flex-start; }
+  .chat-msg.sent .msg-sender { display: none; }
+  .msg-sender { font-size: var(--fs-xs); font-weight: 600; color: var(--c-text-mute); margin: 0 var(--space-1) var(--space-1); }
+  .msg-bubble {
+    padding: var(--space-2) var(--space-3); border-radius: var(--radius-lg);
+    font-size: var(--fs-sm); line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap;
+  }
+  .chat-msg.sent .msg-bubble { background: var(--c-primary); color: var(--c-on-primary); border-end-end-radius: var(--radius-sm); }
+  .chat-msg.received .msg-bubble {
+    background: var(--c-surface-2); color: var(--c-text);
+    border: 1px solid var(--c-border); border-end-start-radius: var(--radius-sm);
+  }
+  .msg-time { font-size: var(--fs-xs); color: var(--c-text-mute); margin: 2px var(--space-1) 0; }
+  .chat-date-divider { display: flex; justify-content: center; margin-block: var(--space-2); }
+  .chat-date-divider span {
+    padding: 2px var(--space-3); border-radius: var(--radius-pill);
+    background: var(--c-surface-2); border: 1px solid var(--c-border);
+    color: var(--c-text-mute); font-size: var(--fs-xs); font-weight: 600;
+  }
   .conversation-input { display: flex; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-block-start: 1px solid var(--c-border); }
   .conversation-input input {
     flex: 1; min-height: var(--tap); padding-inline: var(--space-4);
@@ -1182,6 +1231,24 @@
     .users-table-body > * { grid-template-columns: 2fr 1fr 1fr; gap: var(--space-3); }
   }
   .users-table-body > *:last-child { border-block-end: 0; }
+  .admin-user-info { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+  .admin-user-info > div { min-width: 0; }
+  .admin-user-info h4 { font-size: var(--fs-sm); font-weight: 600; }
+  .admin-user-info p { font-size: var(--fs-xs); color: var(--c-text-mute); overflow-wrap: anywhere; }
+  .admin-user-role { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); }
+  .admin-legacy-hint { font-size: var(--fs-xs); color: var(--c-text-mute); }
+  /* Solicitud de cambio de rol pendiente: ocupa toda la fila */
+  .admin-user-request {
+    grid-column: 1 / -1;
+    display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2);
+    padding-block-start: var(--space-3);
+    border-block-start: 1px dashed var(--c-border);
+  }
+  .admin-user-request .badge { grid-column: 1 / -1; justify-self: start; }
+  @media (min-width: 640px) {
+    .admin-user-request { grid-template-columns: 1fr auto auto; align-items: center; }
+    .admin-user-request .badge { grid-column: auto; }
+  }
 
   /* --- 5.22 Eventos y tareas ----------------------------------------------------- */
   .event-list { display: grid; gap: var(--gap-tarjetas); }
@@ -1200,8 +1267,12 @@
   .task-calendar-toolbar strong { font-size: var(--fs-base); min-width: 10rem; text-align: center; }
   .task-calendar-weekdays,
   .task-calendar-grid {
-    display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--space-1);
+    /* minmax(0, 1fr): las casillas nunca ensanchan la rejilla (cabe en 320px) */
+    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-1);
     padding-inline: var(--space-5);
+  }
+  @media (max-width: 479px) {
+    .task-calendar-weekdays, .task-calendar-grid { padding-inline: var(--space-3); gap: 2px; }
   }
   .task-calendar-weekdays span {
     text-align: center; font-size: var(--fs-xs); font-weight: 700;
@@ -1217,6 +1288,22 @@
   .task-calendar-grid > .today { border: 1px solid var(--c-primary); color: var(--c-primary); font-weight: 700; }
   .task-calendar-grid > .selected { background: var(--c-primary); color: var(--c-on-primary); font-weight: 700; }
   .task-calendar-grid > .all-completed { color: var(--c-success); }
+  .task-calendar-grid > .empty { cursor: default; background: none; }
+  .task-calendar-grid > .overdue { border: 1px solid color-mix(in oklab, var(--c-error) 55%, transparent); }
+  /* Numero de tareas del dia: insignia en la esquina, con el color de su estado */
+  .task-calendar-day { position: relative; }
+  .task-calendar-day small {
+    position: absolute; inset-block-start: 2px; inset-inline-end: 2px;
+    display: grid; place-items: center;
+    min-width: 1rem; height: 1rem; padding-inline: 3px;
+    border-radius: var(--radius-pill);
+    font-size: 0.625rem; font-weight: 700; line-height: 1;
+    background: var(--c-bg-sunken); color: var(--c-text-mute);
+  }
+  .task-calendar-day.has-pending small { background: var(--c-warning-soft); color: var(--c-warning); }
+  .task-calendar-day.overdue small { background: var(--c-error-soft); color: var(--c-error); }
+  .task-calendar-day.all-completed small { background: var(--c-success-soft); color: var(--c-success); }
+  .task-calendar-grid > .selected small { background: var(--c-on-primary); color: var(--c-primary); }
 
   .task-list-heading {
     display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
@@ -1233,6 +1320,16 @@
   .task-item-content { flex: 1; min-width: 0; display: grid; gap: 2px; }
   .task-item-actions { display: flex; gap: var(--space-1); }
   .task-status { font-size: var(--fs-xs); color: var(--c-text-mute); }
+  .task-status.overdue { color: var(--c-error); font-weight: 600; }
+  .task-status.completed { color: var(--c-success); }
+  .task-item-content h4 { font-size: var(--fs-sm); font-weight: 600; overflow-wrap: anywhere; }
+  .task-item-content span {
+    display: inline-flex; align-items: center; gap: var(--space-1);
+    font-size: var(--fs-xs); color: var(--c-text-mute);
+  }
+  .task-list > .overdue { border-color: color-mix(in oklab, var(--c-error) 45%, var(--c-border)); }
+  .task-list > .completed h4 { text-decoration: line-through; color: var(--c-text-mute); }
+  .task-empty-state { padding: var(--space-6) var(--space-2); text-align: center; font-size: var(--fs-sm); color: var(--c-text-mute); }
   .task-complete-btn, .task-delete-btn {
     display: inline-flex; align-items: center; justify-content: center;
     width: 36px; height: 36px; border-radius: var(--radius-md);
@@ -1254,6 +1351,14 @@
     background: var(--c-surface-2);
     border: 1px solid var(--c-border); border-radius: var(--radius-md);
   }
+  .moderation-item-header {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+    gap: var(--space-2); font-size: var(--fs-sm); font-weight: 600;
+  }
+  .moderation-item p { margin-block: var(--space-2) var(--space-3); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+  .moderation-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .moderation-actions .moderation-delete-btn { background: var(--c-error); }
+  .moderation-actions .moderation-delete-btn:hover { background: color-mix(in oklab, var(--c-error) 85%, black); }
   .btn-approve, .btn-reject {
     display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
     min-height: 38px; padding-inline: var(--space-4);
@@ -1349,6 +1454,9 @@
     transition: background-color var(--dur-fast) var(--ease-out);
   }
   .ttt-board > *:hover { background: var(--c-surface-3); }
+  /* Cada jugador con su color */
+  .ttt-board > .x { color: var(--c-primary); }
+  .ttt-board > .o { color: var(--c-brand); }
   .game-status { min-height: 1.5rem; color: var(--c-primary); font-size: var(--fs-base); }
 
   .role-modal-content { max-width: 44rem; }

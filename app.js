@@ -2366,7 +2366,9 @@ function renderTaskCalendar() {
         calendarDay.type = 'button';
         calendarDay.className = 'task-calendar-day';
         calendarDay.dataset.date = dateKey;
-        calendarDay.setAttribute('aria-label', `${day} de ${taskCalendarMonthLabel.textContent}`);
+        const estadoDia = !dayTasks.length ? ''
+            : `, ${dayTasks.length} tarea${dayTasks.length === 1 ? '' : 's'}, ${allTasksCompleted ? (dayTasks.length === 1 ? 'completada' : 'todas completadas') : (dateKey < todayKey ? 'con entrega vencida' : 'con entrega pendiente')}`;
+        calendarDay.setAttribute('aria-label', `${day} de ${taskCalendarMonthLabel.textContent}${estadoDia}`);
 
         if (dateKey === todayKey) calendarDay.classList.add('today');
         if (dateKey === selectedTaskDate) calendarDay.classList.add('selected');
@@ -2662,7 +2664,7 @@ function closeActiveChat() {
 
 function loadChatContacts() {
     if (!canUseTeacherChat()) {
-        renderInlineStatus(chatContactsList, 'El chat no estÃ¡ disponible para tu rol.');
+        renderInlineStatus(chatContactsList, 'El chat no está disponible para tu rol.');
         return;
     }
 
@@ -2769,7 +2771,7 @@ async function openChat(targetUid) {
 
     const targetUser = allContactsCache.find(u => u.uid === targetUid);
     if (!targetUser || !isTeacherChatContactRole(targetUser.role)) {
-        alert('No se pudo abrir este contacto. Actualiza la lista e intÃ©ntalo de nuevo.');
+        alert('No se pudo abrir este contacto. Actualiza la lista e inténtalo de nuevo.');
         return;
     }
 
@@ -2809,7 +2811,7 @@ async function openChat(targetUid) {
     activeChatListener = onValue(messagesRef, (snapshot) => {
         conversationMessages.innerHTML = '';
         if (!snapshot.exists()) {
-            renderInlineStatus(conversationMessages, 'TodavÃ­a no hay mensajes. Escribe el primero.');
+            renderInlineStatus(conversationMessages, 'Todavía no hay mensajes. Escribe el primero.');
             return;
         }
 
@@ -2889,7 +2891,7 @@ async function sendChatMessage() {
     } catch (error) {
         console.error('No se pudo enviar el mensaje:', error);
         chatMessageInput.value = text;
-        alert('No se pudo enviar el mensaje. Revisa la conexiÃ³n o las reglas de Firebase para chats.');
+        alert('No se pudo enviar el mensaje. Revisa la conexión o las reglas de Firebase para chats.');
     } finally {
         sendMessageBtn.disabled = false;
         chatMessageInput.focus();
@@ -3088,6 +3090,13 @@ window.onAndroidBack = function() {
         return true;
     }
 
+    // La hoja "Más" es un <dialog> modal: siempre queda por encima de todo.
+    const masSheet = document.getElementById('mas-sheet');
+    if (masSheet?.open) {
+        masSheet.close();
+        return true;
+    }
+
     // 1. Cerrar popover de perfil si está abierto
     if (typeof profilePopover !== 'undefined' && profilePopover.classList.contains('active')) {
         closeProfilePopover();
@@ -3106,33 +3115,21 @@ window.onAndroidBack = function() {
         return true;
     }
 
-    // 4. Cerrar cualquier otro modal general abierto
-    const activeModals = [
-        typeof postModal !== 'undefined' ? postModal : null,
-        typeof newsModal !== 'undefined' ? newsModal : null, 
-        typeof reportModal !== 'undefined' ? reportModal : null, 
-        typeof eventsViewModal !== 'undefined' ? eventsViewModal : null, 
-        typeof eventCreateModal !== 'undefined' ? eventCreateModal : null, 
-        typeof tasksModal !== 'undefined' ? tasksModal : null, 
-        typeof taskCreateModal !== 'undefined' ? taskCreateModal : null, 
-        typeof roleRequestModal !== 'undefined' ? roleRequestModal : null,
-        typeof supportModal !== 'undefined' ? supportModal : null,
-        typeof confirmModal !== 'undefined' ? confirmModal : null,
-        typeof moderationModal !== 'undefined' ? moderationModal : null,
-        typeof gamesModal !== 'undefined' ? gamesModal : null,
-        typeof adminUsersModal !== 'undefined' ? adminUsersModal : null
-    ];
-    
-    for (let modal of activeModals) {
-        if (modal && modal.classList.contains('active')) {
-            modal.classList.remove('active');
-            
-            // Caso especial: limpiar vista previa si es el modal de posts
-            if (modal.id === 'post-modal' && typeof resetImagePreview === 'function') {
-                resetImagePreview();
-            }
-            return true; // Indicamos a Android que nosotros manejamos el "Atrás"
+    // 4. Cerrar el modal abierto que queda encima: el ultimo del documento
+    //    ("Nueva tarea" va despues de "Tareas", "Nuevo evento" despues de
+    //    "Eventos"). La eleccion de rol es obligatoria y no se cierra.
+    const abiertos = document.querySelectorAll('.modal-overlay.active:not(#role-selection-screen)');
+    const modal = abiertos[abiertos.length - 1];
+    if (modal) {
+        if (modal === editProfileModal) cerrarEditorDePerfil();
+        else if (modal === supportInboxModal) cerrarBuzonDeSoporte();
+        else modal.classList.remove('active');
+
+        // Caso especial: limpiar vista previa si es el modal de posts
+        if (modal.id === 'post-modal' && typeof resetImagePreview === 'function') {
+            resetImagePreview();
         }
+        return true; // Indicamos a Android que nosotros manejamos el "Atrás"
     }
     
     // Si no había ningún menú/modal abierto, retornamos false
