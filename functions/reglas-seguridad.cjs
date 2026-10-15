@@ -1,5 +1,7 @@
 /*
- * Reglas de seguridad de las ramas users, privado, posts, imagenesPosts y chats.
+ * Reglas de seguridad de las ramas users, privado, posts, imagenesPosts, chats,
+ * aprobados, fcmTokens, siguiendo, personalTasks, roleRequests y de los campos
+ * de soporte.
  *
  * publish-database-rules.cjs las aplica a produccion sustituyendo cada rama
  * completa, y solo si la rama viva es exactamente la que habia antes (se compara
@@ -129,9 +131,13 @@ const chats = {
       $messageId: {
         '.write': `auth != null && !data.exists() && newData.exists() && ${SOY_PARTICIPANTE}`,
         '.validate': `newData.hasChildren(['senderId', 'text', 'timestamp']) && newData.child('senderId').val() === auth.uid && newData.child('text').isString() && newData.child('text').val().length >= 1 && newData.child('text').val().length <= 1000 && newData.child('timestamp').isNumber() && ${NO_FUTURO('timestamp')}`,
+        senderId: { '.validate': 'newData.isString()' },
+        text: { '.validate': 'newData.isString()' },
+        timestamp: { '.validate': 'newData.isNumber()' },
         senderName: { '.validate': 'newData.isString() && newData.val().length <= 60' },
         sender: { '.validate': 'newData.val() === auth.uid' },
         senderRole: { '.validate': 'newData.isString() && newData.val().length <= 30' },
+        $otro: { '.validate': false },
       },
     },
     lastMessage: {
@@ -156,4 +162,79 @@ const aprobados = {
   },
 };
 
-module.exports = { users, privado, posts, imagenesPosts, chats, aprobados, APROBADO };
+// Nodos que escribe cada persona para si misma: tamano y campos acotados, para que
+// nadie llene la base de datos ni infle lo que descarga el despachador. Las reglas
+// no pueden limitar cuantas entradas se crean; si limitan cada una.
+
+// Telefonos registrados para notificaciones: cada entrada es un token de FCM.
+const fcmTokens = {
+  $uid: {
+    '.read': 'auth != null && auth.uid === $uid',
+    '.write': 'auth != null && auth.uid === $uid',
+    '.validate': 'newData.hasChildren()',
+    $token: { '.validate': '$token.length <= 600 && newData.isString() && newData.val().length >= 1 && newData.val().length <= 400' },
+  },
+};
+
+// A quien sigue cada persona: solo a cuentas que existen.
+const siguiendo = {
+  $seguidorId: {
+    '.read': 'auth != null && auth.uid === $seguidorId',
+    $seguidoId: {
+      '.write': "auth != null && auth.uid === $seguidorId && (newData.val() === null || (newData.child('seguidoId').val() === $seguidoId && newData.child('creadoEn').isNumber()))",
+      '.validate': "newData.hasChildren(['seguidoId', 'creadoEn']) && root.child('users').child($seguidoId).exists()",
+      seguidoId: { '.validate': 'newData.isString()' },
+      creadoEn: { '.validate': 'newData.isNumber()' },
+      $otro: { '.validate': false },
+    },
+  },
+};
+
+// Tareas del calendario personal (las mismas longitudes que el formulario).
+const personalTasks = {
+  $uid: {
+    '.read': 'auth != null && auth.uid === $uid',
+    '.write': 'auth != null && auth.uid === $uid',
+    '.validate': 'newData.hasChildren()',
+    $taskId: {
+      '.validate': "data.exists() || newData.hasChildren(['title', 'dueDate', 'completed', 'createdAt'])",
+      title: { '.validate': 'newData.isString() && newData.val().length >= 1 && newData.val().length <= 120' },
+      dueDate: { '.validate': 'newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)' },
+      completed: { '.validate': 'newData.isBoolean()' },
+      createdAt: { '.validate': 'newData.isNumber()' },
+      completedAt: { '.validate': 'newData.isNumber()' },
+      $otro: { '.validate': false },
+    },
+  },
+};
+
+// Solicitudes de rol: los campos que escribe la app al pedirlo.
+const roleRequests = {
+  $uid: {
+    '.read': `auth != null && (auth.uid === $uid || ${ES_ADMIN()})`,
+    '.write': `auth != null && ((auth.uid === $uid && !data.exists() && newData.child('requestedRole').val() !== 'estudiante' && newData.child('status').val() === 'pending') || ${ES_ADMIN()})`,
+    '.validate': "newData.hasChildren(['requestedRole', 'status'])",
+    name: { '.validate': 'newData.isString() && newData.val().length <= 100' },
+    email: { '.validate': 'newData.isString() && newData.val().length <= 254' },
+    requestedRole: { '.validate': 'newData.isString() && newData.val().length <= 30' },
+    status: { '.validate': 'newData.isString() && newData.val().length <= 20' },
+    requestedAt: { '.validate': 'newData.isNumber()' },
+    $otro: { '.validate': false },
+  },
+};
+
+// Solicitudes de soporte: se anaden campo a campo bajo soporte/$ticketId, cuyos
+// permisos (.read/.write) se mantienen como estan en produccion.
+const soporteCampos = {
+  '.validate': "data.exists() || newData.hasChildren(['userId', 'texto', 'timestamp', 'estado'])",
+  userId: { '.validate': 'newData.isString() && newData.val().length <= 128' },
+  texto: { '.validate': 'newData.isString() && newData.val().length <= 1000' },
+  timestamp: { '.validate': 'newData.isNumber()' },
+  estado: { '.validate': "newData.val() === 'pendiente' || newData.val() === 'resuelto'" },
+  resueltoPor: { '.validate': 'newData.isString() && newData.val().length <= 128' },
+  resueltoPorNombre: { '.validate': 'newData.isString() && newData.val().length <= 100' },
+  resueltoEn: { '.validate': 'newData.isNumber()' },
+  $otro: { '.validate': false },
+};
+
+module.exports = { users, privado, posts, imagenesPosts, chats, aprobados, fcmTokens, siguiendo, personalTasks, roleRequests, soporteCampos, APROBADO };

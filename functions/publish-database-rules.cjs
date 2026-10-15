@@ -57,7 +57,7 @@ const PARCHES = [
   // version publicada en 166866a y pasan a exigir cuenta aprobada.
   { ruta: ['users'], antesHuella: '0534dea5054159c332e763a41aa5a22bbae53cdd05d5d2f5b176d38c55efa5f0', despues: SEGURIDAD.users },
   { ruta: ['posts'], antesHuella: '620b91f7d26d9be93dcff9e7ee4ee903313e84087752bc5115746e73e40a9ee2', despues: SEGURIDAD.posts },
-  { ruta: ['chats'], antesHuella: '2921ca65a3c06c61d464fb89820af90123c240b9039003ed6e2628ff763c4835', despues: SEGURIDAD.chats },
+  { ruta: ['chats'], antesHuella: '80a0507aeb41186bb2eb83c8de2a68dbc0a46a96aa4952b5b59e3cb251034607', despues: SEGURIDAD.chats },
   { ruta: ['privado'], antes: undefined, despues: SEGURIDAD.privado },
   { ruta: ['imagenesPosts'], antesHuella: '6cc265851760ba847ccb82a78ec551ab3266def4526666f8610718b6e9fcd46c', despues: SEGURIDAD.imagenesPosts },
   // Aprobacion de cuentas: la rama nueva y la lectura del contenido del colegio
@@ -65,6 +65,15 @@ const PARCHES = [
   { ruta: ['aprobados'], antes: undefined, despues: SEGURIDAD.aprobados },
   ...[['mensajes_profesor'], ['news'], ['reports'], ['events'], ['configuracion', 'moderacion']].map(nodo => ({
     ruta: [...nodo, '.read'], antes: 'auth != null', despues: `auth != null && ${SEGURIDAD.APROBADO}`,
+  })),
+  // Tamano y campos acotados en lo que cada persona escribe (chats, arriba, ya no
+  // admite campos extra en los mensajes; parte de la version publicada en 166866a).
+  { ruta: ['fcmTokens'], antesHuella: '791d502da6ce3f754c955ac48d41e5ce2a5425e0e20fd315909d610ca9fa3bd6', despues: SEGURIDAD.fcmTokens },
+  { ruta: ['siguiendo'], antesHuella: '11bb30ea3ea35dcbddff92a28f2d084f19a434b1764c2b24103e9f6219db5db2', despues: SEGURIDAD.siguiendo },
+  { ruta: ['personalTasks'], antesHuella: '791d502da6ce3f754c955ac48d41e5ce2a5425e0e20fd315909d610ca9fa3bd6', despues: SEGURIDAD.personalTasks },
+  { ruta: ['roleRequests'], antesHuella: '1c82a3ba255cef554c1663419005dcecdbe30c82ce93a4cc1d689b802a95c06e', despues: SEGURIDAD.roleRequests },
+  ...Object.entries(SEGURIDAD.soporteCampos).map(([campo, regla]) => ({
+    ruta: ['soporte', '$ticketId', campo], antes: undefined, despues: regla,
   })),
 ];
 
