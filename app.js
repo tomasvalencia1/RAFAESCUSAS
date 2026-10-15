@@ -3218,6 +3218,7 @@ function detenerResumenesChat() {
     clearTimeout(chatEsperaTimer);
     clearInterval(chatRelojTimer);
     chatListaTimer = chatEsperaTimer = chatRelojTimer = 0;
+    actualizarContadorChats(0);
 }
 
 // Hasta donde se leyo cada chat: chatsLeidos/{uid}/{chatId}, privado de cada persona.
@@ -3358,8 +3359,26 @@ function programarListaChat() {
     }, 0);
 }
 
+// Conversaciones con mensajes sin leer, en el boton Chats de la barra inferior y del
+// menu lateral. navegacion.js suma esta cifra a "Más" si Chats queda dentro de la hoja.
+let chatsSinLeerMostrados = -1;
+function actualizarContadorChats(n) {
+    if (n === chatsSinLeerMostrados) return;
+    chatsSinLeerMostrados = n;
+    [mobileChatBtn, navChatBtn].forEach(boton => {
+        const contador = boton?.querySelector('.nav-count');
+        if (!contador) return;
+        contador.hidden = n === 0;
+        contador.textContent = String(n);
+        // Nombre del boton: su texto visible y, si hay, cuantas conversaciones esperan.
+        const etiqueta = boton.querySelector('span')?.firstChild?.textContent.trim();
+        if (n) boton.setAttribute('aria-label', `${etiqueta}, ${n} ${n === 1 ? 'conversación' : 'conversaciones'} sin leer`);
+        else boton.removeAttribute('aria-label');
+    });
+}
+
 function renderChatList() {
-    if (!currentUser || !canUseTeacherChat() || !allContactsCache.length) return;
+    if (!currentUser || !canUseTeacherChat()) return;
 
     const conversaciones = [];
     const contactos = [];
@@ -3373,6 +3392,8 @@ function renderChatList() {
     });
     conversaciones.sort((a, b) => (Number(b.ultimo.timestamp) || 0) - (Number(a.ultimo.timestamp) || 0));
     contactos.sort((a, b) => sanitizeName(a.name || '').localeCompare(sanitizeName(b.name || ''), 'es'));
+    actualizarContadorChats(conversaciones.filter(c => c.sinLeer).length);
+    if (!allContactsCache.length) return;
 
     clearTimeout(chatEsperaTimer);
     if (esperando && Date.now() < chatCargaHasta) {

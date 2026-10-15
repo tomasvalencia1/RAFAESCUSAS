@@ -13,7 +13,7 @@ export const SECCIONES = [
   // barra: true -> puede ocupar un hueco de la barra inferior, por orden de aparicion.
   { id: 'inicio',     etiqueta: 'Inicio',     icono: 'bxs-home',          destino: 'mobile-home-btn',   barra: true },
   { id: 'tareas',     etiqueta: 'Tareas',     icono: 'bx-calendar-check', destino: 'mobile-tasks-btn',  barra: true },
-  { id: 'chats',      etiqueta: 'Chats',      icono: 'bx-chat',           destino: 'mobile-chat-btn',   barra: true },
+  { id: 'chats',      etiqueta: 'Chats',      icono: 'bx-chat',           destino: 'mobile-chat-btn',   barra: true, contador: 'chat-unread-count' },
   { id: 'eventos',    etiqueta: 'Eventos',    icono: 'bx-calendar-event', destino: 'mobile-events-btn', barra: true },
   { id: 'noticias',   etiqueta: 'Noticias',   icono: 'bx-broadcast',      accion: 'ir-a-noticias' },
   { id: 'juegos',     etiqueta: 'Juegos',     icono: 'bx-joystick',       destino: 'nav-games-btn' },
