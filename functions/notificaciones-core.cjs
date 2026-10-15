@@ -15,6 +15,7 @@
  * .indexOn de las reglas) y los nodos auxiliares solo si hacen falta.
  */
 const STATE_PATH = 'notificacionesSistema/despachador';
+const MIGRACION_APROBACION = 'notificacionesSistema/migraciones/aprobacionInicial';
 const MAX_SENT_AGE_MS = 35 * 24 * 60 * 60 * 1000;
 // Los timestamps los pone el reloj del telefono que escribe. Si va atrasado, el
 // evento caeria por debajo de la ultima ejecucion; se revisa este margen hacia
@@ -181,16 +182,24 @@ async function enviarPrueba(db, messaging, uid) {
 
 async function dispatchNotifications(db, messaging) {
   const runStartedAt = Date.now();
-  const state = await readNode(db, STATE_PATH);
-  const primeraVez = !Number(state.lastProcessedAt || 0);
-  const lastProcessedAt = primeraVez ? runStartedAt - LINEA_BASE_MS : Number(state.lastProcessedAt);
+  // Del estado solo se leen sus valores sueltos: el registro `sent` (35 dias de
+  // avisos) se consulta evento a evento y se limpia una vez al dia.
+  const [ultimaEjecucion, ultimaLimpieza] = await Promise.all([
+    db.ref(`${STATE_PATH}/lastProcessedAt`).once('value').then(s => Number(s.val() || 0)),
+    db.ref(`${STATE_PATH}/ultimaLimpieza`).once('value').then(s => Number(s.val() || 0)),
+  ]);
+  const primeraVez = !ultimaEjecucion;
+  const lastProcessedAt = primeraVez ? runStartedAt - LINEA_BASE_MS : ultimaEjecucion;
   const since = primeraVez ? lastProcessedAt : lastProcessedAt - MARGEN_RELOJ_MS;
-  const sent = state.sent || {};
+  const enviados = new Map();
+  const enviado = async (eventId) => {
+    if (!enviados.has(eventId)) enviados.set(eventId, (await db.ref(`${STATE_PATH}/sent/${eventId}`).once('value')).val());
+    return enviados.get(eventId);
+  };
 
   // Solo lo nuevo. Las publicaciones se crean con `createdAt` o con `timestamp`
   // segun la version de la app, asi que se consultan los dos campos.
-  const [tokensTodos, news, events, support, supportResolved, chats, postsA, postsB, teacherRoot] = await Promise.all([
-    readNode(db, 'fcmTokens'),
+  const [news, events, support, supportResolved, chats, postsA, postsB, teacherRoot] = await Promise.all([
     readSince(db, 'news', 'timestamp', since),
     readSince(db, 'events', 'timestamp', since),
     readSince(db, 'soporte', 'timestamp', since),
@@ -203,16 +212,41 @@ async function dispatchNotifications(db, messaging) {
   ]);
   const posts = { ...postsA, ...postsB };
 
+  // Telefonos: solo se descargan cuando hay algo que enviar, y el nodo entero solo
+  // para un aviso general; para el resto bastan los de cada destinatario.
   // Solo reciben avisos las cuentas aprobadas y los administradores: una cuenta en
   // espera podria registrar su telefono y ver, por ejemplo, el titulo de una noticia.
-  // Mientras no exista ninguna aprobacion (antes de la migracion inicial) no se filtra.
-  const [aprobados, adminsTodos] = await Promise.all([readNode(db, 'aprobados'), readNode(db, 'admins')]);
-  const tokensByUser = Object.keys(aprobados).length
-    ? Object.fromEntries(Object.entries(tokensTodos).filter(([uid]) => aprobados[uid] === true || adminsTodos[uid] === true))
-    : tokensTodos;
-
+  // Mientras no se haya hecho la migracion inicial de aprobaciones no se filtra.
+  let filtrarAprobadas;
+  const hayQueFiltrar = async () => {
+    if (filtrarAprobadas === undefined) filtrarAprobadas = Boolean((await db.ref(MIGRACION_APROBACION).once('value')).val());
+    return filtrarAprobadas;
+  };
+  let tokensTodos = null;
+  const cargarTodos = async () => {
+    if (!tokensTodos) {
+      const [tokens, aprobados, adminsTodos, filtrar] = await Promise.all([
+        readNode(db, 'fcmTokens'), readNode(db, 'aprobados'), readNode(db, 'admins'), hayQueFiltrar()]);
+      tokensTodos = Object.fromEntries(Object.entries(tokens).filter(([uid]) => !filtrar || aprobados[uid] === true || adminsTodos[uid] === true));
+    }
+    return tokensTodos;
+  };
+  const tokensPorUsuario = new Map();
+  const tokensDe = async (uids) => {
+    if (tokensTodos) return tokensTodos;
+    for (const uid of new Set(uids.filter(Boolean))) {
+      if (tokensPorUsuario.has(uid)) continue;
+      const [tokens, aprobado, admin, filtrar] = await Promise.all([
+        readNode(db, `fcmTokens/${uid}`),
+        db.ref(`aprobados/${uid}`).once('value').then(s => s.val() === true),
+        db.ref(`admins/${uid}`).once('value').then(s => s.val() === true),
+        hayQueFiltrar()]);
+      tokensPorUsuario.set(uid, !filtrar || aprobado || admin ? tokens : {});
+    }
+    return Object.fromEntries(tokensPorUsuario);
+  };
   // Destinatarios de los avisos generales: quien tiene al menos un telefono registrado.
-  const usersWithDevices = Object.keys(tokensByUser);
+  const usersWithDevices = async () => Object.keys(await cargarTodos());
 
   // Nodos auxiliares: solo se descargan si hay algo que los necesite.
   const hayPosts = Object.keys(posts).length > 0;
@@ -241,7 +275,8 @@ async function dispatchNotifications(db, messaging) {
   let sentEvents = 0;
 
   const processEvent = async ({ eventId, timestamp, targets, title, body, type, entityId }) => {
-    if (!timestamp || timestamp <= since || sent[eventId]) return;
+    if (!timestamp || timestamp <= since || await enviado(eventId)) return;
+    const tokensByUser = await tokensDe(targets);
     const response = await sendToUsers(messaging, { tokensByUser, userIds: targets, title, body, type, entityId });
     delivered += response.delivered;
     invalidTokens.push(...response.invalid);
@@ -254,7 +289,7 @@ async function dispatchNotifications(db, messaging) {
     const senderId = message.senderId || message.sender || message.uid || '';
     const targets = asEntries(item.chat.participants).filter(([, active]) => active === true).map(([uid]) => uid).filter(uid => uid !== senderId);
     const timestamp = Number(message.timestamp || 0);
-    if (!timestamp || timestamp <= since || sent[safeKey(`chat_${item.id}`)]) continue;
+    if (!timestamp || timestamp <= since || await enviado(safeKey(`chat_${item.id}`))) continue;
     await processEvent({
       eventId: safeKey(`chat_${item.id}`), timestamp, targets,
       title: `Mensaje de ${await nombreDe(senderId, 'RafaConecta')}`,
@@ -263,11 +298,15 @@ async function dispatchNotifications(db, messaging) {
   }
 
   for (const [id, item] of asEntries(news)) {
-    await processEvent({ eventId: safeKey(`news_${id}`), timestamp: Number(item?.timestamp || 0), targets: usersWithDevices,
+    const timestamp = Number(item?.timestamp || 0);
+    if (!timestamp || timestamp <= since || await enviado(safeKey(`news_${id}`))) continue;
+    await processEvent({ eventId: safeKey(`news_${id}`), timestamp, targets: await usersWithDevices(),
       title: 'Nueva noticia institucional', body: String(item?.title || 'Hay una nueva noticia para ti.').slice(0, 120), type: 'news', entityId: id });
   }
   for (const [id, item] of asEntries(events)) {
-    await processEvent({ eventId: safeKey(`event_${id}`), timestamp: Number(item?.timestamp || 0), targets: usersWithDevices,
+    const timestamp = Number(item?.timestamp || 0);
+    if (!timestamp || timestamp <= since || await enviado(safeKey(`event_${id}`))) continue;
+    await processEvent({ eventId: safeKey(`event_${id}`), timestamp, targets: await usersWithDevices(),
       title: 'Nuevo evento institucional', body: String(item?.title || 'Hay un evento nuevo.').slice(0, 120), type: 'event', entityId: id });
   }
   for (const item of flattenTeacherMessages(teacherRoot)) {
@@ -275,15 +314,17 @@ async function dispatchNotifications(db, messaging) {
     const timestamp = Number(message.timestamp || 0);
     // Un administrador puede borrar un aviso y su hueco volver a usarse el mismo
     // dia: si lo enviado en ese hueco era otro aviso, este cuenta como nuevo.
+    if (!timestamp || timestamp <= since) continue;
     const base = safeKey(`teacher_${item.id}`);
-    const eventId = sent[base] && Number(sent[base]) !== timestamp ? safeKey(`teacher_${item.id}_${timestamp}`) : base;
-    if (!timestamp || timestamp <= since || sent[eventId]) continue;
-    await processEvent({ eventId, timestamp, targets: usersWithDevices.filter(uid => uid !== message.autorId),
+    const enviadoEnHueco = await enviado(base);
+    const eventId = enviadoEnHueco && Number(enviadoEnHueco) !== timestamp ? safeKey(`teacher_${item.id}_${timestamp}`) : base;
+    if (await enviado(eventId)) continue;
+    await processEvent({ eventId, timestamp, targets: (await usersWithDevices()).filter(uid => uid !== message.autorId),
       title: `Anuncio de ${await nombreDe(message.autorId, message.autorNombre || 'profesorado')}`, body: String(message.texto || 'Hay un nuevo anuncio.').slice(0, 120), type: 'teacher_message', entityId: item.id });
   }
   for (const [id, post] of asEntries(posts)) {
     const timestamp = Number(post?.createdAt || post?.timestamp || 0);
-    if (!timestamp || timestamp <= since || sent[safeKey(`post_${id}`)]) continue;
+    if (!timestamp || timestamp <= since || await enviado(safeKey(`post_${id}`))) continue;
     // Una publicacion pendiente de revision no se anuncia. Si el cliente no la
     // marco pero contiene palabras prohibidas, se marca aqui.
     if (!post?.flagged && contienePalabraProhibida(post?.content, palabrasProhibidas)) {
@@ -303,7 +344,7 @@ async function dispatchNotifications(db, messaging) {
   const equipoDeSoporte = asEntries(admins).filter(([, activo]) => activo === true).map(([uid]) => uid);
   for (const [id, ticket] of asEntries(support)) {
     const timestamp = Number(ticket?.timestamp || 0);
-    if (!timestamp || timestamp <= since || sent[safeKey(`support_${id}`)]) continue;
+    if (!timestamp || timestamp <= since || await enviado(safeKey(`support_${id}`))) continue;
     const autor = String(await nombreDe(ticket?.userId, '')).trim();
     const texto = String(ticket?.texto || '').replace(/\s+/g, ' ').trim();
     await processEvent({ eventId: safeKey(`support_${id}`), timestamp: Number(ticket?.timestamp || 0), targets: equipoDeSoporte.filter(uid => uid !== ticket.userId),
@@ -327,13 +368,24 @@ async function dispatchNotifications(db, messaging) {
 
   updates[`${STATE_PATH}/lastProcessedAt`] = runStartedAt;
   if (primeraVez) updates[`${STATE_PATH}/initializedAt`] = runStartedAt;
-  for (const [eventId, sentAt] of asEntries(sent)) {
-    if (Number(sentAt) < runStartedAt - MAX_SENT_AGE_MS) updates[`${STATE_PATH}/sent/${eventId}`] = null;
+  if (runStartedAt - ultimaLimpieza > DIA_MS) {
+    for (const [eventId, sentAt] of asEntries(await readNode(db, `${STATE_PATH}/sent`))) {
+      if (Number(sentAt) < runStartedAt - MAX_SENT_AGE_MS) updates[`${STATE_PATH}/sent/${eventId}`] = null;
+    }
+    updates[`${STATE_PATH}/ultimaLimpieza`] = runStartedAt;
   }
   for (const entry of invalidTokens) updates[`fcmTokens/${entry.uid}/${entry.tokenKey}`] = null;
   await db.ref().update(updates);
   return { eventos: sentEvents, entregas: delivered, caducados: invalidTokens.length,
-           cuentasConTelefono: usersWithDevices.length, primeraVez };
+           cuentasConTelefono: tokensTodos ? Object.keys(tokensTodos).length : 'sin consultar', primeraVez };
+}
+
+// Solo una cuenta aprobada o administradora puede lanzar el despacho desde la app:
+// una cuenta en espera no tiene nada que anunciar y podria llamarlo en bucle.
+async function cuentaConAcceso(db, uid) {
+  const [aprobado, admin, migrado] = await Promise.all([
+    db.ref(`aprobados/${uid}`).once('value'), db.ref(`admins/${uid}`).once('value'), db.ref(MIGRACION_APROBACION).once('value')]);
+  return aprobado.val() === true || admin.val() === true || !migrado.val();
 }
 
 // Un solo despacho a la vez (Vercel y GitHub pueden coincidir). Quien llega con
@@ -362,4 +414,4 @@ async function despacharConBloqueo(db, messaging) {
   }
 }
 
-module.exports = { despacharConBloqueo, dispatchNotifications, enviarPrueba, STATE_PATH };
+module.exports = { cuentaConAcceso, despacharConBloqueo, dispatchNotifications, enviarPrueba, STATE_PATH, MIGRACION_APROBACION };

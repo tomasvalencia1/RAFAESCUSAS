@@ -13,7 +13,7 @@
  * Configuracion: variable de entorno FIREBASE_SERVICE_ACCOUNT en Vercel con el
  * JSON de la cuenta de servicio. Sin ella responde 503 y la app sigue igual.
  */
-const { despacharConBloqueo, enviarPrueba } = require('../functions/notificaciones-core.cjs');
+const { cuentaConAcceso, despacharConBloqueo, enviarPrueba } = require('../functions/notificaciones-core.cjs');
 const { creadorDeToken, verificarUsuario, crearBaseDeDatosRest, crearMensajeriaFcm } = require('../functions/adaptadores-rest.cjs');
 
 const DATABASE_URL = 'https://rafaescusas-default-rtdb.firebaseio.com';
@@ -50,6 +50,7 @@ module.exports = async function handler(req, res) {
     const { db, messaging } = prepararContexto();
     const cuerpo = req.body && typeof req.body === 'object' ? req.body : {};
     if (cuerpo.prueba === true) return res.status(200).json(await enviarPrueba(db, messaging, uid));
+    if (!(await cuentaConAcceso(db, uid))) return res.status(403).json({ error: 'Cuenta pendiente de aprobación.' });
     return res.status(200).json(await despacharConBloqueo(db, messaging));
   } catch (error) {
     console.error('Despacho de notificaciones fallido:', error);
