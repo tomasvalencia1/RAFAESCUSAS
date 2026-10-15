@@ -3203,7 +3203,7 @@ function renderAdminUsers(filter = '') {
             ${pendingRequest ? `
             <div class="admin-user-request">
                 <span class="badge warning">Solicita: ${formatRoleLabel(pendingRequest.requestedRole)}</span>
-                <button class="btn-small btn-approve" data-uid="${safeUid}" data-role="${escapeAttribute(pendingRequest.requestedRole)}">Aprobar</button>
+                ${RESTRICTED_ROLES.includes(pendingRequest.requestedRole) ? `<button class="btn-small btn-approve" data-uid="${safeUid}" data-role="${escapeAttribute(pendingRequest.requestedRole)}">Aprobar</button>` : ''}
                 <button class="btn-small btn-reject" data-uid="${safeUid}">Rechazar</button>
             </div>` : ''}
             ${sinAcceso(user) ? `

@@ -208,7 +208,8 @@ const personalTasks = {
   },
 };
 
-// Solicitudes de rol: los campos que escribe la app al pedirlo.
+// Solicitudes de rol: los campos que escribe la app al pedirlo, y solo los roles
+// que se piden (RESTRICTED_ROLES en app.js); al aprobar, ese texto pasa a ser el rol.
 const roleRequests = {
   $uid: {
     '.read': `auth != null && (auth.uid === $uid || ${ES_ADMIN()})`,
@@ -216,7 +217,7 @@ const roleRequests = {
     '.validate': "newData.hasChildren(['requestedRole', 'status'])",
     name: { '.validate': 'newData.isString() && newData.val().length <= 100' },
     email: { '.validate': 'newData.isString() && newData.val().length <= 254' },
-    requestedRole: { '.validate': 'newData.isString() && newData.val().length <= 30' },
+    requestedRole: { '.validate': "newData.val() === 'profesor' || newData.val() === 'padre' || newData.val() === 'directivo'" },
     status: { '.validate': 'newData.isString() && newData.val().length <= 20' },
     requestedAt: { '.validate': 'newData.isNumber()' },
     $otro: { '.validate': false },

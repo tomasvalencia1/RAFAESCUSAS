@@ -42,7 +42,7 @@
           ".validate": "newData.isString() && newData.val().length <= 254"
         },
         "requestedRole": {
-          ".validate": "newData.isString() && newData.val().length <= 30"
+          ".validate": "newData.val() === 'profesor' || newData.val() === 'padre' || newData.val() === 'directivo'"
         },
         "status": {
           ".validate": "newData.isString() && newData.val().length <= 20"
