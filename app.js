@@ -1262,6 +1262,7 @@ onAuthStateChanged(auth, async (user) => {
         if (mobileUserSearchStatus) mobileUserSearchStatus.textContent = 'Escribe al menos 2 letras.';
         if (activeChatListener) { activeChatListener(); activeChatListener = null; }
         if (chatContactsListener) { chatContactsListener(); chatContactsListener = null; }
+        detenerResumenesChat();
         if (personalTasksListener) { personalTasksListener(); personalTasksListener = null; }
         activeChatId = null;
         allContactsCache = [];
@@ -1394,6 +1395,7 @@ async function completeLogin() {
     } else {
         teacherChatEls.forEach(el => el.style.display = 'none');
         if (chatContactsListener) { chatContactsListener(); chatContactsListener = null; }
+        detenerResumenesChat();
         if (activeChatListener) { activeChatListener(); activeChatListener = null; }
         activeChatId = null;
         allContactsCache = [];
@@ -3050,6 +3052,22 @@ if (resetGameBtn) resetGameBtn.onclick = () => {
 };
 
 // === CHAT SYSTEM ===
+// La lista del chat muestra arriba las conversaciones (extracto del ultimo
+// mensaje, hora y mensajes sin leer) y debajo el resto de contactos. De cada
+// contacto se escuchan los ultimos mensajes de su chat: asi una conversacion
+// nueva aparece en cuanto la otra persona escribe, aunque el panel este cerrado.
+const CHAT_MENSAJES_RESUMEN = 10; // ultimos mensajes que se miran de cada chat
+const CHAT_MAX_SIN_LEER = 9;      // a partir de aqui la fila muestra "9+"
+let resumenesChat = new Map();    // uid del contacto -> { chatId, off, mensajes, cargado, sinAcceso }
+let chatLeidos = {};              // chatId -> hora del ultimo mensaje recibido que se vio
+let chatLeidosListener = null;
+let lecturaChatPendiente = null;  // lectura que espera a que la app vuelva a verse
+let activeChatUid = null;
+let chatListaTimer = 0;
+let chatEsperaTimer = 0;
+let chatRelojTimer = 0;
+let chatCargaHasta = 0;
+
 function openTeacherChatPanel() {
     if (!canUseTeacherChat()) {
         avisar('El chat está disponible solo para maestros, profesores, acudientes y administradores.');
@@ -3057,6 +3075,12 @@ function openTeacherChatPanel() {
     }
     chatPanel.classList.add('active');
     loadChatContacts();
+    // La hora de cada conversacion ("Hace 5 min") se refresca mientras el panel esta abierto.
+    clearInterval(chatRelojTimer);
+    chatRelojTimer = setInterval(() => {
+        if (chatPanel.classList.contains('active')) renderChatList();
+        else { clearInterval(chatRelojTimer); chatRelojTimer = 0; }
+    }, 60000);
 }
 
 if (navChatBtn) navChatBtn.onclick = (e) => {
@@ -3071,7 +3095,13 @@ if (closeChatBtn) closeChatBtn.onclick = () => {
     chatPanel.classList.remove('active');
     closeActiveChat();
 };
-if (backToContactsBtn) backToContactsBtn.onclick = () => closeActiveChat();
+if (backToContactsBtn) backToContactsBtn.onclick = () => {
+    // En movil la conversacion tapa la lista: al volver, el foco va a su fila.
+    const uid = activeChatUid;
+    closeActiveChat();
+    renderChatList();
+    if (uid) chatContactsList.querySelector(`[data-uid="${escapeSelector(uid)}"]`)?.focus();
+};
 
 function closeActiveChat() {
     if (activeChatListener) {
@@ -3079,13 +3109,15 @@ function closeActiveChat() {
         activeChatListener = null;
     }
     activeChatId = null;
+    activeChatUid = null;
+    lecturaChatPendiente = null;
     conversationMessages.innerHTML = '';
     chatMessageInput.value = '';
     revisarContenido(sendMessageBtn);
     chatConversation.classList.remove('active');
     chatConversation.style.display = 'none';
     chatEmptyState.style.display = 'flex';
-    document.querySelectorAll('.contact-item').forEach(item => item.classList.remove('active'));
+    programarListaChat();
 }
 
 function loadChatContacts() {
@@ -3094,57 +3126,287 @@ function loadChatContacts() {
         return;
     }
 
+    // Ya se escuchan los contactos: basta con reintentar los chats que no se
+    // pudieron leer (con las reglas anteriores, los que aun no existian).
     if (chatContactsListener) {
-        chatContactsListener();
-        chatContactsListener = null;
+        resumenesChat.forEach((resumen, uid) => {
+            if (resumen.sinAcceso) escucharResumenChat(uid, resumen.chatId);
+        });
+        renderChatList();
+        return;
     }
 
     chatContactsList.innerHTML = '<div class="loading-spinner small">Cargando contactos...</div>';
+    escucharChatsLeidos();
+    // Margen para que lleguen los ultimos mensajes de cada chat antes de pintar
+    // la lista: asi las filas no saltan de "Contactos" a "Conversaciones".
+    chatCargaHasta = Date.now() + 3000;
 
     chatContactsListener = onValue(ref(db, 'users'), (snapshot) => {
-        chatContactsList.innerHTML = '';
-        if (!snapshot.exists()) {
-            allContactsCache = [];
-            renderInlineStatus(chatContactsList, 'No hay usuarios registrados para iniciar un chat.');
+        allContactsCache = [];
+        Object.entries(snapshot.val() || {}).forEach(([uid, userData]) => {
+            if (uid === currentUser.uid) return;
+            if (!userData?.role) return;
+            if (!isTeacherChatContactRole(userData.role)) return;
+            allContactsCache.push({ uid, ...userData });
+        });
+        sincronizarResumenesChat();
+
+        if (!allContactsCache.length) {
+            renderInlineStatus(chatContactsList, snapshot.exists()
+                ? 'No hay maestros, profesores, acudientes o directivos disponibles.'
+                : 'No hay usuarios registrados para iniciar un chat.');
             return;
         }
-
-        const users = snapshot.val();
-        let contactsHtml = '';
-        allContactsCache = [];
-
-        Object.entries(users).forEach(([uid, userData]) => {
-            if (uid === currentUser.uid) return;
-            if (!userData.role) return;
-            if (!isTeacherChatContactRole(userData.role)) return;
-
-            allContactsCache.push({ uid, ...userData });
-            const role = getRoleClass(userData.role);
-            const roleLabel = formatRoleLabel(userData.role);
-            const avatar = escapeAttribute(safeImageSrc(userData.avatar));
-            const safeUid = escapeAttribute(uid);
-            const safeName = escapeHTML(userData.name || 'Usuario');
-
-            contactsHtml += `
-                <div class="contact-item" data-uid="${safeUid}">
-                    <img src="${avatar}" class="avatar-small" alt="Avatar">
-                    <div class="contact-info">
-                        <div class="contact-name">${safeName} <span class="badge ${role}">${roleLabel}</span></div>
-                    </div>
-                </div>
-            `;
-        });
-
-        if (contactsHtml === '') {
-            renderInlineStatus(chatContactsList, 'No hay maestros, profesores, acudientes o directivos disponibles.');
-        } else {
-            chatContactsList.innerHTML = contactsHtml;
-        }
+        programarListaChat();
     }, (error) => {
         console.error('No se pudieron cargar los contactos del chat:', error);
+        // La escucha se cancelo: se vuelve a intentar al abrir el panel.
+        chatContactsListener = null;
         allContactsCache = [];
+        sincronizarResumenesChat();
         renderInlineStatus(chatContactsList, 'No se pudieron cargar los contactos. Revisa tu conexión y vuelve a intentarlo.');
     });
+}
+
+// Escucha los ultimos mensajes del chat con un contacto. Se vuelve a llamar si
+// la escucha anterior fallo o si el chat abierto resulto ser otro (el antiguo "v2_").
+function escucharResumenChat(uid, chatId = getChatId(currentUser.uid, uid)) {
+    const previo = resumenesChat.get(uid);
+    if (previo && previo.chatId === chatId && !previo.sinAcceso) return;
+    previo?.off?.();
+
+    const resumen = { chatId, off: null, mensajes: [], cargado: false, sinAcceso: false };
+    resumenesChat.set(uid, resumen);
+    const ultimos = query(ref(db, `chats/${chatId}/messages`), limitToLast(CHAT_MENSAJES_RESUMEN));
+    resumen.off = onValue(ultimos, (snapshot) => {
+        resumen.mensajes = Object.values(snapshot.val() || {})
+            .filter(msg => msg && typeof msg.text === 'string')
+            .sort((a, b) => (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0));
+        resumen.cargado = true;
+        resumen.sinAcceso = false;
+        programarListaChat();
+    }, () => {
+        // Con las reglas anteriores, leer un chat que aun no existe se deniega.
+        resumen.mensajes = [];
+        resumen.cargado = true;
+        resumen.sinAcceso = true;
+        programarListaChat();
+    });
+}
+
+function sincronizarResumenesChat() {
+    const vigentes = new Set(allContactsCache.map(contacto => contacto.uid));
+    resumenesChat.forEach((resumen, uid) => {
+        if (vigentes.has(uid)) return;
+        resumen.off?.();
+        resumenesChat.delete(uid);
+    });
+    vigentes.forEach(uid => {
+        if (!resumenesChat.has(uid)) escucharResumenChat(uid);
+    });
+}
+
+function detenerResumenesChat() {
+    resumenesChat.forEach(resumen => resumen.off?.());
+    resumenesChat = new Map();
+    if (chatLeidosListener) { chatLeidosListener(); chatLeidosListener = null; }
+    chatLeidos = {};
+    lecturaChatPendiente = null;
+    activeChatUid = null;
+    clearTimeout(chatListaTimer);
+    clearTimeout(chatEsperaTimer);
+    clearInterval(chatRelojTimer);
+    chatListaTimer = chatEsperaTimer = chatRelojTimer = 0;
+}
+
+// Hasta donde se leyo cada chat: chatsLeidos/{uid}/{chatId}, privado de cada persona.
+function escucharChatsLeidos() {
+    if (chatLeidosListener) return;
+    chatLeidosListener = onValue(ref(db, `chatsLeidos/${currentUser.uid}`), (snapshot) => {
+        // Se queda la marca mas reciente: la de esta sesion puede ir por delante
+        // de la guardada mientras la escritura llega al servidor.
+        Object.entries(snapshot.val() || {}).forEach(([chatId, hora]) => {
+            if (Number(hora) > (chatLeidos[chatId] || 0)) chatLeidos[chatId] = Number(hora);
+        });
+        programarListaChat();
+    }, (error) => {
+        // Sin la rama en las reglas solo cuenta lo leido durante esta sesion.
+        console.warn('No se pudieron leer las marcas de lectura del chat:', error);
+        chatLeidosListener = null;
+    });
+}
+
+// Guarda hasta donde se leyo un chat: la hora del ultimo mensaje recibido que se
+// ha visto. Con la app en segundo plano espera a que vuelva a verse.
+function marcarChatLeido(chatId, mensajes) {
+    const hora = mensajes.reduce((max, msg) => (getChatMessageSenderId(msg) === currentUser.uid
+        ? max
+        : Math.max(max, Number(msg.timestamp) || 0)), 0);
+    if (!hora || hora <= (chatLeidos[chatId] || 0)) return;
+    if (document.visibilityState !== 'visible') {
+        lecturaChatPendiente = { chatId, mensajes };
+        return;
+    }
+    chatLeidos[chatId] = hora;
+    programarListaChat();
+    set(ref(db, `chatsLeidos/${currentUser.uid}/${chatId}`), hora)
+        .catch(error => console.warn('No se pudo guardar la lectura del chat:', error));
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !lecturaChatPendiente) return;
+    const { chatId, mensajes } = lecturaChatPendiente;
+    lecturaChatPendiente = null;
+    if (chatId === activeChatId) marcarChatLeido(chatId, mensajes);
+});
+
+// Mensajes sin leer de un chat: los de la otra persona posteriores a la ultima
+// lectura y a la ultima respuesta propia. El chat abierto no tiene nada sin leer.
+function chatSinLeer(uid, resumen) {
+    if (uid === activeChatUid || !resumen) return 0;
+    const leido = chatLeidos[resumen.chatId] || 0;
+    let sinLeer = 0;
+    for (let i = resumen.mensajes.length - 1; i >= 0; i--) {
+        const msg = resumen.mensajes[i];
+        if (getChatMessageSenderId(msg) === currentUser.uid || (Number(msg.timestamp) || 0) <= leido) break;
+        sinLeer++;
+    }
+    return sinLeer;
+}
+
+// Hora del ultimo mensaje: corta en la fila y completa para el lector de pantalla.
+function horaRelativaChat(timestamp) {
+    const fecha = new Date(timestamp);
+    const hoy = new Date();
+    const ayer = new Date();
+    ayer.setDate(hoy.getDate() - 1);
+    const minutos = Math.max(0, Math.floor((hoy - fecha) / 60000));
+    if (minutos < 1) return { corta: 'Ahora', larga: 'ahora mismo' };
+    if (minutos < 60) return { corta: `Hace ${minutos} min`, larga: `hace ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}` };
+    if (fecha.toDateString() === hoy.toDateString()) {
+        const horas = Math.floor(minutos / 60);
+        return { corta: `Hace ${horas} h`, larga: `hace ${horas} ${horas === 1 ? 'hora' : 'horas'}` };
+    }
+    if (fecha.toDateString() === ayer.toDateString()) return { corta: 'Ayer', larga: 'ayer' };
+    if (minutos < 6 * 1440) {
+        const dia = fecha.toLocaleDateString('es-CO', { weekday: 'long' });
+        return { corta: dia.charAt(0).toUpperCase() + dia.slice(1), larga: `el ${dia}` };
+    }
+    const anio = fecha.getFullYear() !== hoy.getFullYear() ? { year: 'numeric' } : {};
+    return {
+        corta: fecha.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', ...anio }),
+        larga: `el ${fecha.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', ...anio })}`,
+    };
+}
+
+function recortarTexto(texto, max) {
+    return texto.length > max ? `${texto.slice(0, max - 1).trimEnd()}…` : texto;
+}
+
+function filaConversacionHtml({ contacto, ultimo, sinLeer }) {
+    const nombre = sanitizeName(contacto.name || 'Usuario');
+    const mio = getChatMessageSenderId(ultimo) === currentUser.uid;
+    const texto = String(ultimo.text || '').replace(/\s+/g, ' ').trim();
+    const hora = horaRelativaChat(Number(ultimo.timestamp) || Date.now());
+    const activa = contacto.uid === activeChatUid;
+    const muchos = sinLeer > CHAT_MAX_SIN_LEER;
+    // El nombre accesible lo dice todo en una frase; lo visible va dentro como decoracion.
+    const etiqueta = [
+        `Conversación con ${nombre}`,
+        formatRoleLabel(contacto.role),
+        sinLeer ? `${muchos ? `más de ${CHAT_MAX_SIN_LEER}` : sinLeer} sin leer` : '',
+        `último mensaje${mio ? ' tuyo' : ''}: ${recortarTexto(texto, 100)}`,
+        hora.larga,
+    ].filter(Boolean).join(', ');
+    return `<li><button type="button" class="contact-item chat-fila${sinLeer ? ' chat-fila--sin-leer' : ''}${activa ? ' active' : ''}" data-uid="${escapeAttribute(contacto.uid)}" aria-label="${escapeAttribute(etiqueta)}"${activa ? ' aria-current="true"' : ''}>
+        <img src="${escapeAttribute(safeImageSrc(contacto.avatar))}" class="avatar-small" alt="">
+        <span class="chat-fila__cuerpo">
+            <span class="chat-fila__linea">
+                <span class="contact-name">${escapeHTML(nombre)}</span>
+                <span class="chat-fila__hora">${escapeHTML(hora.corta)}</span>
+            </span>
+            <span class="chat-fila__linea">
+                <span class="chat-fila__extracto">${mio ? 'Tú: ' : ''}${escapeHTML(recortarTexto(texto, 140))}</span>
+                ${sinLeer ? `<b class="chat-fila__contador">${muchos ? `${CHAT_MAX_SIN_LEER}+` : sinLeer}</b>` : ''}
+            </span>
+        </span>
+    </button></li>`;
+}
+
+function filaContactoHtml(contacto) {
+    const nombre = sanitizeName(contacto.name || 'Usuario');
+    const rol = formatRoleLabel(contacto.role);
+    const activa = contacto.uid === activeChatUid;
+    return `<li><button type="button" class="contact-item chat-fila${activa ? ' active' : ''}" data-uid="${escapeAttribute(contacto.uid)}" aria-label="${escapeAttribute(`Iniciar conversación con ${nombre}, ${rol}`)}"${activa ? ' aria-current="true"' : ''}>
+        <img src="${escapeAttribute(safeImageSrc(contacto.avatar))}" class="avatar-small" alt="">
+        <span class="chat-fila__cuerpo">
+            <span class="chat-fila__linea">
+                <span class="contact-name">${escapeHTML(nombre)}</span>
+                <span class="badge ${getRoleClass(contacto.role)}">${escapeHTML(rol)}</span>
+            </span>
+        </span>
+    </button></li>`;
+}
+
+// Varias escuchas cambian a la vez (al abrir, al llegar un mensaje): se pinta una vez.
+function programarListaChat() {
+    if (chatListaTimer) return;
+    chatListaTimer = setTimeout(() => {
+        chatListaTimer = 0;
+        renderChatList();
+    }, 0);
+}
+
+function renderChatList() {
+    if (!currentUser || !canUseTeacherChat() || !allContactsCache.length) return;
+
+    const conversaciones = [];
+    const contactos = [];
+    let esperando = 0;
+    allContactsCache.forEach(contacto => {
+        const resumen = resumenesChat.get(contacto.uid);
+        if (!resumen?.cargado) esperando++;
+        const ultimo = resumen?.mensajes[resumen.mensajes.length - 1];
+        if (ultimo) conversaciones.push({ contacto, ultimo, sinLeer: chatSinLeer(contacto.uid, resumen) });
+        else contactos.push(contacto);
+    });
+    conversaciones.sort((a, b) => (Number(b.ultimo.timestamp) || 0) - (Number(a.ultimo.timestamp) || 0));
+    contactos.sort((a, b) => sanitizeName(a.name || '').localeCompare(sanitizeName(b.name || ''), 'es'));
+
+    clearTimeout(chatEsperaTimer);
+    if (esperando && Date.now() < chatCargaHasta) {
+        if (!chatContactsList.querySelector('.loading-spinner')) {
+            chatContactsList.innerHTML = '<div class="loading-spinner small">Cargando conversaciones...</div>';
+        }
+        chatEsperaTimer = setTimeout(renderChatList, chatCargaHasta - Date.now());
+        return;
+    }
+
+    const termino = normalizeModerationText(chatSearchInput?.value || '').trim();
+    const coincide = (contacto) => !termino || normalizeModerationText(sanitizeName(contacto.name || '')).includes(termino);
+    const filasConversaciones = conversaciones.filter(c => coincide(c.contacto)).map(filaConversacionHtml);
+    const filasContactos = contactos.filter(coincide).map(filaContactoHtml);
+
+    const partes = [];
+    if (filasConversaciones.length) {
+        partes.push(`<h3 class="chat-seccion" id="chat-seccion-conversaciones">Conversaciones</h3>
+            <ul class="chat-lista" aria-labelledby="chat-seccion-conversaciones">${filasConversaciones.join('')}</ul>`);
+    } else if (!termino) {
+        partes.push('<p class="chat-lista-nota">Aún no tienes conversaciones. Elige un contacto para escribirle.</p>');
+    }
+    if (filasContactos.length) {
+        partes.push(`<h3 class="chat-seccion" id="chat-seccion-contactos">${conversaciones.length ? 'Otros contactos' : 'Contactos'}</h3>
+            <ul class="chat-lista" aria-labelledby="chat-seccion-contactos">${filasContactos.join('')}</ul>`);
+    }
+    if (!partes.length) partes.push('<p class="chat-lista-nota">No hay nadie con ese nombre.</p>');
+
+    // Se redibuja sin perder el foco ni la posicion de la lista.
+    const enfocado = chatContactsList.contains(document.activeElement) ? document.activeElement.dataset.uid : null;
+    const scroll = chatContactsList.scrollTop;
+    chatContactsList.innerHTML = partes.join('');
+    chatContactsList.scrollTop = scroll;
+    if (enfocado) chatContactsList.querySelector(`[data-uid="${escapeSelector(enfocado)}"]`)?.focus();
 }
 
 if (chatContactsList) {
@@ -3155,13 +3417,7 @@ if (chatContactsList) {
 }
 
 if (chatSearchInput) {
-    chatSearchInput.addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase();
-        document.querySelectorAll('.contact-item').forEach(item => {
-            const name = item.querySelector('.contact-name').textContent.toLowerCase();
-            item.style.display = name.includes(term) ? 'flex' : 'none';
-        });
-    });
+    chatSearchInput.addEventListener('input', () => renderChatList());
 }
 
 // Id del chat entre dos personas: sus uid ordenados y unidos por "_". Las reglas
@@ -3211,9 +3467,8 @@ async function openChat(targetUid) {
         return;
     }
 
-    document.querySelectorAll('.contact-item').forEach(item => item.classList.remove('active'));
-    const contactItem = document.querySelector(`.contact-item[data-uid="${escapeSelector(targetUid)}"]`);
-    if(contactItem) contactItem.classList.add('active');
+    activeChatUid = targetUid;
+    renderChatList();
 
     chatEmptyState.style.display = 'none';
     chatConversation.style.display = 'flex';
@@ -3231,8 +3486,11 @@ async function openChat(targetUid) {
         renderInlineStatus(conversationMessages, 'No se pudo abrir el chat. Inténtalo de nuevo en unos minutos.');
         return;
     }
+    // El chat puede acabar de crearse (su escucha en la lista pudo fallar) o ser el antiguo.
+    escucharResumenChat(targetUid, activeChatId);
 
-    const messagesRef = ref(db, `chats/${activeChatId}/messages`);
+    const chatId = activeChatId;
+    const messagesRef = ref(db, `chats/${chatId}/messages`);
     activeChatListener = onValue(messagesRef, (snapshot) => {
         conversationMessages.innerHTML = '';
         if (!snapshot.exists()) {
@@ -3268,6 +3526,7 @@ async function openChat(targetUid) {
             `);
         });
         conversationMessages.innerHTML = messagesHtml.join('');
+        marcarChatLeido(chatId, msgs);
 
         setTimeout(() => {
             conversationMessages.scrollTop = conversationMessages.scrollHeight;

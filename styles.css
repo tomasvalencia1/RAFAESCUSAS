@@ -1127,14 +1127,46 @@
 
   .contacts-list { flex: 1; overflow-y: auto; padding: var(--space-2); display: grid; gap: var(--gap-filas); align-content: start; }
   .contact-item {
-    /* El JS conmuta display flex/none al filtrar. */
     display: flex; align-items: center; gap: var(--space-3);
-    min-height: var(--tap); padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-md); cursor: pointer;
+    width: 100%; min-height: var(--tap); padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md); cursor: pointer; text-align: start;
   }
   .contact-item:hover { background: var(--c-bg-sunken); }
   .contact-item.active { background: var(--c-primary-soft); }
   .contact-name { font-size: var(--fs-sm); font-weight: 500; }
+
+  /* Lista del chat: conversaciones arriba (extracto, hora y sin leer) y luego
+     el resto de contactos. Cada fila es un boton. */
+  .chat-seccion {
+    padding: var(--space-2) var(--space-3) 0;
+    font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--c-text-mute);
+  }
+  .chat-lista { display: grid; gap: 2px; }
+  .chat-lista-nota { padding: var(--space-2) var(--space-3); font-size: var(--fs-sm); color: var(--c-text-mute); }
+  .chat-fila .avatar-small { flex-shrink: 0; }
+  .chat-fila__cuerpo { flex: 1; min-width: 0; display: grid; gap: 2px; }
+  .chat-fila__linea { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+  .chat-fila .contact-name, .chat-fila__extracto {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .chat-fila .badge { flex-shrink: 0; }
+  .chat-fila__hora {
+    flex-shrink: 0; margin-inline-start: auto;
+    font-size: var(--fs-xs); color: var(--c-text-mute); font-variant-numeric: tabular-nums;
+  }
+  .chat-fila__extracto { flex: 1; font-size: var(--fs-xs); color: var(--c-text-mute); }
+  .chat-fila__contador {
+    flex-shrink: 0; display: inline-grid; place-items: center;
+    min-width: 20px; height: 20px; padding-inline: 6px;
+    border-radius: var(--radius-pill);
+    background: var(--c-primary); color: var(--c-on-primary);
+    font-size: 0.7rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  }
+  /* Sin leer: nombre y extracto en negrita, hora en azul y el contador. */
+  .chat-fila--sin-leer .contact-name { font-weight: 700; }
+  .chat-fila--sin-leer .chat-fila__extracto { color: var(--c-text); font-weight: 600; }
+  .chat-fila--sin-leer .chat-fila__hora { color: var(--c-primary); font-weight: 600; }
 
   .chat-conversation { flex: 1; flex-direction: column; min-width: 0; }
   /* En movil la lista ocupa todo el ancho: la conversacion se abre encima */
