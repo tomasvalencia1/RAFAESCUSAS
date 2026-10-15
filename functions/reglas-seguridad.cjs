@@ -210,9 +210,11 @@ const personalTasks = {
 
 // Solicitudes de rol: los campos que escribe la app al pedirlo, y solo los roles
 // que se piden (RESTRICTED_ROLES en app.js); al aprobar, ese texto pasa a ser el rol.
+// Los permisos son los de produccion: el panel lista la rama entera (solo admins).
 const roleRequests = {
+  '.read': `auth != null && ${ES_ADMIN()}`,
   $uid: {
-    '.read': `auth != null && (auth.uid === $uid || ${ES_ADMIN()})`,
+    '.read': 'auth != null && auth.uid === $uid',
     '.write': `auth != null && ((auth.uid === $uid && !data.exists() && newData.child('requestedRole').val() !== 'estudiante' && newData.child('status').val() === 'pending') || ${ES_ADMIN()})`,
     '.validate': "newData.hasChildren(['requestedRole', 'status'])",
     name: { '.validate': 'newData.isString() && newData.val().length <= 100' },

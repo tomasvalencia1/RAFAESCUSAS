@@ -78,7 +78,9 @@ const PARCHES = [
   { ruta: ['fcmTokens'], antesHuella: '791d502da6ce3f754c955ac48d41e5ce2a5425e0e20fd315909d610ca9fa3bd6', despues: SEGURIDAD.fcmTokens },
   { ruta: ['siguiendo'], antesHuella: '11bb30ea3ea35dcbddff92a28f2d084f19a434b1764c2b24103e9f6219db5db2', despues: SEGURIDAD.siguiendo },
   { ruta: ['personalTasks'], antesHuella: '791d502da6ce3f754c955ac48d41e5ce2a5425e0e20fd315909d610ca9fa3bd6', despues: SEGURIDAD.personalTasks },
-  { ruta: ['roleRequests'], antesHuella: '1c82a3ba255cef554c1663419005dcecdbe30c82ce93a4cc1d689b802a95c06e', despues: SEGURIDAD.roleRequests },
+  // roleRequests en produccion se edito en la consola (lectura de la rama para
+  // admins); esta es la huella de esa version viva, comprobada el 2026-10-15.
+  { ruta: ['roleRequests'], antesHuella: 'cd1079eb08cfccb801202daa0ef73d148044652d4161c5f4dc71d472711efd75', despues: SEGURIDAD.roleRequests },
   ...Object.entries(SEGURIDAD.soporteCampos).map(([campo, regla]) => ({
     ruta: ['soporte', '$ticketId', campo], antes: undefined, despues: regla,
   })),
