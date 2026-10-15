@@ -251,6 +251,82 @@ let initialAuthFinishPromise = null;
 let isLoginInProgress = false;
 let pendingAndroidFcmToken = null;
 let androidGoogleSignInTimeout = null;
+
+// === AVISOS BREVES ===
+// Sustituyen a alert(): no bloquean la pantalla y el lector de pantalla los lee
+// (#aviso tiene role="status"). Con `accion`, el aviso ofrece un boton, p. ej.
+// "Reintentar". Los mensajes hablan como el usuario: nada de Firebase ni reglas.
+const avisoEl = document.getElementById('aviso');
+const avisoTexto = document.getElementById('aviso-texto');
+const avisoBoton = document.getElementById('aviso-accion');
+let avisoTemporizador = 0;
+let avisoAccion = null;
+
+function avisar(mensaje, { accion = null, textoAccion = 'Reintentar' } = {}) {
+    if (!avisoEl) return;
+    avisoAccion = accion;
+    avisoTexto.textContent = mensaje;
+    avisoBoton.hidden = !accion;
+    avisoBoton.textContent = textoAccion;
+    avisoEl.classList.add('is-visible');
+    programarCierreAviso();
+}
+
+function programarCierreAviso() {
+    clearTimeout(avisoTemporizador);
+    // Con boton se deja mas tiempo para alcanzarlo.
+    avisoTemporizador = setTimeout(cerrarAviso, avisoAccion ? 10000 : 6000);
+}
+
+function cerrarAviso() {
+    clearTimeout(avisoTemporizador);
+    avisoEl?.classList.remove('is-visible');
+    avisoAccion = null;
+}
+
+avisoBoton?.addEventListener('click', () => {
+    const accion = avisoAccion;
+    cerrarAviso();
+    accion?.();
+});
+// Mientras el dedo o el foco estan sobre el aviso, no se cierra solo.
+avisoEl?.addEventListener('pointerenter', () => clearTimeout(avisoTemporizador));
+avisoEl?.addEventListener('focusin', () => clearTimeout(avisoTemporizador));
+avisoEl?.addEventListener('pointerleave', () => { if (avisoEl.classList.contains('is-visible')) programarCierreAviso(); });
+avisoEl?.addEventListener('focusout', () => { if (avisoEl.classList.contains('is-visible')) programarCierreAviso(); });
+
+// Formularios de varios campos: en vez de no hacer nada, se marcan los campos
+// vacios, se pone el foco en el primero y se dice exactamente que falta.
+// `campos` es una lista de [campo, mensaje si esta vacio].
+function faltanCampos(campos) {
+    const vacios = campos.filter(([campo]) => campo && !campo.value.trim());
+    campos.forEach(([campo]) => campo?.setAttribute('aria-invalid', String(vacios.some(([vacio]) => vacio === campo))));
+    if (!vacios.length) return false;
+    const [primero, mensaje] = vacios[0];
+    primero.focus();
+    avisar(mensaje);
+    return true;
+}
+document.addEventListener('input', event => {
+    if (event.target.getAttribute?.('aria-invalid') === 'true' && event.target.value.trim()) {
+        event.target.setAttribute('aria-invalid', 'false');
+    }
+});
+
+// Botones de envio de un solo campo: se activan solo cuando hay algo que enviar.
+// Mientras se envia (aria-busy) el boton sigue desactivado aunque se escriba.
+const contenidoRequerido = new Map();
+function exigirContenido(boton, hayContenido, campos) {
+    if (!boton) return;
+    contenidoRequerido.set(boton, hayContenido);
+    campos.forEach(campo => campo?.addEventListener('input', () => revisarContenido(boton)));
+    revisarContenido(boton);
+}
+function revisarContenido(boton) {
+    const hayContenido = contenidoRequerido.get(boton);
+    if (!boton || !hayContenido || boton.getAttribute('aria-busy') === 'true') return;
+    boton.disabled = !hayContenido();
+}
 // 'maestro' se mantiene aquí solo por compatibilidad con cuentas antiguas que ya
 // tenían ese rol guardado en la base de datos. Ya no se puede elegir desde el menú.
 const TEACHER_CHAT_ROLES = ['maestro', 'profesor', 'padre', 'acudiente', 'directivo'];
@@ -417,7 +493,7 @@ if (testNotificationsBtn) testNotificationsBtn.addEventListener('click', async (
 async function signInWithAndroidGoogle(idToken) {
     if (!idToken) {
         setLoginButtonLoading(false);
-        alert('No se recibio el token de Google. Intenta iniciar sesion de nuevo.');
+        avisar('No se pudo completar el inicio de sesión con Google.', { accion: () => loginGoogleBtn.click() });
         return;
     }
 
@@ -425,7 +501,7 @@ async function signInWithAndroidGoogle(idToken) {
     clearTimeout(androidGoogleSignInTimeout);
     androidGoogleSignInTimeout = setTimeout(() => {
         setLoginButtonLoading(false);
-        alert('El inicio de sesion tardo demasiado. Revisa tu conexion e intenta de nuevo.');
+        avisar('El inicio de sesión tardó demasiado. Revisa tu conexión.', { accion: () => loginGoogleBtn.click() });
     }, 20000);
 
     try {
@@ -436,7 +512,7 @@ async function signInWithAndroidGoogle(idToken) {
         clearTimeout(androidGoogleSignInTimeout);
         console.error('No se pudo iniciar sesion con Google nativo:', error);
         setLoginButtonLoading(false);
-        alert('No se pudo iniciar sesion con Google.');
+        avisar('No se pudo iniciar sesión con Google.', { accion: () => loginGoogleBtn.click() });
     }
 }
 
@@ -635,12 +711,6 @@ document.addEventListener('click', (e) => {
     }
 });
 
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && profilePopover.classList.contains('active')) {
-        closeProfilePopover();
-    }
-});
-
 function updateProfileStats() {
     if (!currentUser) return;
 
@@ -725,7 +795,7 @@ loginGoogleBtn.addEventListener('click', async () => {
 
         if (isAndroidWebView()) {
             setLoginButtonLoading(false);
-            alert('Esta version de la app necesita actualizarse para iniciar sesion con Google. Instala la APK nueva o abre RafaExcusas desde un navegador.');
+            avisar('Esta versión de la app ya no puede iniciar sesión. Instala la versión nueva de RafaConecta o entra desde el navegador.');
             return;
         }
 
@@ -746,7 +816,7 @@ loginGoogleBtn.addEventListener('click', async () => {
         // Cerrar la ventana de Google no es un error: solo se vuelve al boton.
         if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request') return;
         console.error(error);
-        alert("Hubo un error al iniciar sesión.");
+        avisar('No se pudo iniciar sesión.', { accion: () => loginGoogleBtn.click() });
     }
 });
 logoutBtn.addEventListener('click', async (event) => {
@@ -762,7 +832,7 @@ logoutBtn.addEventListener('click', async (event) => {
         await signOut(auth);
     } catch (error) {
         console.error('No se pudo cerrar sesión:', error);
-        alert('No se pudo cerrar la sesión. Inténtalo de nuevo.');
+        avisar('No se pudo cerrar la sesión.', { accion: () => logoutBtn.click() });
     } finally {
         // Se restaura siempre, no solo si falla: si no, al volver a iniciar sesión
         // en la misma pestaña el botón seguía en "Cerrando sesión..." y desactivado.
@@ -891,9 +961,6 @@ document.getElementById('edit-profile-btn')?.addEventListener('click', abrirEdit
 document.getElementById('close-edit-profile-btn')?.addEventListener('click', cerrarEditorDePerfil);
 document.getElementById('cancel-edit-profile-btn')?.addEventListener('click', cerrarEditorDePerfil);
 editProfileModal?.addEventListener('click', event => { if (event.target === editProfileModal) cerrarEditorDePerfil(); });
-document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && editProfileModal?.classList.contains('active')) cerrarEditorDePerfil();
-});
 // Validacion en linea: una vez marcado el error, se re-evalua al escribir.
 editProfileName?.addEventListener('input', () => {
     if (editProfileName.getAttribute('aria-invalid') === 'true') validarNombre();
@@ -1050,9 +1117,7 @@ document.getElementById('nav-support-inbox-btn')?.addEventListener('click', even
 });
 document.getElementById('close-support-inbox-btn')?.addEventListener('click', cerrarBuzonDeSoporte);
 supportInboxModal?.addEventListener('click', event => { if (event.target === supportInboxModal) cerrarBuzonDeSoporte(); });
-document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && supportInboxModal?.classList.contains('active')) cerrarBuzonDeSoporte();
-});
+// Escape (como el boton Atras de Android) lo gestiona modales.js para todas las ventanas.
 
 document.querySelectorAll('[data-support-filter]').forEach(boton => {
     boton.addEventListener('click', () => {
@@ -1331,11 +1396,10 @@ document.querySelectorAll('.role-card').forEach(card => {
                 return;
             }
         } catch (error) {
-            console.error(error);
-            const isPermissionError = (error && (error.code === 'PERMISSION_DENIED' || /permission_denied/i.test(error.message || '')));
-            alert(isPermissionError
-                ? 'Firebase rechazó el guardado por permisos (PERMISSION_DENIED). Esto pasa si las reglas de Realtime Database en Firebase todavía no incluyen el nodo "roleRequests". Actualiza las reglas en la consola de Firebase y vuelve a intentar.'
-                : `No se pudo procesar tu selección de rol: ${error && error.message ? error.message : 'error desconocido'}. Intenta de nuevo.`);
+            // El detalle tecnico (p. ej. PERMISSION_DENIED por reglas sin "roleRequests")
+            // queda en la consola; al usuario solo se le dice que lo intente de nuevo.
+            console.error('No se pudo guardar la eleccion de rol:', error);
+            avisar('No se pudo guardar tu rol. Inténtalo de nuevo en unos minutos.');
             card.innerHTML = originalHTML;
             card.style.pointerEvents = '';
             card.style.opacity = '';
@@ -1344,12 +1408,25 @@ document.querySelectorAll('.role-card').forEach(card => {
 });
 
 // === MODALS TOGGLE & IMAGE UPLOAD ===
+const postTextarea = document.getElementById('post-textarea');
+const publishPostBtn = document.getElementById('publish-post-btn');
+const postExpiryNote = document.getElementById('post-expiry-note');
+
+// Las publicaciones de estudiantes se borran a las 24 horas: se avisa antes de
+// escribir, no despues de publicar.
+function abrirCompositor() {
+    if (postExpiryNote) postExpiryNote.hidden = normalizeRole(userRole) !== 'estudiante';
+    revisarContenido(publishPostBtn);
+    postModal.classList.add('active');
+}
+exigirContenido(publishPostBtn, () => Boolean(postTextarea.value.trim() || currentPostImageBase64), [postTextarea]);
+
 const openModalBtnFeed = document.getElementById('open-modal-btn-feed');
-if (openModalBtnFeed) openModalBtnFeed.onclick = () => postModal.classList.add('active');
+if (openModalBtnFeed) openModalBtnFeed.onclick = abrirCompositor;
 
 const openModalBtn = document.getElementById('open-modal-btn');
-if (openModalBtn) openModalBtn.onclick = () => postModal.classList.add('active');
-if (mobileOpenModalBtn) mobileOpenModalBtn.onclick = () => postModal.classList.add('active');
+if (openModalBtn) openModalBtn.onclick = abrirCompositor;
+if (mobileOpenModalBtn) mobileOpenModalBtn.onclick = abrirCompositor;
 if (mobileHomeBtn) mobileHomeBtn.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
 document.getElementById('close-modal-btn').onclick = () => {
@@ -1382,7 +1459,7 @@ postImageInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
     if (!/^image\//.test(file.type)) {
-        alert('Elige un archivo de imagen.');
+        avisar('Ese archivo no es una imagen. Elige una foto.');
         resetImagePreview();
         return;
     }
@@ -1414,7 +1491,7 @@ postImageInput.addEventListener('change', (e) => {
                 datos = canvas.toDataURL('image/jpeg', calidad);
             }
             if (datos.length > IMAGEN_POST_MAX) {
-                alert('La imagen es demasiado pesada. Prueba con otra.');
+                avisar('La imagen es demasiado pesada. Prueba con otra.');
                 resetImagePreview();
                 return;
             }
@@ -1422,9 +1499,10 @@ postImageInput.addEventListener('change', (e) => {
 
             postImagePreview.src = currentPostImageBase64;
             imagePreviewContainer.style.display = 'block';
+            revisarContenido(publishPostBtn);
         };
         img.onerror = () => {
-            alert('No se pudo leer la imagen.');
+            avisar('No se pudo leer la imagen. Prueba con otra.');
             resetImagePreview();
         };
         img.src = event.target.result;
@@ -1441,6 +1519,7 @@ function resetImagePreview() {
     postImageInput.value = '';
     imagePreviewContainer.style.display = 'none';
     postImagePreview.src = '';
+    revisarContenido(publishPostBtn);
 }
 
 // === COMMUNITY FEED, EXPIRY, COMMENTS, FOLLOWS & MODERATION ===
@@ -1516,10 +1595,16 @@ function isExpiredStudentPost(post, now = Date.now()) {
     return normalizeRole(post?.authorRole) === 'estudiante' && postCreatedAt(post) > 0 && now >= postCreatedAt(post) + STUDENT_POST_TTL_MS;
 }
 
-function postExpiryLabel(post) {
+// Caducar es lo normal, no un error: el aviso va en gris y solo pasa a rojo
+// en la ultima hora, cuando de verdad conviene fijarse.
+function postExpiryHtml(post) {
     const remaining = Math.max(0, postCreatedAt(post) + STUDENT_POST_TTL_MS - Date.now());
-    const hours = Math.ceil(remaining / (60 * 60 * 1000));
-    return `Expira en ${hours}h`;
+    const hora = 60 * 60 * 1000;
+    const pronto = remaining < hora;
+    const texto = pronto
+        ? `Se borra en ${Math.max(1, Math.ceil(remaining / 60000))} min`
+        : `Visible ${Math.ceil(remaining / hora)} h más`;
+    return `<span class="post-expiry${pronto ? ' post-expiry--pronto' : ''}"><i class='bx bx-time-five' aria-hidden="true"></i>${texto}</span>`;
 }
 
 function formatPostTime(timestamp) {
@@ -1715,7 +1800,7 @@ function crearTarjeta(post) {
     // muestra junto a la hora para que nadie pase por profesor o directivo.
     const rol = normalizeRole(post.authorRole) ? `${escapeHTML(formatRoleLabel(post.authorRole))} · ` : '';
     const expiry = authorId === currentUser.uid && normalizeRole(post.authorRole) === 'estudiante'
-        ? `<span class="post-expiry">${postExpiryLabel(post)}</span>` : '';
+        ? postExpiryHtml(post) : '';
     const flagged = canManageContent() && post.flagged ? '<span class="post-flag">Pendiente de revisión</span>' : '';
     // Imagen: las publicaciones antiguas la llevan dentro; las nuevas, aparte
     // (imagenesPosts) y se descarga solo cuando la tarjeta se acerca a la pantalla.
@@ -1837,7 +1922,7 @@ function loadPosts() {
         cleanupExpiredStudentPosts(allPostsCache);
     }, error => {
         console.error('No se pudieron cargar las publicaciones:', error);
-        renderInlineStatus(postsContainer, 'No se pudieron cargar las publicaciones. Revisa las reglas de Firebase.');
+        renderInlineStatus(postsContainer, 'No se pudieron cargar las publicaciones. Revisa tu conexión y vuelve a abrir la app.');
     });
 }
 
@@ -1931,7 +2016,7 @@ async function toggleFollow(authorId) {
         else await set(path, { seguidoId: authorId, creadoEn: Date.now() });
     } catch (error) {
         console.error('No se pudo actualizar el seguimiento:', error);
-        alert('No se pudo actualizar el seguimiento. Inténtalo de nuevo.');
+        avisar('No se pudo actualizar el seguimiento. Inténtalo de nuevo.');
     } finally {
         followActionIds.delete(authorId);
         renderUserDirectoryResults();
@@ -1954,7 +2039,9 @@ async function submitComment(postId, input) {
         document.getElementById(`comments-${escapeSelector(postId)}`)?.classList.add('visible');
     } catch (error) {
         console.error('No se pudo publicar el comentario:', error);
-        alert('No se pudo publicar el comentario. Inténtalo de nuevo.');
+        // Se devuelve el texto para no obligar a escribirlo otra vez.
+        if (input && !input.value) input.value = text;
+        avisar('No se pudo publicar el comentario.', { accion: () => submitComment(postId, input) });
     }
 }
 
@@ -2010,7 +2097,7 @@ async function deletePostWithLog(postId) {
         await update(ref(db), updates);
     } catch (error) {
         console.error('No se pudo eliminar la publicación:', error);
-        alert('No se pudo eliminar la publicación. Revisa las reglas de Firebase.');
+        avisar('No se pudo eliminar la publicación. Inténtalo de nuevo.');
     }
 }
 
@@ -2022,7 +2109,7 @@ async function deleteComment(postId, commentId, authorId, commentPath = 'comenta
         await remove(ref(db, `posts/${postId}/${commentPath}/${commentId}`));
     } catch (error) {
         console.error('No se pudo eliminar el comentario:', error);
-        alert('No se pudo eliminar el comentario. Inténtalo de nuevo.');
+        avisar('No se pudo eliminar el comentario. Inténtalo de nuevo.');
     }
 }
 
@@ -2080,7 +2167,7 @@ teacherMessagesList?.addEventListener('click', async event => {
     } catch (error) {
         console.error('No se pudo borrar el aviso:', error);
         boton.disabled = false;
-        alert('No se pudo borrar el aviso. Inténtalo de nuevo.');
+        avisar('No se pudo borrar el aviso. Inténtalo de nuevo.');
     }
 });
 
@@ -2120,7 +2207,7 @@ async function sendTeacherMessage() {
         updateTeacherComposer();
     } catch (error) {
         console.error('No se pudo enviar el anuncio:', error);
-        alert('No se pudo enviar el anuncio. Revisa las reglas de Firebase.');
+        avisar('No se pudo enviar el mensaje. Revisa tu conexión.', { accion: sendTeacherMessage });
     }
 }
 
@@ -2146,6 +2233,7 @@ document.getElementById('publish-post-btn').addEventListener('click', async even
     if ((!text && !currentPostImageBase64) || !currentUser) return;
     const button = event.currentTarget;
     button.textContent = 'Publicando...'; button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
     try {
         const flagged = containsProhibitedWord(text);
         // La hora la pone el servidor (las reglas rechazan fechas futuras).
@@ -2173,8 +2261,12 @@ document.getElementById('publish-post-btn').addEventListener('click', async even
         resetImagePreview();
     } catch (error) {
         console.error('No se pudo publicar:', error);
-        alert('No se pudo publicar. Revisa tu conexión e inténtalo de nuevo.');
-    } finally { button.textContent = 'Publicar'; button.disabled = false; }
+        avisar('No se pudo publicar. Revisa tu conexión.', { accion: () => button.click() });
+    } finally {
+        button.textContent = 'Publicar';
+        button.removeAttribute('aria-busy');
+        revisarContenido(button);
+    }
 });
 
 postsContainer.addEventListener('click', async event => {
@@ -2194,7 +2286,7 @@ postsContainer.addEventListener('click', async event => {
             else await set(likeRef, true);
         } catch (error) {
             console.error('No se pudo guardar el me gusta:', error);
-            alert('No se pudo guardar tu me gusta. Inténtalo de nuevo.');
+            avisar('No se pudo guardar tu me gusta. Inténtalo de nuevo.');
         } finally {
             delete likeButton.dataset.guardando;
         }
@@ -2217,6 +2309,8 @@ postsContainer.addEventListener('keypress', event => {
     input.addEventListener('input', renderUserDirectoryResults);
     input.addEventListener('keydown', event => {
         if (event.key === 'Escape') {
+            // Solo limpia la busqueda: que no cierre ademas la ventana de debajo.
+            event.preventDefault();
             input.value = '';
             input.blur();
             renderUserDirectoryResults();
@@ -2255,7 +2349,7 @@ moderationPostsList?.addEventListener('click', async event => {
     } catch (error) {
         console.error('No se pudo descartar la alerta:', error);
         dismissButton.disabled = false;
-        alert('No se pudo descartar la alerta. Inténtalo de nuevo.');
+        avisar('No se pudo descartar la alerta. Inténtalo de nuevo.');
     }
 });
 
@@ -2287,17 +2381,26 @@ document.getElementById('send-support-btn')?.addEventListener('click', async eve
     if (!text || !currentUser) return;
     const button = event.currentTarget;
     button.disabled = true; button.textContent = 'Enviando...';
+    button.setAttribute('aria-busy', 'true');
     try {
         await set(push(ref(db, 'soporte')), { userId: currentUser.uid, texto: text, timestamp: Date.now(), estado: 'pendiente' });
         avisarDespachadorDeNotificaciones();
         supportText.value = '';
         button.textContent = '¡Solicitud enviada!';
-        setTimeout(() => { supportModal?.classList.remove('active'); button.textContent = 'Enviar solicitud'; button.disabled = false; }, 1200);
+        setTimeout(() => {
+            supportModal?.classList.remove('active');
+            button.textContent = 'Enviar solicitud';
+            button.removeAttribute('aria-busy');
+            revisarContenido(button);
+        }, 1200);
     } catch (error) {
         console.error('No se pudo enviar soporte:', error);
-        button.textContent = 'Reintentar'; button.disabled = false;
+        button.textContent = 'Reintentar';
+        button.removeAttribute('aria-busy');
+        button.disabled = false;
     }
 });
+exigirContenido(document.getElementById('send-support-btn'), () => Boolean(supportText?.value.trim()), [supportText]);
 
 // === ADMIN WIDGETS LOGIC (News, Reports, Events) ===
 
@@ -2312,7 +2415,7 @@ async function publicarUnaVez(boton, accion) {
         await accion();
     } catch (error) {
         console.error('No se pudo publicar:', error);
-        alert('No se pudo publicar. Revisa tu conexión e inténtalo de nuevo.');
+        avisar('No se pudo publicar. Revisa tu conexión.', { accion: () => boton.click() });
     } finally {
         boton.disabled = false;
         boton.innerHTML = texto;
@@ -2326,7 +2429,7 @@ async function borrarConConfirmacion(pregunta, ruta) {
         await remove(ref(db, ruta));
     } catch (error) {
         console.error('No se pudo borrar:', error);
-        alert('No se pudo borrar. Inténtalo de nuevo.');
+        avisar('No se pudo borrar. Inténtalo de nuevo.');
     }
 }
 
@@ -2338,7 +2441,11 @@ let eventsListener = null;
 document.getElementById('publish-news-btn').onclick = (e) => {
     const t = document.getElementById('news-title-input').value.trim();
     const d = document.getElementById('news-desc-input').value.trim();
-    if(!t || !d || !isAdmin) return;
+    if (!isAdmin) return;
+    if (faltanCampos([
+        [document.getElementById('news-title-input'), 'Escribe el título de la noticia.'],
+        [document.getElementById('news-desc-input'), 'Escribe la descripción de la noticia.'],
+    ])) return;
     hapticTap([10,30,10]);
     publicarUnaVez(e.currentTarget, async () => {
         await set(push(ref(db, 'news')), { title: t, desc: d, timestamp: Date.now() });
@@ -2369,7 +2476,8 @@ function loadNews() {
 document.getElementById('publish-report-btn').onclick = (e) => {
     const title = document.getElementById('report-title-input').value.trim();
     const status = document.getElementById('report-status-input').value;
-    if(!title || !isAdmin) return;
+    if (!isAdmin) return;
+    if (faltanCampos([[document.getElementById('report-title-input'), 'Escribe el nombre del reporte.']])) return;
     hapticTap([10,30,10]);
     publicarUnaVez(e.currentTarget, async () => {
         await set(push(ref(db, 'reports')), { title, status, timestamp: Date.now() });
@@ -2404,7 +2512,11 @@ function loadReports() {
 document.getElementById('publish-event-btn').onclick = (e) => {
     const title = document.getElementById('event-title-input').value.trim();
     const date = document.getElementById('event-date-input').value;
-    if(!title || !date || !isAdmin) return;
+    if (!isAdmin) return;
+    if (faltanCampos([
+        [document.getElementById('event-title-input'), 'Escribe el nombre del evento.'],
+        [document.getElementById('event-date-input'), 'Elige la fecha del evento.'],
+    ])) return;
     hapticTap([10,30,10]);
     publicarUnaVez(e.currentTarget, async () => {
         await set(push(ref(db, 'events')), { title, date, timestamp: Date.now() });
@@ -2614,7 +2726,7 @@ async function togglePersonalTask(taskId) {
         });
     } catch (error) {
         console.error('No se pudo actualizar la tarea:', error);
-        alert('No se pudo actualizar la tarea. Intenta de nuevo.');
+        avisar('No se pudo actualizar la tarea. Intenta de nuevo.');
     }
 }
 
@@ -2626,7 +2738,7 @@ async function deletePersonalTask(taskId) {
         await remove(ref(db, `personalTasks/${currentUser.uid}/${taskId}`));
     } catch (error) {
         console.error('No se pudo eliminar la tarea:', error);
-        alert('No se pudo eliminar la tarea. Intenta de nuevo.');
+        avisar('No se pudo eliminar la tarea. Intenta de nuevo.');
     }
 }
 
@@ -2675,10 +2787,11 @@ document.getElementById('close-task-create-btn').onclick = () => taskCreateModal
 saveTaskBtn.onclick = async () => {
     const title = taskTitleInput.value.trim();
     const dueDate = taskDateInput.value;
-    if (!title || !dueDate || !currentUser) {
-        alert('Escribe el nombre y la fecha de entrega de la tarea.');
-        return;
-    }
+    if (!currentUser) return;
+    if (faltanCampos([
+        [taskTitleInput, 'Escribe el nombre de la tarea.'],
+        [taskDateInput, 'Elige la fecha de entrega.'],
+    ])) return;
     hapticTap([10,30,10]);
 
     saveTaskBtn.disabled = true;
@@ -2692,7 +2805,7 @@ saveTaskBtn.onclick = async () => {
         taskCreateModal.classList.remove('active');
     } catch (error) {
         console.error('No se pudo guardar la tarea:', error);
-        alert('No se pudo guardar la tarea. Revisa tu conexion e intenta de nuevo.');
+        avisar('No se pudo guardar la tarea. Revisa tu conexión.', { accion: () => saveTaskBtn.click() });
     } finally {
         saveTaskBtn.disabled = false;
     }
@@ -2783,7 +2896,7 @@ if (resetGameBtn) resetGameBtn.onclick = () => {
 // === CHAT SYSTEM ===
 function openTeacherChatPanel() {
     if (!canUseTeacherChat()) {
-        alert('El chat está disponible solo para maestros, profesores, acudientes y administradores.');
+        avisar('El chat está disponible solo para maestros, profesores, acudientes y administradores.');
         return;
     }
     chatPanel.classList.add('active');
@@ -2812,6 +2925,7 @@ function closeActiveChat() {
     activeChatId = null;
     conversationMessages.innerHTML = '';
     chatMessageInput.value = '';
+    revisarContenido(sendMessageBtn);
     chatConversation.classList.remove('active');
     chatConversation.style.display = 'none';
     chatEmptyState.style.display = 'flex';
@@ -2873,7 +2987,7 @@ function loadChatContacts() {
     }, (error) => {
         console.error('No se pudieron cargar los contactos del chat:', error);
         allContactsCache = [];
-        renderInlineStatus(chatContactsList, 'No se pudieron cargar los contactos. Revisa las reglas de Firebase para permitir leer users.');
+        renderInlineStatus(chatContactsList, 'No se pudieron cargar los contactos. Revisa tu conexión y vuelve a intentarlo.');
     });
 }
 
@@ -2931,13 +3045,13 @@ async function resolverChat(targetUid) {
 
 async function openChat(targetUid) {
     if (!canUseTeacherChat()) {
-        alert('El chat está disponible solo para maestros, profesores, acudientes y administradores.');
+        avisar('El chat está disponible solo para maestros, profesores, acudientes y administradores.');
         return;
     }
 
     const targetUser = allContactsCache.find(u => u.uid === targetUid);
     if (!targetUser || !isTeacherChatContactRole(targetUser.role)) {
-        alert('No se pudo abrir este contacto. Actualiza la lista e inténtalo de nuevo.');
+        avisar('No se pudo abrir este contacto. Actualiza la lista e inténtalo de nuevo.');
         return;
     }
 
@@ -3004,7 +3118,7 @@ async function openChat(targetUid) {
         }, 100);
     }, (error) => {
         console.error('No se pudieron cargar los mensajes:', error);
-        renderInlineStatus(conversationMessages, 'No se pudieron cargar los mensajes. Revisa las reglas de Firebase para chats.');
+        renderInlineStatus(conversationMessages, 'No se pudieron cargar los mensajes. Revisa tu conexión y vuelve a intentarlo.');
     });
 }
 
@@ -3025,6 +3139,7 @@ async function sendChatMessage() {
 
     chatMessageInput.value = '';
     sendMessageBtn.disabled = true;
+    sendMessageBtn.setAttribute('aria-busy', 'true');
     const chatId = activeChatId;
     const messageId = push(ref(db, `chats/${chatId}/messages`)).key;
     // Mensaje y resumen del chat en una sola escritura. La hora la pone el
@@ -3046,12 +3161,14 @@ async function sendChatMessage() {
     } catch (error) {
         console.error('No se pudo enviar el mensaje:', error);
         chatMessageInput.value = text;
-        alert('No se pudo enviar el mensaje. Revisa la conexión o las reglas de Firebase para chats.');
+        avisar('No se pudo enviar el mensaje. Revisa tu conexión.', { accion: sendChatMessage });
     } finally {
-        sendMessageBtn.disabled = false;
+        sendMessageBtn.removeAttribute('aria-busy');
+        revisarContenido(sendMessageBtn);
         chatMessageInput.focus();
     }
 }
+exigirContenido(sendMessageBtn, () => Boolean(chatMessageInput.value.trim()), [chatMessageInput]);
 
 // === ADMIN USERS MANAGEMENT ===
 // Las escuchas se crean una sola vez por sesion. Antes cada apertura de la
@@ -3230,7 +3347,7 @@ function renderAdminUsers(filter = '') {
             } catch (error) {
                 console.error('No se pudo cambiar el rol:', error);
                 e.target.value = previousRole;
-                alert('No se pudo cambiar el rol. Inténtalo de nuevo.');
+                avisar('No se pudo cambiar el rol. Inténtalo de nuevo.');
             }
         });
     });
@@ -3246,7 +3363,7 @@ function renderAdminUsers(filter = '') {
             } catch (error) {
                 console.error('No se pudo aprobar la solicitud:', error);
                 btn.disabled = false;
-                alert('No se pudo aprobar la solicitud. Inténtalo de nuevo.');
+                avisar('No se pudo aprobar la solicitud. Inténtalo de nuevo.');
             }
         });
     });
@@ -3259,7 +3376,7 @@ function renderAdminUsers(filter = '') {
             } catch (error) {
                 console.error('No se pudo aprobar la cuenta:', error);
                 btn.disabled = false;
-                alert('No se pudo aprobar la cuenta. Inténtalo de nuevo.');
+                avisar('No se pudo aprobar la cuenta. Inténtalo de nuevo.');
             }
         });
     });
@@ -3273,7 +3390,7 @@ function renderAdminUsers(filter = '') {
             } catch (error) {
                 console.error('No se pudo quitar el acceso:', error);
                 btn.disabled = false;
-                alert('No se pudo quitar el acceso. Inténtalo de nuevo.');
+                avisar('No se pudo quitar el acceso. Inténtalo de nuevo.');
             }
         });
     });
@@ -3289,7 +3406,7 @@ function renderAdminUsers(filter = '') {
             } catch (error) {
                 console.error('No se pudo rechazar la solicitud:', error);
                 btn.disabled = false;
-                alert('No se pudo rechazar la solicitud. Inténtalo de nuevo.');
+                avisar('No se pudo rechazar la solicitud. Inténtalo de nuevo.');
             }
         });
     });

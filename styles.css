@@ -753,7 +753,12 @@
     display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end;
     gap: var(--space-2); margin-inline-start: auto;
   }
-  .post-expiry { font-size: var(--fs-xs); color: var(--c-error); font-weight: 600; }
+  /* Caducar es lo normal: gris con reloj. Rojo solo en la ultima hora. */
+  .post-expiry {
+    display: inline-flex; align-items: center; gap: var(--space-1);
+    font-size: var(--fs-xs); color: var(--c-text-mute); font-weight: 600;
+  }
+  .post-expiry--pronto { color: var(--c-error); }
   .user-details { display: grid; gap: 1px; min-width: 0; }
   .username { font-size: var(--fs-sm); font-weight: 600; }
   .post-meta { font-size: var(--fs-xs); color: var(--c-text-mute); display: flex; gap: var(--space-2); flex-wrap: wrap; }
@@ -1650,6 +1655,49 @@
         .feed-tab:not([aria-selected="true"])):hover { color: var(--c-text-2); }
     .mobile-nav-item:not(.active):not(.create-btn):hover { color: var(--c-text-mute); }
   }
+
+  /* --- 5.31 Avisos breves (sustituyen a alert()) -----------------------------------
+     Colores invertidos para separarse del contenido; quedan sobre la barra inferior
+     y no bloquean la pantalla. Siempre en el DOM para que el lector de pantalla
+     anuncie el cambio de texto (role="status"). */
+  .aviso {
+    position: fixed; z-index: var(--z-toast);
+    inset-inline: var(--space-4);
+    inset-block-end: calc(var(--mobile-bar-h) + var(--safe-bottom) + var(--space-3));
+    max-width: 28rem; margin-inline: auto;
+    display: flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+    min-height: var(--tap);
+    border-radius: var(--radius-md);
+    background: var(--c-text); color: var(--c-surface);
+    box-shadow: var(--elev-3);
+    font-size: var(--fs-sm); line-height: 1.4;
+    opacity: 0; transform: translateY(var(--space-2)); pointer-events: none;
+    transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
+  }
+  .aviso.is-visible { opacity: 1; transform: none; pointer-events: auto; }
+  .aviso:not(.is-visible) * { visibility: hidden; }
+  #aviso-texto { flex: 1; }
+  .aviso__accion {
+    flex-shrink: 0; min-height: var(--tap); padding-inline: var(--space-3);
+    border-radius: var(--radius-sm);
+    color: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .aviso__accion:focus-visible { outline: 2px solid var(--c-surface); outline-offset: 2px; }
+  @media (min-width: 1024px) {
+    .aviso { inset-block-end: var(--space-6); }
+  }
+
+  /* --- 5.32 Avisos dentro de formularios y foco de las ventanas ------------------- */
+  .composer-note {
+    display: flex; align-items: center; gap: var(--space-2);
+    font-size: var(--fs-xs); color: var(--c-text-2);
+  }
+  .send-message-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+  /* La ventana recibe el foco solo para que el lector de pantalla la anuncie;
+     no es un control, asi que no se dibuja un anillo a su alrededor. */
+  .modal-content[tabindex="-1"]:focus { outline: none; }
 }
 
 /* ====================================================== 6 · UTILIDADES ==== */

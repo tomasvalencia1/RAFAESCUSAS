@@ -45,9 +45,11 @@
     </script>
 
     <!-- Módulos de Firebase y Lógica -->
-    <script type="module" src="app.js?v=21"></script>
+    <script type="module" src="app.js?v=22"></script>
     <!-- Navegacion por configuracion: barra inferior y hoja "Más" -->
     <script type="module" src="navegacion.js?v=12"></script>
+    <!-- Ventanas modales: foco, Escape y lector de pantalla -->
+    <script type="module" src="modales.js?v=1"></script>
 
     <!-- Iconos -->
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet' integrity='sha384-42kyIPf7HDYLkGffmxDhSx/3Z/53wGBs3nD6wEFxsbeDc7rMO6mkYbkAcpRsnMU2' crossorigin='anonymous'>
@@ -57,7 +59,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&display=swap">
 
-    <link rel="stylesheet" href="styles.css?v=18">
+    <link rel="stylesheet" href="styles.css?v=19">
 </head>
 <body>
 
@@ -353,10 +355,11 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h2>Crear nueva publicación</h2>
-                    <button class="close-modal-btn" id="close-modal-btn"><i class='bx bx-x'></i></button>
+                    <button class="close-modal-btn" id="close-modal-btn" type="button" aria-label="Cerrar"><i class='bx bx-x'></i></button>
                 </div>
                 <div class="modal-body">
-                    <textarea id="post-textarea" maxlength="2000" placeholder="¿Qué hay de nuevo en la institución?" rows="4"></textarea>
+                    <textarea id="post-textarea" maxlength="2000" placeholder="¿Qué hay de nuevo en la institución?" rows="4" aria-label="Texto de la publicación" aria-describedby="post-expiry-note" data-autofocus></textarea>
+                    <p class="composer-note" id="post-expiry-note" hidden><i class='bx bx-time-five' aria-hidden="true"></i> Las publicaciones de estudiantes se ven durante 24 horas.</p>
                     <div id="image-preview-container" class="image-preview" style="display: none;">
                         <img id="post-image-preview" src="" alt="Vista previa de la imagen adjunta">
                         <button id="remove-image-btn" type="button" aria-label="Quitar la imagen"><i class='bx bx-x'></i></button>
@@ -380,10 +383,10 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h2>Añadir Noticia Institucional</h2>
-                    <button class="close-modal-btn" id="close-news-modal-btn"><i class='bx bx-x'></i></button>
+                    <button class="close-modal-btn" id="close-news-modal-btn" type="button" aria-label="Cerrar"><i class='bx bx-x'></i></button>
                 </div>
                 <div class="modal-body">
-                    <input type="text" id="news-title-input" placeholder="Título de la noticia" class="text-input">
+                    <input type="text" id="news-title-input" placeholder="Título de la noticia" class="text-input" aria-label="Título de la noticia" data-autofocus>
                     <textarea id="news-desc-input" placeholder="Descripción corta" rows="3"></textarea>
                 </div>
                 <div class="modal-footer">
@@ -397,10 +400,10 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h2>Añadir Reporte Rápido</h2>
-                    <button class="close-modal-btn" id="close-report-modal-btn"><i class='bx bx-x'></i></button>
+                    <button class="close-modal-btn" id="close-report-modal-btn" type="button" aria-label="Cerrar"><i class='bx bx-x'></i></button>
                 </div>
                 <div class="modal-body">
-                    <input type="text" id="report-title-input" placeholder="Nombre del reporte (Ej: Boletines P2)" class="text-input">
+                    <input type="text" id="report-title-input" placeholder="Nombre del reporte (Ej: Boletines P2)" class="text-input" aria-label="Nombre del reporte" data-autofocus>
                     <select id="report-status-input" class="text-input">
                         <option value="Disponible">Disponible</option>
                         <option value="Pendiente">Pendiente</option>
@@ -436,10 +439,10 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h2>Añadir Nuevo Evento</h2>
-                    <button class="close-modal-btn" id="close-event-create-btn"><i class='bx bx-x'></i></button>
+                    <button class="close-modal-btn" id="close-event-create-btn" type="button" aria-label="Cerrar"><i class='bx bx-x'></i></button>
                 </div>
                 <div class="modal-body">
-                    <input type="text" id="event-title-input" placeholder="Título del evento" class="text-input">
+                    <input type="text" id="event-title-input" placeholder="Título del evento" class="text-input" aria-label="Título del evento" data-autofocus>
                     <input type="date" id="event-date-input" class="text-input">
                 </div>
                 <div class="modal-footer">
@@ -504,7 +507,7 @@
             <div class="modal-content games-modal-content">
                 <div class="modal-header">
                     <h2>Juegos y Retos</h2>
-                    <button class="close-modal-btn" id="close-games-modal-btn"><i class='bx bx-x'></i></button>
+                    <button class="close-modal-btn" id="close-games-modal-btn" type="button" aria-label="Cerrar"><i class='bx bx-x'></i></button>
                 </div>
                 <div class="modal-body">
                     <p class="modal-intro">¡Tres en Raya! Juega contra ti mismo o un amigo a tu lado.</p>
@@ -573,7 +576,7 @@
             <div class="chat-sidebar">
                 <div class="chat-header">
                     <h2>Chat institucional</h2>
-                    <button class="close-chat-btn" id="close-chat-btn"><i class='bx bx-x'></i></button>
+                    <button class="close-chat-btn" id="close-chat-btn" type="button" aria-label="Cerrar chat"><i class='bx bx-x'></i></button>
                 </div>
                 <div class="chat-search">
                     <i class='bx bx-search'></i>
@@ -586,7 +589,7 @@
             <!-- Conversation Area -->
             <div class="chat-conversation" id="chat-conversation" style="display: none;">
                 <div class="conversation-header">
-                    <button class="back-to-contacts-btn" id="back-to-contacts-btn"><i class='bx bx-arrow-back'></i></button>
+                    <button class="back-to-contacts-btn" id="back-to-contacts-btn" type="button" aria-label="Volver a los contactos"><i class='bx bx-arrow-back'></i></button>
                     <img src="" id="chat-active-avatar" class="avatar-small">
                     <div class="chat-active-info">
                         <h3 id="chat-active-name">Nombre</h3>
@@ -597,8 +600,8 @@
                     <!-- Messages go here -->
                 </div>
                 <div class="conversation-input">
-                    <input type="text" id="chat-message-input" maxlength="1000" placeholder="Escribe un mensaje...">
-                    <button id="send-message-btn" class="send-message-btn"><i class='bx bxs-send'></i></button>
+                    <input type="text" id="chat-message-input" maxlength="1000" placeholder="Escribe un mensaje..." aria-label="Mensaje">
+                    <button id="send-message-btn" class="send-message-btn" type="button" aria-label="Enviar mensaje" disabled><i class='bx bxs-send'></i></button>
                 </div>
             </div>
             <!-- Empty state -->
@@ -719,6 +722,11 @@
     </div>
 
     <!-- Vercel Analytics -->
+    <!-- Avisos breves (sustituyen a alert()). Los escribe avisar() en app.js. -->
+    <div id="aviso" class="aviso" role="status" aria-live="polite" aria-atomic="true">
+        <span id="aviso-texto"></span>
+        <button id="aviso-accion" class="aviso__accion" type="button" hidden>Reintentar</button>
+    </div>
     <script defer src="/_vercel/insights/script.js"></script>
 
 </body>
