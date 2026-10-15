@@ -51,6 +51,13 @@ const PARCHES = [
     antes: "auth != null && auth.uid === $profesorId && (root.child('users').child(auth.uid).child('role').val() === 'profesor' || root.child('users').child(auth.uid).child('role').val() === 'maestro') && !data.exists() && newData.exists() && ($slot === '1' || $slot === '2' || $slot === '3')",
     despues: `auth != null && ((auth.uid === $profesorId && (root.child('users').child(auth.uid).child('role').val() === 'profesor' || root.child('users').child(auth.uid).child('role').val() === 'maestro' || ${ES_ADMIN}) && !data.exists() && newData.exists() && ($slot === '1' || $slot === '2' || $slot === '3')) || (${ES_ADMIN} && data.exists() && !newData.exists()))`,
   },
+  // Avisos del profesorado: la hora no puede estar en el futuro (un aviso con fecha
+  // futura quedaba fijado el primero de la lista) y el dia debe ser AAAA-MM-DD.
+  {
+    ruta: ['mensajes_profesor', '$dia', '$profesorId', '$slot', '.validate'],
+    antes: "newData.hasChildren(['autorId', 'autorNombre', 'texto', 'timestamp', 'dia']) && newData.child('autorId').val() === auth.uid && newData.child('autorNombre').isString() && newData.child('texto').isString() && newData.child('texto').val().length <= 180 && newData.child('timestamp').isNumber() && newData.child('dia').val() === $dia",
+    despues: "newData.hasChildren(['autorId', 'autorNombre', 'texto', 'timestamp', 'dia']) && newData.child('autorId').val() === auth.uid && newData.child('autorNombre').isString() && newData.child('texto').isString() && newData.child('texto').val().length <= 180 && newData.child('timestamp').isNumber() && newData.child('dia').val() === $dia && newData.child('timestamp').val() <= now + 60000 && $dia.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)",
+  },
   // Seguridad (ver reglas-seguridad.cjs): ramas completas. `antesHuella` es la
   // huella SHA-256 de los permisos (sin indices) de la rama de produccion que
   // sustituyen; las nuevas no existian. users, posts e imagenesPosts parten de la
