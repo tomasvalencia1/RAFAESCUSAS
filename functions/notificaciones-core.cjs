@@ -379,21 +379,34 @@ async function dispatchNotifications(db, messaging) {
     db.ref(APROBACIONES_AVISADAS).once('value').then(s => s.val()),
   ]);
   const aprobadasAhora = asEntries(aprobadosAhora).filter(([, aprobado]) => aprobado === true).map(([uid]) => uid);
+  // En la base no entran las cuentas creadas en los ultimos 2 dias: si la primera
+  // ejecucion coincide con una aprobacion recien hecha, esa persona si recibe el aviso.
+  const creadasHacePoco = new Set();
   if (!avisadas) {
-    updates[APROBACIONES_AVISADAS] = { _base: runStartedAt, ...Object.fromEntries(aprobadasAhora.map(uid => [uid, runStartedAt])) };
-  } else {
-    for (const uid of aprobadasAhora) {
-      if (avisadas[uid]) continue;
-      await processEvent({ eventId: safeKey(`cuenta_aprobada_${uid}_${runStartedAt}`), timestamp: runStartedAt, targets: [uid],
-        title: 'Tu cuenta de RafaConecta fue aprobada',
-        body: 'Ya puedes entrar. Toca aquí para empezar y conocer la app.',
-        type: 'cuenta_aprobada', entityId: uid });
-      updates[`${APROBACIONES_AVISADAS}/${uid}`] = runStartedAt;
-    }
-    for (const uid of Object.keys(avisadas)) {
-      if (uid !== '_base' && aprobadosAhora[uid] !== true) updates[`${APROBACIONES_AVISADAS}/${uid}`] = null;
+    for (const [uid, perfil] of asEntries(await readNode(db, 'users'))) {
+      if (Number(perfil?.createdAt || 0) >= runStartedAt - 2 * DIA_MS) creadasHacePoco.add(uid);
     }
   }
+  const esBase = !avisadas;
+  const marcas = avisadas ? { ...avisadas } : { _base: runStartedAt };
+  if (esBase) for (const uid of aprobadasAhora) if (!creadasHacePoco.has(uid)) marcas[uid] = runStartedAt;
+  const cambios = {};
+  for (const uid of aprobadasAhora) {
+    if (marcas[uid]) continue;
+    await processEvent({ eventId: safeKey(`cuenta_aprobada_${uid}_${runStartedAt}`), timestamp: runStartedAt, targets: [uid],
+      title: 'Tu cuenta de RafaConecta fue aprobada',
+      body: 'Ya puedes entrar. Toca aquí para empezar y conocer la app.',
+      type: 'cuenta_aprobada', entityId: uid });
+    marcas[uid] = runStartedAt;
+    cambios[uid] = runStartedAt;
+  }
+  for (const uid of Object.keys(marcas)) {
+    if (uid !== '_base' && aprobadosAhora[uid] !== true) { delete marcas[uid]; cambios[uid] = null; }
+  }
+  // La primera vez se escribe la rama entera; despues, solo lo que cambia (en una
+  // misma escritura no puede ir una ruta y otra que cuelga de ella).
+  if (esBase) updates[APROBACIONES_AVISADAS] = marcas;
+  else for (const [uid, valor] of Object.entries(cambios)) updates[`${APROBACIONES_AVISADAS}/${uid}`] = valor;
 
   updates[`${STATE_PATH}/lastProcessedAt`] = runStartedAt;
   if (primeraVez) updates[`${STATE_PATH}/initializedAt`] = runStartedAt;
