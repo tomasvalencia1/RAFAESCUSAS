@@ -16,6 +16,8 @@
  */
 const STATE_PATH = 'notificacionesSistema/despachador';
 const MIGRACION_APROBACION = 'notificacionesSistema/migraciones/aprobacionInicial';
+// Cuentas a las que ya se aviso de su aprobacion: { uid: hora del aviso, _base: hora }.
+const APROBACIONES_AVISADAS = 'notificacionesSistema/aprobacionesAvisadas';
 const MAX_SENT_AGE_MS = 35 * 24 * 60 * 60 * 1000;
 // Los timestamps los pone el reloj del telefono que escribe. Si va atrasado, el
 // evento caeria por debajo de la ultima ejecucion; se revisa este margen hacia
@@ -364,6 +366,33 @@ async function dispatchNotifications(db, messaging) {
       title: 'Tu solicitud de soporte fue resuelta',
       body: texto ? `«${texto.length > 90 ? `${texto.slice(0, 89)}…` : texto}»` : 'Un administrador marcó tu solicitud como resuelta.',
       type: 'support_resolved', entityId: id });
+  }
+
+  // Cuenta aprobada: se avisa a la persona en cuanto un administrador la aprueba,
+  // para que entre y vea el tutorial de bienvenida. aprobados/{uid} no lleva fecha,
+  // asi que se compara con las cuentas ya avisadas. La primera vez solo se guarda
+  // la lista actual como base, sin enviar nada, para no avisar a todas las cuentas
+  // que ya estaban aprobadas. Si se retira una aprobacion se borra su marca, y una
+  // nueva aprobacion vuelve a avisar.
+  const [aprobadosAhora, avisadas] = await Promise.all([
+    readNode(db, 'aprobados'),
+    db.ref(APROBACIONES_AVISADAS).once('value').then(s => s.val()),
+  ]);
+  const aprobadasAhora = asEntries(aprobadosAhora).filter(([, aprobado]) => aprobado === true).map(([uid]) => uid);
+  if (!avisadas) {
+    updates[APROBACIONES_AVISADAS] = { _base: runStartedAt, ...Object.fromEntries(aprobadasAhora.map(uid => [uid, runStartedAt])) };
+  } else {
+    for (const uid of aprobadasAhora) {
+      if (avisadas[uid]) continue;
+      await processEvent({ eventId: safeKey(`cuenta_aprobada_${uid}_${runStartedAt}`), timestamp: runStartedAt, targets: [uid],
+        title: 'Tu cuenta de RafaConecta fue aprobada',
+        body: 'Ya puedes entrar. Toca aquí para empezar y conocer la app.',
+        type: 'cuenta_aprobada', entityId: uid });
+      updates[`${APROBACIONES_AVISADAS}/${uid}`] = runStartedAt;
+    }
+    for (const uid of Object.keys(avisadas)) {
+      if (uid !== '_base' && aprobadosAhora[uid] !== true) updates[`${APROBACIONES_AVISADAS}/${uid}`] = null;
+    }
   }
 
   updates[`${STATE_PATH}/lastProcessedAt`] = runStartedAt;

@@ -1273,6 +1273,11 @@ async function mostrarCuentaPendiente() {
     appContainer.style.display = 'none';
     prepararAyudaPendiente();
     pendingApprovalScreen?.classList.add('active');
+    // En la APK se pide ya el permiso de notificaciones y se registra el telefono:
+    // asi le llega el aviso de "cuenta aprobada" aunque cierre la app mientras espera.
+    const avisoAprobacion = document.getElementById('pending-approval-aviso');
+    if (avisoAprobacion) avisoAprobacion.hidden = !window.AndroidFCM;
+    initializeAndroidNotifications();
     if (aprobacionListener || !currentUser) return;
     aprobacionListener = onValue(ref(db, `aprobados/${currentUser.uid}`), snapshot => {
         if (snapshot.val() !== true) return;
@@ -3503,6 +3508,8 @@ function renderAdminUsers(filter = '') {
             btn.disabled = true;
             try {
                 await set(ref(db, `aprobados/${btn.dataset.aprobarAcceso}`), true);
+                // La persona recibe al momento la notificacion de cuenta aprobada.
+                avisarDespachadorDeNotificaciones();
             } catch (error) {
                 console.error('No se pudo aprobar la cuenta:', error);
                 btn.disabled = false;
