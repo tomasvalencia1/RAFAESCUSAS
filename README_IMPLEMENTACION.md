@@ -23,6 +23,7 @@ La aplicación existente usa **Firebase Realtime Database (RTDB)**, no Firestore
 - `configuracion/moderacion/palabrasProhibidas` admite un array u objeto de palabras y solo una cuenta registrada en `admins/{uid}` puede editarlo. Si no existe usa una lista mínima local.
 - `logs_moderacion/{logId}` recibe una entrada atómica cuando un administrador borra un post desde el panel o feed.
 - `soporte/{ticketId}` crea tickets con estado inicial `pendiente`.
+- `chatsLeidos/{uid}/{chatId}` guarda la hora del último mensaje recibido que la persona vio en cada chat; con eso la lista del chat marca las conversaciones sin leer y el botón Chats las cuenta. Es privado de cada persona. Cada uno puede leer `chats/{chatId}` si su uid va al principio o al final del id, aunque el chat aún no exista, para enterarse del primer mensaje.
 
 ## Firebase: pasos manuales necesarios
 
