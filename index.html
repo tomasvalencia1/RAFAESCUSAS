@@ -94,9 +94,17 @@
             <img src="logo.png" alt="" class="school-logo large" width="80" height="80">
             <h2 id="pending-approval-title">Cuenta pendiente de aprobación</h2>
             <p>Un administrador del colegio debe aprobar tu cuenta antes de que puedas usar RafaConecta. Esta pantalla se actualizará sola cuando te aprueben.</p>
-            <button id="pending-approval-logout-btn" class="btn-primary login-btn" type="button">
-                <i class='bx bx-log-out'></i> Cerrar sesión
+            <p class="pending-account" id="pending-approval-account" hidden>Entraste como <strong id="pending-approval-email"></strong></p>
+            <button id="pending-help-btn" class="btn-primary login-btn" type="button" aria-expanded="false" aria-controls="pending-help-form">
+                <i class='bx bx-support' aria-hidden="true"></i> Pedir ayuda
             </button>
+            <form id="pending-help-form" class="pending-help-form" hidden>
+                <label for="pending-help-text">Cuéntale a un administrador quién eres</label>
+                <textarea id="pending-help-text" rows="3" maxlength="900" placeholder="Ej.: Soy estudiante de 9B y necesito entrar."></textarea>
+                <button id="pending-help-send" class="btn-primary" type="submit" disabled>Enviar mensaje</button>
+            </form>
+            <p id="pending-help-sent" class="pending-help-sent" role="status" hidden><i class='bx bx-check-circle' aria-hidden="true"></i> Mensaje enviado. Un administrador lo verá en su buzón de soporte.</p>
+            <button id="pending-approval-logout-btn" class="text-action-btn pending-switch-btn" type="button">¿No es tu cuenta? Entra con otra</button>
         </div>
     </div>
 

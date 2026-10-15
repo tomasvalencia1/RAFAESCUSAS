@@ -17,6 +17,9 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 const provider = new GoogleAuthProvider();
+// Siempre se muestra el selector de cuentas de Google: en un telefono compartido
+// o tras entrar con la cuenta equivocada, se puede elegir otra.
+provider.setCustomParameters({ prompt: 'select_account' });
 const isAndroidDevice = /Android/i.test(navigator.userAgent);
 
 let lastHapticTime = 0;
@@ -1268,6 +1271,7 @@ async function mostrarCuentaPendiente() {
     roleSelectionScreen.classList.remove('active');
     loginScreen.classList.remove('active');
     appContainer.style.display = 'none';
+    prepararAyudaPendiente();
     pendingApprovalScreen?.classList.add('active');
     if (aprobacionListener || !currentUser) return;
     aprobacionListener = onValue(ref(db, `aprobados/${currentUser.uid}`), snapshot => {
@@ -1281,6 +1285,69 @@ async function mostrarCuentaPendiente() {
 }
 
 document.getElementById('pending-approval-logout-btn')?.addEventListener('click', () => logoutBtn.click());
+
+// La espera no es un callejon sin salida: se ve con que correo se entro (por si
+// es la cuenta equivocada) y se puede escribir a un administrador desde aqui.
+// Soporte admite mensajes de cuentas sin aprobar (ver soporte en las reglas).
+const pendingHelpBtn = document.getElementById('pending-help-btn');
+const pendingHelpForm = document.getElementById('pending-help-form');
+const pendingHelpText = document.getElementById('pending-help-text');
+const pendingHelpSend = document.getElementById('pending-help-send');
+const pendingHelpSent = document.getElementById('pending-help-sent');
+let pendingHelpUid = null;
+
+function prepararAyudaPendiente() {
+    const correo = currentUser?.email || '';
+    const email = document.getElementById('pending-approval-email');
+    if (email) email.textContent = correo;
+    const cuenta = document.getElementById('pending-approval-account');
+    if (cuenta) cuenta.hidden = !correo;
+    // Otra cuenta en la misma sesion empieza sin el mensaje de la anterior.
+    if (pendingHelpUid === currentUser?.uid) return;
+    pendingHelpUid = currentUser?.uid || null;
+    if (pendingHelpBtn) { pendingHelpBtn.hidden = false; pendingHelpBtn.setAttribute('aria-expanded', 'false'); }
+    if (pendingHelpForm) pendingHelpForm.hidden = true;
+    if (pendingHelpSent) pendingHelpSent.hidden = true;
+    if (pendingHelpText) pendingHelpText.value = '';
+    revisarContenido(pendingHelpSend);
+}
+
+pendingHelpBtn?.addEventListener('click', () => {
+    pendingHelpBtn.hidden = true;
+    pendingHelpBtn.setAttribute('aria-expanded', 'true');
+    pendingHelpForm.hidden = false;
+    pendingHelpText.focus();
+});
+exigirContenido(pendingHelpSend, () => Boolean(pendingHelpText?.value.trim()), [pendingHelpText]);
+
+pendingHelpForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const texto = pendingHelpText.value.trim();
+    if (!texto || !currentUser || pendingHelpSend.disabled) return;
+    pendingHelpSend.disabled = true;
+    pendingHelpSend.setAttribute('aria-busy', 'true');
+    pendingHelpSend.textContent = 'Enviando...';
+    try {
+        // El correo va delante para que el administrador sepa a quien aprobar.
+        const encabezado = `Cuenta pendiente de aprobación (${currentUser.email || 'sin correo'}): `;
+        await set(push(ref(db, 'soporte')), {
+            userId: currentUser.uid,
+            texto: (encabezado + texto).slice(0, 1000),
+            timestamp: Date.now(),
+            estado: 'pendiente'
+        });
+        avisarDespachadorDeNotificaciones();
+        pendingHelpForm.hidden = true;
+        pendingHelpSent.hidden = false;
+    } catch (error) {
+        console.error('No se pudo enviar la solicitud de ayuda:', error);
+        avisar('No se pudo enviar el mensaje. Revisa tu conexión.', { accion: () => pendingHelpForm.requestSubmit() });
+    } finally {
+        pendingHelpSend.textContent = 'Enviar mensaje';
+        pendingHelpSend.removeAttribute('aria-busy');
+        revisarContenido(pendingHelpSend);
+    }
+});
 
 async function completeLogin() {
     if (!cuentaAprobada) { await mostrarCuentaPendiente(); return; }
