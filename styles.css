@@ -1720,6 +1720,49 @@
     .aviso { inset-block-end: var(--space-6); }
   }
 
+  /* --- 5.33 Tutorial de bienvenida (tutorial.js) -----------------------------------
+     El foco es una caja transparente cuya sombra enorme oscurece todo lo demas:
+     asi la parte real de la app queda iluminada. La capa entera recibe los toques
+     para que no se pulse nada de debajo mientras dura el recorrido. */
+  .tutorial {
+    position: fixed; inset: 0; z-index: var(--z-toast);
+    isolation: isolate;
+  }
+  .tutorial__foco {
+    position: absolute; top: 0; left: 0;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 0 0 200vmax hsl(14 16% 6% / 0.68);
+    outline: 2px solid var(--c-primary); outline-offset: 2px;
+    pointer-events: none;
+    transition: transform var(--dur-slow) var(--ease-out),
+                width var(--dur-slow) var(--ease-out),
+                height var(--dur-slow) var(--ease-out);
+  }
+  .tutorial__tarjeta {
+    position: absolute; top: 0; left: 0;
+    width: min(22rem, calc(100vw - 2rem));
+    display: grid; gap: var(--space-2);
+    padding: var(--space-5);
+    background: var(--c-surface); color: var(--c-text);
+    border: 1px solid var(--c-border); border-radius: var(--radius-lg);
+    box-shadow: var(--elev-3);
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-slow) var(--ease-out);
+  }
+  .tutorial__tarjeta.is-visible { opacity: 1; }
+  .tutorial__paso {
+    font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--c-text-mute);
+  }
+  .tutorial__tarjeta h2 { font-size: var(--fs-lg); font-weight: 700; line-height: 1.25; }
+  .tutorial__tarjeta #tutorial-texto { font-size: var(--fs-sm); color: var(--c-text-2); line-height: var(--lh-base); }
+  .tutorial__acciones {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+    margin-block-start: var(--space-3);
+  }
+  .tutorial__navegacion { display: flex; gap: var(--space-2); margin-inline-start: auto; }
+  .tutorial__acciones button { min-height: var(--tap); }
+
   /* --- 5.32 Avisos dentro de formularios y foco de las ventanas ------------------- */
   .composer-note {
     display: flex; align-items: center; gap: var(--space-2);

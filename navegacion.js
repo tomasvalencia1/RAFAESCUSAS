@@ -22,6 +22,7 @@ export const SECCIONES = [
   { id: 'roles',      etiqueta: 'Roles',      icono: 'bx-user-check',     destino: 'mobile-users-btn', contador: 'pending-accounts-count' },
   { id: 'soporte',    etiqueta: 'Soporte',    icono: 'bx-help-circle',    destino: 'support-fab' },
   { id: 'tema',       etiqueta: 'Tema',       icono: 'bx-moon',           destino: 'theme-toggle-btn' },
+  { id: 'tutorial',   etiqueta: 'Tutorial',   icono: 'bx-book-open',      accion: 'ver-tutorial' },
 ];
 
 // Huecos de la barra inferior, sin contar "Crear" (al centro) ni "Más" (al final).
@@ -133,6 +134,11 @@ function activar(seccion) {
     document.querySelector('.news-widget')?.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'start' });
     return;
   }
+  if (seccion.accion === 'ver-tutorial') {
+    // Lo abre tutorial.js.
+    document.dispatchEvent(new CustomEvent('rafa:ver-tutorial'));
+    return;
+  }
   document.getElementById(seccion.destino)?.click();
 }
 
@@ -174,3 +180,11 @@ SECCIONES.filter((s) => s.contador).forEach((s) => {
 });
 
 organizar();
+
+// El tutorial (tutorial.js) explica que hay dentro de "Más", que cambia segun el rol.
+window.RafaNavegacion = {
+  etiquetasEnMas() {
+    organizar();
+    return seccionesEnHoja.map((s) => s.etiqueta);
+  },
+};

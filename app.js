@@ -242,6 +242,13 @@ let allAdminUsersCache = [];
 let allRoleRequestsCache = {};
 // Aprobacion de cuentas (ver aprobados/{uid} en las reglas).
 let cuentaAprobada = true;
+// Tutorial de bienvenida (tutorial.js): se abre solo a las cuentas nuevas, es decir,
+// la que acaba de ser aprobada en esta sesion o la creada desde que existe el
+// tutorial (hace menos de 30 dias). Las cuentas de antes no lo ven solas.
+const TUTORIAL_DESDE = Date.UTC(2026, 9, 15);
+const TUTORIAL_CUENTA_NUEVA_MS = 30 * 24 * 60 * 60 * 1000;
+let perfilCreadoEn = 0;
+let recienAprobada = false;
 let aprobacionListener = null;
 let aprobadosCache = {};
 let adminAprobadosListener = null;
@@ -1183,6 +1190,8 @@ async function prepararSesion(user) {
     if (user.email) set(ref(db, `privado/${user.uid}/email`), user.email).catch(error => console.warn('No se pudo guardar el correo privado:', error));
 
     const perfil = userSnap.val() || {};
+    // Sin rol todavia = cuenta recien creada. Una cuenta antigua sin fecha cuenta como antigua.
+    perfilCreadoEn = Number(perfil.createdAt) || (perfil.role ? 0 : Date.now());
     cargarPerfil(perfil, user);
     if (perfil.role) {
         userRole = perfil.role;
@@ -1284,6 +1293,7 @@ async function mostrarCuentaPendiente() {
         aprobacionListener?.();
         aprobacionListener = null;
         cuentaAprobada = true;
+        recienAprobada = true;
         pendingApprovalScreen?.classList.remove('active');
         completeLogin();
     }, error => console.warn('No se pudo comprobar la aprobación de la cuenta:', error));
@@ -1400,7 +1410,18 @@ async function completeLogin() {
     loadPersonalTasks();
 
     checkPendingRoleRequest();
+
+    // Sesion lista: tutorial.js decide si abre el recorrido de bienvenida.
+    const cuentaNueva = recienAprobada
+        || (perfilCreadoEn >= TUTORIAL_DESDE && Date.now() - perfilCreadoEn < TUTORIAL_CUENTA_NUEVA_MS);
+    window.rafaSesionActual = { uid: currentUser.uid, rol: normalizeRole(userRole), esAdmin: isAdmin, nombre: miNombre(), cuentaNueva };
+    document.dispatchEvent(new CustomEvent('rafa:sesion', { detail: window.rafaSesionActual }));
 }
+
+document.getElementById('ver-tutorial-btn')?.addEventListener('click', () => {
+    closeProfilePopover();
+    document.dispatchEvent(new CustomEvent('rafa:ver-tutorial'));
+});
 
 async function checkPendingRoleRequest() {
     const banner = document.getElementById('pending-role-banner');
@@ -3594,6 +3615,9 @@ window.addEventListener('scroll', () => {
 }, { passive: true });
 // === INTERCEPTOR DEL BOTÓN ATRÁS DE ANDROID ===
 window.onAndroidBack = function() {
+    // El tutorial va por encima de todo: Atras vuelve al paso anterior o lo cierra.
+    if (window.RafaTutorial?.atras()) return true;
+
     if (typeof confirmModal !== 'undefined' && confirmModal.classList.contains('active') && pendingConfirmResolver) {
         pendingConfirmResolver();
         return true;
