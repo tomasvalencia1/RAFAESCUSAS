@@ -86,6 +86,18 @@
         </div>
     </div>
 
+    <!-- Cuenta pendiente de aprobacion: la muestra app.js hasta que un admin la apruebe -->
+    <div id="pending-approval-screen" class="login-overlay" role="dialog" aria-modal="true" aria-labelledby="pending-approval-title">
+        <div class="login-card">
+            <img src="logo.png" alt="" class="school-logo large" width="80" height="80">
+            <h2 id="pending-approval-title">Cuenta pendiente de aprobación</h2>
+            <p>Un administrador del colegio debe aprobar tu cuenta antes de que puedas usar RafaConecta. Esta pantalla se actualizará sola cuando te aprueben.</p>
+            <button id="pending-approval-logout-btn" class="btn-primary login-btn" type="button">
+                <i class='bx bx-log-out'></i> Cerrar sesión
+            </button>
+        </div>
+    </div>
+
     <!-- Main App Container -->
     <div id="app-container" style="display: none;">
         <!-- Top Header -->
@@ -206,7 +218,7 @@
                     <a href="#" class="nav-item" id="nav-games-btn"><i class='bx bx-joystick'></i><span>Juegos y Retos</span></a>
                     <a href="#" class="nav-item teacher-chat-only" id="nav-chat-btn"><i class='bx bx-chat'></i><span>Chat Maestro/Acudiente</span></a>
                     <a href="#" class="nav-item moderation-only" id="nav-moderation-btn" style="display: none;"><i class='bx bx-shield-quarter'></i><span>Moderación <b id="moderation-count" class="nav-count" hidden>0</b></span></a>
-                    <a href="#" class="nav-item admin-only" id="nav-users-btn" style="display: none;"><i class='bx bx-group'></i><span>Usuarios</span></a>
+                    <a href="#" class="nav-item admin-only" id="nav-users-btn" style="display: none;"><i class='bx bx-group'></i><span>Usuarios <b id="pending-accounts-count" class="nav-count" hidden>0</b></span></a>
                     <a href="#" class="nav-item admin-only" id="nav-support-inbox-btn" style="display: none;"><i class='bx bx-support'></i><span>Buzón de soporte <b id="support-inbox-count" class="nav-count" hidden>0</b></span></a>
                 </nav>
                 <button class="btn-primary create-post-btn" id="open-modal-btn">

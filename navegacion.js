@@ -19,7 +19,7 @@ export const SECCIONES = [
   { id: 'juegos',     etiqueta: 'Juegos',     icono: 'bx-joystick',       destino: 'nav-games-btn' },
   { id: 'moderacion', etiqueta: 'Moderación', icono: 'bx-shield-quarter', destino: 'nav-moderation-btn', contador: 'moderation-count' },
   { id: 'buzon',      etiqueta: 'Buzón de soporte', icono: 'bx-support', destino: 'nav-support-inbox-btn', contador: 'support-inbox-count' },
-  { id: 'roles',      etiqueta: 'Roles',      icono: 'bx-user-check',     destino: 'mobile-users-btn' },
+  { id: 'roles',      etiqueta: 'Roles',      icono: 'bx-user-check',     destino: 'mobile-users-btn', contador: 'pending-accounts-count' },
   { id: 'soporte',    etiqueta: 'Soporte',    icono: 'bx-help-circle',    destino: 'support-fab' },
   { id: 'tema',       etiqueta: 'Tema',       icono: 'bx-moon',           destino: 'theme-toggle-btn' },
 ];

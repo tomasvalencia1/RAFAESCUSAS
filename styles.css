@@ -1359,13 +1359,13 @@
   .moderation-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
   .moderation-actions .moderation-delete-btn { background: var(--c-error); }
   .moderation-actions .moderation-delete-btn:hover { background: color-mix(in oklab, var(--c-error) 85%, black); }
-  .btn-approve, .btn-reject {
+  .btn-approve, .btn-aprobar-acceso, .btn-reject {
     display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
     min-height: 38px; padding-inline: var(--space-4);
     border-radius: var(--radius-md); border: 1px solid transparent;
     font-size: var(--fs-sm); font-weight: 600; cursor: pointer;
   }
-  .btn-approve { background: var(--c-success-soft); color: var(--c-success); border-color: color-mix(in oklab, var(--c-success) 25%, transparent); }
+  .btn-approve, .btn-aprobar-acceso { background: var(--c-success-soft); color: var(--c-success); border-color: color-mix(in oklab, var(--c-success) 25%, transparent); }
   .btn-reject  { background: var(--c-error-soft);   color: var(--c-error);   border-color: color-mix(in oklab, var(--c-error) 25%, transparent); }
 
   /* --- 5.24 Pantallas de arranque y acceso ------------------------------------------ */

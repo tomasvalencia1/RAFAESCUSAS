@@ -189,7 +189,7 @@ async function dispatchNotifications(db, messaging) {
 
   // Solo lo nuevo. Las publicaciones se crean con `createdAt` o con `timestamp`
   // segun la version de la app, asi que se consultan los dos campos.
-  const [tokensByUser, news, events, support, supportResolved, chats, postsA, postsB, teacherRoot] = await Promise.all([
+  const [tokensTodos, news, events, support, supportResolved, chats, postsA, postsB, teacherRoot] = await Promise.all([
     readNode(db, 'fcmTokens'),
     readSince(db, 'news', 'timestamp', since),
     readSince(db, 'events', 'timestamp', since),
@@ -202,6 +202,14 @@ async function dispatchNotifications(db, messaging) {
     db.ref('mensajes_profesor').orderByKey().startAt(dayKey(since - DIA_MS)).once('value').then(s => s.val() || {})
   ]);
   const posts = { ...postsA, ...postsB };
+
+  // Solo reciben avisos las cuentas aprobadas y los administradores: una cuenta en
+  // espera podria registrar su telefono y ver, por ejemplo, el titulo de una noticia.
+  // Mientras no exista ninguna aprobacion (antes de la migracion inicial) no se filtra.
+  const [aprobados, adminsTodos] = await Promise.all([readNode(db, 'aprobados'), readNode(db, 'admins')]);
+  const tokensByUser = Object.keys(aprobados).length
+    ? Object.fromEntries(Object.entries(tokensTodos).filter(([uid]) => aprobados[uid] === true || adminsTodos[uid] === true))
+    : tokensTodos;
 
   // Destinatarios de los avisos generales: quien tiene al menos un telefono registrado.
   const usersWithDevices = Object.keys(tokensByUser);

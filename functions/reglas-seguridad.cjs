@@ -28,10 +28,14 @@ const FOTO_VALIDA = "newData.isString() && (newData.val() === data.val() || newD
   + ')))';
 const PARTICIPANTE = (uid) => `($chatId.beginsWith(${uid} + '_') || $chatId.endsWith('_' + ${uid}))`;
 const SOY_PARTICIPANTE = "root.child('chats').child($chatId).child('participants').child(auth.uid).exists()";
+// Cuenta aprobada por un administrador (o administrador). Hasta entonces la cuenta
+// solo ve su propio perfil: nada de publicaciones, personas ni avisos del colegio.
+const APROBADO = `(root.child('aprobados').child(auth.uid).val() === true || ${ES_ADMIN()})`;
 
 const users = {
-  '.read': 'auth != null',
+  '.read': `auth != null && ${APROBADO}`,
   $uid: {
+    '.read': 'auth != null && auth.uid === $uid',
     '.write': `auth != null && (auth.uid === $uid || ${ES_ADMIN()})`,
     name: { '.validate': 'newData.isString() && newData.val().length >= 1 && newData.val().length <= 60' },
     avatar: { '.validate': FOTO_VALIDA },
@@ -55,9 +59,9 @@ const privado = {
 
 const posts = {
   '.indexOn': ['createdAt', 'timestamp'],
-  '.read': 'auth != null',
+  '.read': `auth != null && ${APROBADO}`,
   $postId: {
-    '.write': "auth != null && ((!data.exists() && newData.exists() && newData.child('author').child('uid').val() === auth.uid && newData.child('authorRole').val() === root.child('users').child(auth.uid).child('role').val()) || (data.exists() && !newData.exists() && (data.child('author').child('uid').val() === auth.uid || data.child('autorId').val() === auth.uid || root.child('admins').child(auth.uid).val() === true)) || (data.exists() && newData.exists() && root.child('admins').child(auth.uid).val() === true))",
+    '.write': `auth != null && ((!data.exists() && newData.exists() && ${APROBADO} && newData.child('author').child('uid').val() === auth.uid && newData.child('authorRole').val() === root.child('users').child(auth.uid).child('role').val()) || (data.exists() && !newData.exists() && (data.child('author').child('uid').val() === auth.uid || data.child('autorId').val() === auth.uid || root.child('admins').child(auth.uid).val() === true)) || (data.exists() && newData.exists() && root.child('admins').child(auth.uid).val() === true))`,
     // Al crearla: campos obligatorios, sin fechas futuras y sin "me gusta" ni
     // comentarios inventados de antemano.
     '.validate': `data.exists() || !newData.exists() || (newData.hasChildren(['author', 'authorRole', 'timestamp', 'createdAt']) && ${NO_FUTURO('createdAt')} && ${NO_FUTURO('timestamp')} && !newData.child('likes').exists() && !newData.child('comentarios').exists() && !newData.child('comments').exists())`,
@@ -79,13 +83,13 @@ const posts = {
     imageBase64: { '.validate': false },
     likes: {
       $uid: {
-        '.write': 'auth != null && auth.uid === $uid',
+        '.write': `auth != null && auth.uid === $uid && ${APROBADO}`,
         '.validate': 'newData.val() === true',
       },
     },
     comentarios: {
       $commentId: {
-        '.write': "auth != null && ((!data.exists() && newData.exists() && newData.child('autorId').val() === auth.uid && (data.parent().parent().child('authorRole').val() !== 'estudiante' || now < data.parent().parent().child('createdAt').val() + 86400000)) || (data.exists() && !newData.exists() && root.child('admins').child(auth.uid).val() === true))",
+        '.write': `auth != null && ((!data.exists() && newData.exists() && ${APROBADO} && newData.child('autorId').val() === auth.uid && (data.parent().parent().child('authorRole').val() !== 'estudiante' || now < data.parent().parent().child('createdAt').val() + 86400000)) || (data.exists() && !newData.exists() && root.child('admins').child(auth.uid).val() === true))`,
         '.validate': `!newData.exists() || (newData.hasChildren(['autorId', 'autorNombre', 'texto', 'timestamp']) && newData.child('autorId').val() === auth.uid && newData.child('texto').isString() && newData.child('texto').val().length >= 1 && newData.child('texto').val().length <= 500 && newData.child('timestamp').isNumber() && ${NO_FUTURO('timestamp')} && newData.child('autorNombre').isString() && newData.child('autorNombre').val().length <= 60 && (!newData.child('autorAvatar').exists() || (newData.child('autorAvatar').isString() && newData.child('autorAvatar').val().length <= 20000)))`,
       },
     },
@@ -99,7 +103,7 @@ const posts = {
 
 const imagenesPosts = {
   $postId: {
-    '.read': 'auth != null',
+    '.read': `auth != null && ${APROBADO}`,
     // Se crea junto con su publicacion (en la misma escritura) y solo por su autor.
     // La borran el autor o un admin, o cualquiera si su publicacion ya no existe.
     '.write': `auth != null && ((!data.exists() && newData.exists() && !root.child('posts').child($postId).exists() && newData.parent().parent().child('posts').child($postId).child('author').child('uid').val() === auth.uid) || (data.exists() && !newData.exists() && (root.child('posts').child($postId).child('author').child('uid').val() === auth.uid || ${ES_ADMIN()} || !newData.parent().parent().child('posts').child($postId).exists())))`,
@@ -141,4 +145,15 @@ const chats = {
   },
 };
 
-module.exports = { users, privado, posts, imagenesPosts, chats };
+// Aprobacion de cuentas: solo los administradores la conceden o la retiran.
+// Cada persona puede leer la suya (la app la consulta para mostrar la espera).
+const aprobados = {
+  '.read': `auth != null && ${ES_ADMIN()}`,
+  $uid: {
+    '.read': 'auth != null && auth.uid === $uid',
+    '.write': `auth != null && ${ES_ADMIN()}`,
+    '.validate': 'newData.isBoolean()',
+  },
+};
+
+module.exports = { users, privado, posts, imagenesPosts, chats, aprobados, APROBADO };

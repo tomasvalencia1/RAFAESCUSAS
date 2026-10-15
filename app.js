@@ -172,6 +172,7 @@ const eventCreateModal = document.getElementById('event-create-modal');
 const tasksModal = document.getElementById('tasks-modal');
 const taskCreateModal = document.getElementById('task-create-modal');
 const roleSelectionScreen = document.getElementById('role-selection-screen');
+const pendingApprovalScreen = document.getElementById('pending-approval-screen');
 const roleRequestModal = document.getElementById('role-request-modal');
 const roleRequestModalMessage = document.getElementById('role-request-modal-message');
 const roleRequestModalBtn = document.getElementById('role-request-modal-btn');
@@ -236,6 +237,11 @@ let chatContactsListener = null;
 let allContactsCache = [];
 let allAdminUsersCache = [];
 let allRoleRequestsCache = {};
+// Aprobacion de cuentas (ver aprobados/{uid} en las reglas).
+let cuentaAprobada = true;
+let aprobacionListener = null;
+let aprobadosCache = {};
+let adminAprobadosListener = null;
 let personalTasksCache = [];
 let personalTasksListener = null;
 let taskCalendarDate = new Date();
@@ -1089,6 +1095,13 @@ function fotoDeGoogle(url) {
     return /^https:\/\/lh[3-6]\.googleusercontent\.com\//.test(url || '') ? url : '';
 }
 
+// Aprobacion de la cuenta. Es solo para la interfaz: quien bloquea de verdad son
+// las reglas. Si no se puede leer (reglas antiguas aun sin publicar), se deja pasar.
+async function leerAprobacion(uid) {
+    try { return (await conLimiteDeTiempo(get(ref(db, `aprobados/${uid}`)))).val() === true; }
+    catch (error) { return true; }
+}
+
 async function prepararSesion(user) {
     currentUser = user;
     const [adminSnap, userSnap] = await conLimiteDeTiempo(Promise.all([
@@ -1096,6 +1109,7 @@ async function prepararSesion(user) {
         get(ref(db, `users/${user.uid}`))
     ]));
     isAdmin = adminSnap.exists() && adminSnap.val() === true;
+    cuentaAprobada = isAdmin || await leerAprobacion(user.uid);
     if (pendingAndroidFcmToken) saveAndroidFcmToken(pendingAndroidFcmToken);
     // El correo vive en privado/{uid}: solo lo leen su dueno y los administradores.
     if (user.email) set(ref(db, `privado/${user.uid}/email`), user.email).catch(error => console.warn('No se pudo guardar el correo privado:', error));
@@ -1157,6 +1171,9 @@ onAuthStateChanged(auth, async (user) => {
         if (supportInboxListener) { supportInboxListener(); supportInboxListener = null; }
         if (correosListener) { correosListener(); correosListener = null; }
         detenerEscuchasDeAdmin();
+        if (aprobacionListener) { aprobacionListener(); aprobacionListener = null; }
+        pendingApprovalScreen?.classList.remove('active');
+        cuentaAprobada = true;
         [newsListener, reportsListener, eventsListener].forEach(cancelar => cancelar?.());
         newsListener = reportsListener = eventsListener = null;
         supportTicketsCache = []; correosPorUid = {};
@@ -1178,7 +1195,30 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
+// Cuenta sin aprobar: pantalla de espera en lugar de la app. Se queda escuchando
+// su aprobacion y entra sola en cuanto un administrador la concede.
+async function mostrarCuentaPendiente() {
+    await finishInitialAuthCheck();
+    setLoginButtonLoading(false);
+    roleSelectionScreen.classList.remove('active');
+    loginScreen.classList.remove('active');
+    appContainer.style.display = 'none';
+    pendingApprovalScreen?.classList.add('active');
+    if (aprobacionListener || !currentUser) return;
+    aprobacionListener = onValue(ref(db, `aprobados/${currentUser.uid}`), snapshot => {
+        if (snapshot.val() !== true) return;
+        aprobacionListener?.();
+        aprobacionListener = null;
+        cuentaAprobada = true;
+        pendingApprovalScreen?.classList.remove('active');
+        completeLogin();
+    }, error => console.warn('No se pudo comprobar la aprobación de la cuenta:', error));
+}
+
+document.getElementById('pending-approval-logout-btn')?.addEventListener('click', () => logoutBtn.click());
+
 async function completeLogin() {
+    if (!cuentaAprobada) { await mostrarCuentaPendiente(); return; }
     await finishInitialAuthCheck();
     setLoginButtonLoading(false);
     roleSelectionScreen.classList.remove('active');
@@ -1192,6 +1232,8 @@ async function completeLogin() {
     if (inlineAvatar) inlineAvatar.src = safeImageSrc(miAvatar());
 
     adminBtns.forEach(btn => btn.style.display = isAdmin ? (btn.id==='add-event-btn'?'inline-flex': (btn.id==='nav-users-btn' ? 'flex' : 'flex')) : 'none');
+
+    if (isAdmin) escucharAprobaciones();
 
     if (userRole === 'estudiante') {
         studentHiddenEls.forEach(el => el.style.display = 'none');
@@ -1871,6 +1913,7 @@ function loadUserDirectory() {
         refrescarAutoresVisibles();
         if (teacherMessagesCache.length) renderTeacherMessages();
         if (supportTicketsCache.length) renderSupportInbox();
+        actualizarCuentasPendientes();
     }, error => {
         console.error('No se pudo cargar el directorio de usuarios:', error);
         userDirectoryCache = [];
@@ -3020,9 +3063,31 @@ let adminUsersListener = null;
 function detenerEscuchasDeAdmin() {
     adminRoleRequestsListener?.();
     adminUsersListener?.();
-    adminRoleRequestsListener = adminUsersListener = null;
+    adminAprobadosListener?.();
+    adminRoleRequestsListener = adminUsersListener = adminAprobadosListener = null;
+    aprobadosCache = {};
     allAdminUsersCache = [];
     allRoleRequestsCache = {};
+}
+
+// Cuentas que esperan aprobacion: contador para los administradores.
+function actualizarCuentasPendientes() {
+    const contador = document.getElementById('pending-accounts-count');
+    if (!contador) return;
+    const n = isAdmin && Object.keys(aprobadosCache).length
+        ? [...directorioPorUid.keys()].filter(uid => aprobadosCache[uid] !== true).length
+        : 0;
+    contador.hidden = n === 0;
+    contador.textContent = String(n);
+}
+
+function escucharAprobaciones() {
+    if (!isAdmin || adminAprobadosListener) return;
+    adminAprobadosListener = onValue(ref(db, 'aprobados'), snapshot => {
+        aprobadosCache = snapshot.val() || {};
+        actualizarCuentasPendientes();
+        if (adminUsersModal.classList.contains('active')) renderAdminUsers(adminUserSearchInput ? adminUserSearchInput.value : '');
+    }, () => { /* reglas antiguas: aun no hay aprobaciones que mostrar */ });
 }
 
 function openAdminUsersModal() {
@@ -3089,6 +3154,10 @@ function renderAdminUsers(filter = '') {
         return searchable.includes(term);
     });
 
+    const hayAprobaciones = Object.keys(aprobadosCache).length > 0;
+    const sinAcceso = (user) => hayAprobaciones && aprobadosCache[user.uid] !== true;
+    users.sort((a, b) => Number(sinAcceso(b)) - Number(sinAcceso(a)));
+
     adminUsersList.innerHTML = '';
 
     if (users.length === 0) {
@@ -3137,6 +3206,12 @@ function renderAdminUsers(filter = '') {
                 <button class="btn-small btn-approve" data-uid="${safeUid}" data-role="${escapeAttribute(pendingRequest.requestedRole)}">Aprobar</button>
                 <button class="btn-small btn-reject" data-uid="${safeUid}">Rechazar</button>
             </div>` : ''}
+            ${sinAcceso(user) ? `
+            <div class="admin-user-request">
+                <span class="badge warning">Sin acceso</span>
+                <button class="btn-small btn-aprobar-acceso" data-aprobar-acceso="${safeUid}" type="button">Aprobar acceso</button>
+            </div>` : (hayAprobaciones ? `
+            <div class="admin-user-access"><button class="text-action-btn" data-quitar-acceso="${safeUid}" type="button">Quitar acceso</button></div>` : '')}
         `;
         adminUsersList.appendChild(el);
     });
@@ -3172,6 +3247,33 @@ function renderAdminUsers(filter = '') {
                 console.error('No se pudo aprobar la solicitud:', error);
                 btn.disabled = false;
                 alert('No se pudo aprobar la solicitud. Inténtalo de nuevo.');
+            }
+        });
+    });
+
+    adminUsersList.querySelectorAll('[data-aprobar-acceso]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            try {
+                await set(ref(db, `aprobados/${btn.dataset.aprobarAcceso}`), true);
+            } catch (error) {
+                console.error('No se pudo aprobar la cuenta:', error);
+                btn.disabled = false;
+                alert('No se pudo aprobar la cuenta. Inténtalo de nuevo.');
+            }
+        });
+    });
+
+    adminUsersList.querySelectorAll('[data-quitar-acceso]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            if (!confirm('¿Quitar el acceso a esta cuenta? Dejará de ver RafaConecta hasta que la apruebes de nuevo.')) return;
+            btn.disabled = true;
+            try {
+                await remove(ref(db, `aprobados/${btn.dataset.quitarAcceso}`));
+            } catch (error) {
+                console.error('No se pudo quitar el acceso:', error);
+                btn.disabled = false;
+                alert('No se pudo quitar el acceso. Inténtalo de nuevo.');
             }
         });
     });

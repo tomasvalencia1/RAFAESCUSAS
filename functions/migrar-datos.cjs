@@ -8,6 +8,10 @@
  *   2. Imagenes: posts/{id}/imageBase64 -> imagenesPosts/{id}, y la publicacion
  *      queda con tieneImagen: true. El feed deja de descargar todas las imagenes.
  *   3. Solicitudes de rol ya resueltas (aprobadas/rechazadas): se borran.
+ *   4. Aprobacion inicial de cuentas: todas las que ya existen quedan aprobadas
+ *      (aprobados/{uid}), para que nadie pierda el acceso cuando las reglas pasen a
+ *      exigirlo. Se hace UNA sola vez (marca en notificacionesSistema/migraciones):
+ *      las cuentas que se registren despues las aprueba un administrador.
  *
  * Cada elemento se mueve con una sola escritura atomica (copia y borrado juntos),
  * asi que un fallo a mitad nunca deja datos perdidos ni duplicados a medias.
@@ -53,12 +57,16 @@ function enLotes(grupos) {
 
 async function main() {
   const headers = { Authorization: `Bearer ${await accessToken()}` };
-  const [users, posts, solicitudes] = await Promise.all([leer('users', headers), leer('posts', headers), leer('roleRequests', headers)]);
+  const [users, posts, solicitudes, aprobados, migraciones] = await Promise.all([
+    leer('users', headers), leer('posts', headers), leer('roleRequests', headers),
+    leer('aprobados', headers), leer('notificacionesSistema/migraciones', headers),
+  ]);
 
   const grupos = [];
   let correos = 0;
   let imagenes = 0;
   let solicitudesResueltas = 0;
+  let cuentasAprobadas = 0;
 
   for (const [uid, usuario] of Object.entries(users)) {
     if (!usuario || typeof usuario.email !== 'string') continue;
@@ -74,6 +82,16 @@ async function main() {
     if (solicitud && solicitud.status === 'pending') continue;
     grupos.push({ [`roleRequests/${uid}`]: null });
     solicitudesResueltas += 1;
+  }
+
+  if (!migraciones.aprobacionInicial) {
+    const nuevas = {};
+    for (const uid of Object.keys(users)) {
+      if (aprobados[uid] !== true) { nuevas[`aprobados/${uid}`] = true; cuentasAprobadas += 1; }
+    }
+    // La marca va en el mismo lote que las aprobaciones: o se hacen todas o ninguna.
+    nuevas['notificacionesSistema/migraciones/aprobacionInicial'] = Date.now();
+    grupos.push(nuevas);
   }
 
   if (!grupos.length) {
@@ -99,7 +117,7 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  console.log(`Migración completada: ${correos} correo(s) a privado, ${imagenes} imagen(es) a imagenesPosts, ${solicitudesResueltas} solicitud(es) de rol resuelta(s) borrada(s).`);
+  console.log(`Migración completada: ${correos} correo(s) a privado, ${imagenes} imagen(es) a imagenesPosts, ${solicitudesResueltas} solicitud(es) de rol resuelta(s) borrada(s), ${cuentasAprobadas} cuenta(s) existente(s) aprobada(s).`);
 }
 
 if (require.main === module) {
