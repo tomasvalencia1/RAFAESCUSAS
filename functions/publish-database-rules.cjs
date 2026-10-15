@@ -64,7 +64,11 @@ const PARCHES = [
   // version publicada en 166866a y pasan a exigir cuenta aprobada.
   { ruta: ['users'], antesHuella: '0534dea5054159c332e763a41aa5a22bbae53cdd05d5d2f5b176d38c55efa5f0', despues: SEGURIDAD.users },
   { ruta: ['posts'], antesHuella: '620b91f7d26d9be93dcff9e7ee4ee903313e84087752bc5115746e73e40a9ee2', despues: SEGURIDAD.posts },
-  { ruta: ['chats'], antesHuella: '80a0507aeb41186bb2eb83c8de2a68dbc0a46a96aa4952b5b59e3cb251034607', despues: SEGURIDAD.chats },
+  // chats parte de la version publicada en 9c7199d: cada persona pasa a poder leer
+  // sus chats aunque aun no existan (la lista del chat se entera del primer mensaje).
+  { ruta: ['chats'], antesHuella: 'a7af79ee480bdc03fb86f83c4917a1d4730211c97d2c0bcb377d5dad87ecdf3d', despues: SEGURIDAD.chats },
+  // Marcas de lectura del chat (mensajes sin leer): rama nueva, privada de cada persona.
+  { ruta: ['chatsLeidos'], antes: undefined, despues: SEGURIDAD.chatsLeidos },
   { ruta: ['privado'], antes: undefined, despues: SEGURIDAD.privado },
   { ruta: ['imagenesPosts'], antesHuella: '6cc265851760ba847ccb82a78ec551ab3266def4526666f8610718b6e9fcd46c', despues: SEGURIDAD.imagenesPosts },
   // Aprobacion de cuentas: la rama nueva y la lectura del contenido del colegio

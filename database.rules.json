@@ -265,7 +265,7 @@
         "lastTimestamp"
       ],
       "$chatId": {
-        ".read": "auth != null && data.child('participants').child(auth.uid).exists()",
+        ".read": "auth != null && (($chatId.beginsWith(auth.uid + '_') || $chatId.endsWith('_' + auth.uid)) || data.child('participants').child(auth.uid).exists())",
         "participants": {
           ".write": "auth != null && !data.exists() && ($chatId.beginsWith(auth.uid + '_') || $chatId.endsWith('_' + auth.uid)) && (root.child('users').child(auth.uid).child('role').val() === 'maestro' || root.child('users').child(auth.uid).child('role').val() === 'profesor' || root.child('users').child(auth.uid).child('role').val() === 'padre' || root.child('users').child(auth.uid).child('role').val() === 'acudiente' || root.child('users').child(auth.uid).child('role').val() === 'directivo' || root.child('admins').child(auth.uid).val() === true)",
           ".validate": "newData.child(auth.uid).val() === true",
@@ -307,6 +307,16 @@
         "lastTimestamp": {
           ".write": "auth != null && root.child('chats').child($chatId).child('participants').child(auth.uid).exists()",
           ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+        }
+      }
+    },
+    "chatsLeidos": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren()",
+        "$chatId": {
+          ".validate": "newData.isNumber() && newData.val() <= now + 60000 && ($chatId.beginsWith($uid + '_') || $chatId.endsWith('_' + $uid))"
         }
       }
     },

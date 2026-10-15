@@ -1,7 +1,7 @@
 /*
  * Reglas de seguridad de las ramas users, privado, posts, imagenesPosts, chats,
- * aprobados, fcmTokens, siguiendo, personalTasks, roleRequests y de los campos
- * de soporte.
+ * chatsLeidos, aprobados, fcmTokens, siguiendo, personalTasks, roleRequests y de
+ * los campos de soporte.
  *
  * publish-database-rules.cjs las aplica a produccion sustituyendo cada rama
  * completa, y solo si la rama viva es exactamente la que habia antes (se compara
@@ -116,7 +116,11 @@ const imagenesPosts = {
 const chats = {
   '.indexOn': ['lastTimestamp'],
   $chatId: {
-    '.read': "auth != null && data.child('participants').child(auth.uid).exists()",
+    // Cada persona puede leer los chats cuyo id lleva su uid aunque aun no existan:
+    // asi la lista del chat se entera en cuanto alguien le escribe por primera vez
+    // (antes la lectura se denegaba y la escucha se cancelaba). Un id "uidA_uidB"
+    // solo puede tener como participantes a uidA y uidB.
+    '.read': `auth != null && (${PARTICIPANTE('auth.uid')} || data.child('participants').child(auth.uid).exists())`,
     // El id del chat es "uidA_uidB": solo esas dos personas pueden crearlo y ser
     // sus participantes, y ambas deben tener un rol con chat. Una vez creado, la
     // lista de participantes no cambia.
@@ -148,6 +152,18 @@ const chats = {
       '.write': `auth != null && ${SOY_PARTICIPANTE}`,
       '.validate': 'newData.isNumber() && newData.val() <= now + 60000',
     },
+  },
+};
+
+// Hasta donde leyo cada persona cada uno de sus chats (hora del ultimo mensaje
+// recibido que vio), para marcar lo no leido. Solo lo ve y lo escribe su dueno:
+// la otra persona no sabe si se leyo su mensaje.
+const chatsLeidos = {
+  $uid: {
+    '.read': 'auth != null && auth.uid === $uid',
+    '.write': 'auth != null && auth.uid === $uid',
+    '.validate': 'newData.hasChildren()',
+    $chatId: { '.validate': `newData.isNumber() && newData.val() <= now + 60000 && ${PARTICIPANTE('$uid')}` },
   },
 };
 
@@ -240,4 +256,4 @@ const soporteCampos = {
   $otro: { '.validate': false },
 };
 
-module.exports = { users, privado, posts, imagenesPosts, chats, aprobados, fcmTokens, siguiendo, personalTasks, roleRequests, soporteCampos, APROBADO };
+module.exports = { users, privado, posts, imagenesPosts, chats, chatsLeidos, aprobados, fcmTokens, siguiendo, personalTasks, roleRequests, soporteCampos, APROBADO };
