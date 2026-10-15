@@ -1686,6 +1686,18 @@ function formatPostTime(timestamp) {
 // Inicio: lo propio, lo de profesores y directivos (aunque no los sigas) y lo de
 // quien sigues. Lo pendiente de revision solo lo ven su autor y quienes moderan.
 const ROLES_SIEMPRE_EN_INICIO = ['profesor', 'maestro', 'directivo'];
+
+// A profesores y directivos se les ve siempre en Inicio: seguirlos solo activa las
+// notificaciones de sus publicaciones. El boton dice eso en vez de "Seguir".
+function soloActivaAvisos(role) {
+    return ROLES_SIEMPRE_EN_INICIO.includes(normalizeRole(role));
+}
+function contenidoBotonSeguir(sigue, soloAvisos) {
+    if (!soloAvisos) return sigue ? 'Siguiendo' : 'Seguir';
+    return sigue
+        ? `<i class='bx bxs-bell' aria-hidden="true"></i>Avisos activos`
+        : `<i class='bx bx-bell' aria-hidden="true"></i>Activar avisos`;
+}
 function isPostVisibleInFeed(post) {
     if (!currentUser || isExpiredStudentPost(post)) return false;
     const authorId = post.author?.uid || post.autorId;
@@ -1882,7 +1894,7 @@ function crearTarjeta(post) {
     newEl.dataset.comentarios = firmaDeComentarios(post);
     newEl.innerHTML = `
         <div class="post-header"><div class="user-info"><img src="${authorAvatar}" alt="" class="avatar" data-foto-de="${escapeAttribute(authorId)}"><div class="user-details"><span class="username" data-nombre-de="${escapeAttribute(authorId)}">${authorName}</span><span class="post-meta">${rol}${formatPostTime(postCreatedAt(post))}</span>${expiry}</div></div>
-            <div class="post-header-actions">${flagged}${canFollow ? `<button class="action-btn follow-btn ${followsAuthor ? 'following' : ''}" data-author-id="${escapeAttribute(authorId)}" data-following="${followsAuthor}" type="button">${followsAuthor ? 'Siguiendo' : 'Seguir'}</button>` : ''}${canDel ? `<button class="action-btn delete-post-btn" aria-label="Eliminar publicación" data-id="${postIdSafe}" type="button"><i class='bx bx-trash'></i></button>` : ''}</div>
+            <div class="post-header-actions">${flagged}${canFollow ? `<button class="action-btn follow-btn ${followsAuthor ? 'following' : ''}" data-author-id="${escapeAttribute(authorId)}" data-following="${followsAuthor}" data-solo-avisos="${soloActivaAvisos(post.authorRole)}" aria-pressed="${followsAuthor}" type="button">${contenidoBotonSeguir(followsAuthor, soloActivaAvisos(post.authorRole))}</button>` : ''}${canDel ? `<button class="action-btn delete-post-btn" aria-label="Eliminar publicación" data-id="${postIdSafe}" type="button"><i class='bx bx-trash'></i></button>` : ''}</div>
         </div>
         ${post.content ? `<div class="post-content">${escapeHTML(post.content)}</div>` : ''}
         ${imagen}
@@ -1918,7 +1930,8 @@ function actualizarTarjeta(el, post) {
         const followsAuthor = Boolean(followingIds[post.author?.uid || post.autorId || '']);
         followBtn.classList.toggle('following', followsAuthor);
         followBtn.dataset.following = String(followsAuthor);
-        followBtn.textContent = followsAuthor ? 'Siguiendo' : 'Seguir';
+        followBtn.setAttribute('aria-pressed', String(followsAuthor));
+        followBtn.innerHTML = contenidoBotonSeguir(followsAuthor, followBtn.dataset.soloAvisos === 'true');
     }
     // La marca de revision aparece o desaparece al moderar.
     const acciones = el.querySelector('.post-header-actions');
@@ -2042,7 +2055,7 @@ function renderUserDirectoryFor(input, results, status) {
         return `<article class="user-search-result" role="listitem">
             <img src="${escapeAttribute(safeImageSrc(user.avatar))}" alt="" class="avatar-small">
             <div class="user-search-person"><strong>${escapeHTML(user.name || 'Usuario')}</strong><span>${escapeHTML(formatRoleLabel(user.role))}</span></div>
-            <button class="action-btn user-search-follow-btn ${followed ? 'following' : ''}" data-user-id="${escapeAttribute(user.uid)}" type="button" ${isUpdating ? 'disabled' : ''}>${isUpdating ? 'Guardando...' : (followed ? 'Siguiendo' : 'Seguir')}</button>
+            <button class="action-btn user-search-follow-btn ${followed ? 'following' : ''}" data-user-id="${escapeAttribute(user.uid)}" aria-pressed="${followed}" type="button" ${isUpdating ? 'disabled' : ''}>${isUpdating ? 'Guardando...' : contenidoBotonSeguir(followed, soloActivaAvisos(user.role))}</button>
         </article>`;
     }).join('');
 }

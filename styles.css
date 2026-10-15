@@ -468,12 +468,19 @@
   .user-search-person span { font-size: var(--fs-xs); color: var(--c-text-mute); }
   .user-search-empty, .user-search-status { font-size: var(--fs-xs); color: var(--c-text-mute); }
 
+  /* Seguir es una accion secundaria: tono suave para no competir con la
+     publicacion, que es lo que importa en la tarjeta. */
   .user-search-follow-btn, .follow-btn {
+    display: inline-flex; align-items: center; gap: var(--space-1);
     min-height: 36px; padding-inline: var(--space-4);
-    border: 1px solid var(--c-primary); border-radius: var(--radius-pill);
-    background: var(--c-primary); color: var(--c-on-primary);
+    border: 1px solid transparent; border-radius: var(--radius-pill);
+    background: var(--c-primary-soft); color: var(--c-primary);
     font-size: var(--fs-xs); font-weight: 600; cursor: pointer;
     transition: background-color var(--dur-fast) var(--ease-out);
+  }
+  .user-search-follow-btn i, .follow-btn i { font-size: 1rem; }
+  :is(.user-search-follow-btn, .follow-btn):not(.following):hover {
+    background: color-mix(in oklab, var(--c-primary) 16%, var(--c-surface));
   }
   .user-search-follow-btn.following, .follow-btn.following {
     background: transparent; color: var(--c-text-2); border-color: var(--c-border-strong);
@@ -748,7 +755,8 @@
   /* Si las acciones (revision, Seguir, borrar) no caben junto al autor, bajan
      a una segunda linea en vez de aplastar su nombre. */
   .post-header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
-  .user-info { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex: 1 1 8rem; }
+  /* 11rem: con "Activar avisos" el boton baja de linea antes que partir el nombre. */
+  .user-info { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex: 1 1 11rem; }
   .post-header-actions {
     display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end;
     gap: var(--space-2); margin-inline-start: auto;
@@ -1663,7 +1671,7 @@
         .delete-report-btn, .delete-event-btn, .text-action-btn,
         .nav-item:not(.active), .contact-item:not(.active),
         .feed-tab:not([aria-selected="true"])):hover { background-color: transparent; }
-    :is(.action-btn, .cancel-btn, .btn-small, .theme-toggle-btn):not(.like-btn):not(.comment-btn):not([class*="delete-"]):hover {
+    :is(.action-btn, .cancel-btn, .btn-small, .theme-toggle-btn):not(.like-btn):not(.comment-btn):not([class*="delete-"]):not([class*="follow-btn"]):hover {
       background-color: var(--c-surface);
     }
     :is(.like-btn:not(.liked), .comment-btn, .nav-item:not(.active), .icon-btn,
