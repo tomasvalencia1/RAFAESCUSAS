@@ -1763,6 +1763,17 @@ function setFeedMode(mode) {
     // Lienzo limpio: cada pestaña tiene su propio conjunto y orden de tarjetas.
     if (postsContainer) postsContainer.innerHTML = '';
     renderCommunityFeed();
+    // Las sugerencias de Descubrir dependen de quien ha publicado: se rehacen al entrar.
+    if (mode === 'descubrir') renderUserDirectoryResults();
+}
+
+// Desde el inicio vacio: abre Descubrir y deja el cursor en el buscador visible
+// (el de Descubrir en el movil, el de la cabecera en pantallas grandes).
+function irAEncontrarPersonas() {
+    setFeedMode('descubrir');
+    const buscador = [mobileUserSearchInput, userSearchInput].find(input => input?.getClientRects().length);
+    buscador?.closest('section, #user-search')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    buscador?.focus({ preventScroll: true });
 }
 
 feedTabs.forEach(tab => {
@@ -1805,7 +1816,10 @@ function renderCommunityFeed() {
     if (!visiblePosts.length) {
         postsContainer.innerHTML = isDiscover
             ? '<div class="glass-card loading-spinner">Todavía no hay publicaciones de la comunidad para descubrir.</div>'
-            : '<div class="glass-card loading-spinner">Aún no hay publicaciones de personas que sigues. Sigue a alguien o espera un anuncio del profesorado.</div>';
+            : `<div class="glass-card loading-spinner feed-vacio">
+                <p>Aún no hay publicaciones de personas que sigues.</p>
+                <button class="btn-primary" type="button" data-accion="encontrar-personas"><i class='bx bx-user-plus' aria-hidden="true"></i> Encontrar personas</button>
+            </div>`;
         renderModerationQueue();
         return;
     }
@@ -2024,14 +2038,49 @@ function normalizeUserSearchText(value) {
         .trim();
 }
 
-function renderUserDirectoryFor(input, results, status) {
+// Sin busqueda, Descubrir sugiere a quien seguir: primero quien ha publicado hace
+// poco. Profesores y directivos no hacen falta: ya salen siempre en Inicio.
+// La lista se fija en cuanto hay publicaciones, para que quien sigue a alguien lo
+// vea pasar a "Siguiendo" en vez de desaparecer de la lista.
+let personasSugeridas = [];
+function sugerenciasDePersonas(max = 5) {
+    if (!personasSugeridas.length || !allPostsCache.length) {
+        const ultimaPublicacion = new Map();
+        allPostsCache.forEach(post => {
+            const uid = post.author?.uid || post.autorId;
+            const cuando = postCreatedAt(post);
+            if (uid && cuando > (ultimaPublicacion.get(uid) || 0)) ultimaPublicacion.set(uid, cuando);
+        });
+        personasSugeridas = userDirectoryCache
+            .filter(user => !followingIds[user.uid] && !soloActivaAvisos(user.role))
+            .sort((a, b) => (ultimaPublicacion.get(b.uid) || 0) - (ultimaPublicacion.get(a.uid) || 0))
+            .slice(0, max)
+            .map(user => user.uid);
+    }
+    return personasSugeridas.map(uid => directorioPorUid.get(uid)).filter(Boolean);
+}
+
+function filaDePersona(user) {
+    const followed = Boolean(followingIds[user.uid]);
+    const isUpdating = followActionIds.has(user.uid);
+    return `<article class="user-search-result" role="listitem">
+            <img src="${escapeAttribute(safeImageSrc(user.avatar))}" alt="" class="avatar-small">
+            <div class="user-search-person"><strong>${escapeHTML(user.name || 'Usuario')}</strong><span>${escapeHTML(formatRoleLabel(user.role))}</span></div>
+            <button class="action-btn user-search-follow-btn ${followed ? 'following' : ''}" data-user-id="${escapeAttribute(user.uid)}" aria-pressed="${followed}" type="button" ${isUpdating ? 'disabled' : ''}>${isUpdating ? 'Guardando...' : contenidoBotonSeguir(followed, soloActivaAvisos(user.role))}</button>
+        </article>`;
+}
+
+function renderUserDirectoryFor(input, results, status, sugerir = false) {
     if (!input || !results) return;
     const term = normalizeUserSearchText(input.value);
 
     if (term.length < 2) {
-        results.innerHTML = '';
+        const sugeridas = sugerir ? sugerenciasDePersonas() : [];
+        results.innerHTML = sugeridas.map(filaDePersona).join('');
         input.setAttribute('aria-expanded', 'false');
-        if (status) status.textContent = 'Escribe al menos 2 letras.';
+        if (status) status.textContent = sugeridas.length
+            ? 'Sugerencias para seguir. Escribe un nombre para buscar a alguien más.'
+            : 'Escribe al menos 2 letras.';
         return;
     }
 
@@ -2049,20 +2098,12 @@ function renderUserDirectoryFor(input, results, status) {
         return;
     }
 
-    results.innerHTML = matches.map(user => {
-        const followed = Boolean(followingIds[user.uid]);
-        const isUpdating = followActionIds.has(user.uid);
-        return `<article class="user-search-result" role="listitem">
-            <img src="${escapeAttribute(safeImageSrc(user.avatar))}" alt="" class="avatar-small">
-            <div class="user-search-person"><strong>${escapeHTML(user.name || 'Usuario')}</strong><span>${escapeHTML(formatRoleLabel(user.role))}</span></div>
-            <button class="action-btn user-search-follow-btn ${followed ? 'following' : ''}" data-user-id="${escapeAttribute(user.uid)}" aria-pressed="${followed}" type="button" ${isUpdating ? 'disabled' : ''}>${isUpdating ? 'Guardando...' : contenidoBotonSeguir(followed, soloActivaAvisos(user.role))}</button>
-        </article>`;
-    }).join('');
+    results.innerHTML = matches.map(filaDePersona).join('');
 }
 
 function renderUserDirectoryResults() {
     renderUserDirectoryFor(userSearchInput, userSearchResults);
-    renderUserDirectoryFor(mobileUserSearchInput, mobileUserSearchResults, mobileUserSearchStatus);
+    renderUserDirectoryFor(mobileUserSearchInput, mobileUserSearchResults, mobileUserSearchStatus, true);
 }
 
 function loadUserDirectory() {
@@ -2350,6 +2391,7 @@ document.getElementById('publish-post-btn').addEventListener('click', async even
 });
 
 postsContainer.addEventListener('click', async event => {
+    if (event.target.closest('[data-accion="encontrar-personas"]')) return irAEncontrarPersonas();
     const deleteButton = event.target.closest('.delete-post-btn');
     if (deleteButton) return deletePostWithLog(deleteButton.dataset.id);
     const followButton = event.target.closest('.follow-btn');

@@ -901,6 +901,8 @@
   }
   .loading-spinner.small, .empty-state.small { padding: var(--space-5) var(--space-3); }
   .glass-card.loading-spinner { background: var(--c-surface); }
+  /* Inicio vacio: el mensaje lleva a la accion que lo resuelve. */
+  .feed-vacio { display: grid; justify-items: center; gap: var(--space-4); }
 
   /* --- 5.16 Barra inferior móvil ------------------------------------------- */
   .mobile-bottom-bar {
