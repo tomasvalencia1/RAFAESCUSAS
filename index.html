@@ -263,8 +263,9 @@
                         <div><span class="section-kicker">Comunidad</span><h2 id="teacher-messages-title">Mensajes del profesorado</h2></div>
                     </div>
                     <div id="teacher-message-composer" class="teacher-message-composer" style="display:none;">
-                        <label for="teacher-message-input">Comparte un anuncio con tus estudiantes</label>
-                        <textarea id="teacher-message-input" maxlength="180" rows="2" placeholder="Máximo 15 palabras"></textarea>
+                        <label for="teacher-message-input">Comparte un anuncio con la comunidad</label>
+                        <p id="teacher-message-hint" class="field-help">Se ve aquí arriba en el inicio de todos y llega como notificación a toda la comunidad. Para algo más largo o con foto, usa Crear.</p>
+                        <textarea id="teacher-message-input" maxlength="180" rows="2" placeholder="Máximo 15 palabras" aria-describedby="teacher-message-hint"></textarea>
                         <div class="composer-footer"><span id="teacher-message-count">0/15 palabras</span><button id="send-teacher-message-btn" class="btn-primary" type="button">Enviar anuncio</button></div>
                         <p id="teacher-message-limit" class="field-help"></p>
                     </div>

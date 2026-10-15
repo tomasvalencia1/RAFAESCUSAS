@@ -720,6 +720,8 @@
 
   .teacher-message-composer { display: grid; gap: var(--space-3); }
   .teacher-message-composer label { font-size: var(--fs-sm); font-weight: 600; }
+  /* La explicacion va pegada a su etiqueta: es parte del mismo grupo. */
+  #teacher-message-hint { margin-block-start: calc(-1 * var(--space-2)); }
   .composer-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
   .composer-footer span { font-size: var(--fs-xs); color: var(--c-text-mute); font-variant-numeric: tabular-nums; }
   .field-help { font-size: var(--fs-xs); color: var(--c-text-mute); }
