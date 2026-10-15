@@ -74,7 +74,8 @@
     --c-primary-soft: color-mix(in oklab, var(--c-primary) 9%,  var(--c-surface));
     --c-brand-soft:   color-mix(in oklab, var(--c-brand)   7%,  var(--c-surface));
     --c-success-soft: color-mix(in oklab, var(--c-success) 10%, var(--c-surface));
-    --c-warning-soft: color-mix(in oklab, var(--c-warning) 12%, var(--c-surface));
+    --c-warning-soft: color-mix(in oklab, var(--c-warning) 7%,  var(--c-surface));   /* 12% dejaba el texto en 4,3:1 */
+    --c-info-soft:    color-mix(in oklab, var(--c-info)    10%, var(--c-surface));
     --c-error-soft:   color-mix(in oklab, var(--c-error)   9%,  var(--c-surface));
     --c-hover:        color-mix(in oklab, var(--c-text) 5%, transparent);
 
@@ -605,6 +606,7 @@
   .badge.sin-rol { background: var(--c-bg-sunken); color: var(--c-text-mute); }
   .badge.warning { background: var(--c-warning-soft); color: var(--c-warning); }
   .badge.success { background: var(--c-success-soft); color: var(--c-success); }
+  .badge.info    { background: var(--c-info-soft);    color: var(--c-info); }
 
   /* --- 5.6 Banner de rol pendiente. Sin franja lateral. ------------------- */
   .pending-role-banner {
@@ -880,6 +882,8 @@
   .report-item > div:last-child { gap: var(--space-2) !important; }
   .report-info { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-size: var(--fs-sm); font-weight: 600; }
   .report-info i { color: var(--c-success); font-size: 1.1rem; flex-shrink: 0; }
+  .report-item--info .report-info i { color: var(--c-info); }
+  .report-item--warning .report-info i { color: var(--c-warning); }
   .report-item .delete-report-btn {
     min-width: 32px; min-height: 32px; padding: 0;
     color: var(--c-text-mute) !important; font-size: 1.1rem !important;
@@ -1761,8 +1765,8 @@
   line-height: 1;
 }
 
-/* En Reportes, app.js usa el propio <i> como boton de borrar: hay que centrar el
-   glifo en su caja de toque, igual que el + de Crear. */
+/* Boton de borrar de Reportes: el glifo centrado en su caja de toque, igual que
+   el + de Crear. */
 .report-item .delete-report-btn {
   display: inline-flex;
   align-items: center;

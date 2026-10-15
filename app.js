@@ -2607,6 +2607,12 @@ document.getElementById('publish-report-btn').onclick = (e) => {
     });
 };
 
+const ESTADOS_REPORTE = {
+    'Disponible':  { clase: 'success', icono: 'bx-check-circle' },
+    'En revisión': { clase: 'info',    icono: 'bx-time-five' },
+    'Pendiente':   { clase: 'warning', icono: 'bx-hourglass' },
+};
+
 function loadReports() {
     reportsListener?.();
     reportsListener = onValue(ref(db, 'reports'), (snapshot) => {
@@ -2614,19 +2620,21 @@ function loadReports() {
         if (!snapshot.exists()) { reportsContainer.innerHTML = '<p style="color:var(--text-muted);font-size:14px;">Sin reportes.</p>'; return; }
         const arr = Object.entries(snapshot.val()).map(([id, d]) => ({id, ...d})).sort((a,b)=>b.timestamp-a.timestamp);
         arr.forEach(item => {
-            const statusClass = item.status === 'Disponible' ? 'success' : 'warning';
-            const el = document.createElement('div'); el.className = 'report-item';
+            // Cada estado con su icono y color: antes todos llevaban una casilla
+            // marcada, tambien "Pendiente", que parecia ya resuelto.
+            const estado = ESTADOS_REPORTE[item.status] || ESTADOS_REPORTE.Pendiente;
+            const el = document.createElement('div'); el.className = `report-item report-item--${estado.clase}`;
             const itemId = escapeAttribute(item.id);
             const title = escapeHTML(item.title);
             const status = escapeHTML(item.status);
-            el.innerHTML = `<div class="report-info"><i class='bx bx-check-square'></i><span>${title}</span></div>
+            el.innerHTML = `<div class="report-info"><i class='bx ${estado.icono}' aria-hidden="true"></i><span>${title}</span></div>
                             <div style="display:flex;align-items:center;gap:10px;">
-                                <span class="badge ${statusClass}">${status}</span>
-                                ${isAdmin ? `<i class='bx bx-trash delete-report-btn' data-id="${itemId}" style="color:red;cursor:pointer;font-size:18px;"></i>` : ''}
+                                <span class="badge ${estado.clase}">${status}</span>
+                                ${isAdmin ? `<button class="delete-report-btn" type="button" data-id="${itemId}" aria-label="Borrar el reporte ${title}"><i class='bx bx-trash' aria-hidden="true"></i></button>` : ''}
                             </div>`;
             reportsContainer.appendChild(el);
         });
-        if(isAdmin) document.querySelectorAll('.delete-report-btn').forEach(b => b.onclick = (e) => borrarConConfirmacion('¿Borrar reporte?', `reports/${e.target.dataset.id}`));
+        if(isAdmin) document.querySelectorAll('.delete-report-btn').forEach(b => b.onclick = (e) => borrarConConfirmacion('¿Borrar reporte?', `reports/${e.currentTarget.dataset.id}`));
     });
 }
 
