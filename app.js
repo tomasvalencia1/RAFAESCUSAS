@@ -1722,9 +1722,10 @@ function soloActivaAvisos(role) {
 }
 function contenidoBotonSeguir(sigue, soloAvisos) {
     if (!soloAvisos) return sigue ? 'Siguiendo' : 'Seguir';
+    // El texto va en su propio span: en el telefono la tarjeta lo oculta a la vista.
     return sigue
-        ? `<i class='bx bxs-bell' aria-hidden="true"></i>Avisos activos`
-        : `<i class='bx bx-bell' aria-hidden="true"></i>Activar avisos`;
+        ? `<i class='bx bxs-bell' aria-hidden="true"></i><span class="follow-btn__texto">Avisos activos</span>`
+        : `<i class='bx bx-bell' aria-hidden="true"></i><span class="follow-btn__texto">Activar avisos</span>`;
 }
 function isPostVisibleInFeed(post) {
     if (!currentUser || isExpiredStudentPost(post)) return false;
@@ -1936,7 +1937,7 @@ function crearTarjeta(post) {
     newEl.dataset.comentarios = firmaDeComentarios(post);
     newEl.innerHTML = `
         <div class="post-header"><div class="user-info"><img src="${authorAvatar}" alt="" class="avatar" data-foto-de="${escapeAttribute(authorId)}"><div class="user-details"><span class="username" data-nombre-de="${escapeAttribute(authorId)}">${authorName}</span><span class="post-meta">${rol}${formatPostTime(postCreatedAt(post))}</span>${expiry}</div></div>
-            <div class="post-header-actions">${flagged}${canFollow ? `<button class="action-btn follow-btn ${followsAuthor ? 'following' : ''}" data-author-id="${escapeAttribute(authorId)}" data-following="${followsAuthor}" data-solo-avisos="${soloActivaAvisos(post.authorRole)}" aria-pressed="${followsAuthor}" type="button">${contenidoBotonSeguir(followsAuthor, soloActivaAvisos(post.authorRole))}</button>` : ''}${canDel ? `<button class="action-btn delete-post-btn" aria-label="Eliminar publicación" data-id="${postIdSafe}" type="button"><i class='bx bx-trash'></i></button>` : ''}</div>
+            <div class="post-header-actions">${flagged}${canFollow ? `<button class="action-btn follow-btn${soloActivaAvisos(post.authorRole) ? ' follow-btn--avisos' : ''} ${followsAuthor ? 'following' : ''}" data-author-id="${escapeAttribute(authorId)}" data-following="${followsAuthor}" data-solo-avisos="${soloActivaAvisos(post.authorRole)}" aria-pressed="${followsAuthor}" type="button">${contenidoBotonSeguir(followsAuthor, soloActivaAvisos(post.authorRole))}</button>` : ''}${canDel ? `<button class="action-btn delete-post-btn" aria-label="Eliminar publicación" data-id="${postIdSafe}" type="button"><i class='bx bx-trash'></i></button>` : ''}</div>
         </div>
         ${post.content ? `<div class="post-content">${escapeHTML(post.content)}</div>` : ''}
         ${imagen}

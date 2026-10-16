@@ -759,11 +759,20 @@
   /* Si las acciones (revision, Seguir, borrar) no caben junto al autor, bajan
      a una segunda linea en vez de aplastar su nombre. */
   .post-header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
-  /* 11rem: con "Activar avisos" el boton baja de linea antes que partir el nombre. */
-  .user-info { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex: 1 1 11rem; }
+  .user-info { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex: 1 1 8rem; }
   .post-header-actions {
     display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end;
     gap: var(--space-2); margin-inline-start: auto;
+  }
+  /* En el telefono, "Activar avisos" de la tarjeta queda en solo campana (el texto
+     sigue para el lector de pantalla): asi cabe junto al autor, como "Siguiendo". */
+  @media (max-width: 479px) {
+    .post-header .follow-btn--avisos { width: var(--tap); padding-inline: 0; justify-content: center; }
+    .post-header .follow-btn--avisos i { font-size: 1.2rem; }
+    .post-header .follow-btn--avisos .follow-btn__texto {
+      position: absolute; width: 1px; height: 1px;
+      margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+    }
   }
   /* Caducar es lo normal: gris con reloj. Rojo solo en la ultima hora. */
   .post-expiry {
