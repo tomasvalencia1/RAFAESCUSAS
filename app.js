@@ -2156,6 +2156,51 @@ function loadUserDirectory() {
     });
 }
 
+// Burbuja breve que sale de la campana de una publicacion al tocarla: dice si las
+// notificaciones de esa persona quedan activadas. No recibe toques y se va sola.
+// Va oculta al lector de pantalla: el boton ya anuncia su estado (aria-pressed).
+let burbujaAvisos = null;
+let burbujaAvisosTimer = 0;
+function mostrarBurbujaAvisos(boton, activadas) {
+    clearTimeout(burbujaAvisosTimer);
+    burbujaAvisos?.remove();
+
+    const burbuja = document.createElement('div');
+    burbuja.className = 'burbuja-avisos';
+    burbuja.setAttribute('aria-hidden', 'true');
+    burbuja.innerHTML = activadas
+        ? `<i class='bx bxs-bell-ring'></i>Notificaciones activadas`
+        : `<i class='bx bx-bell-off'></i>Notificaciones desactivadas`;
+    // Va dentro de la tarjeta, junto a la campana: si algo de encima cambia de
+    // alto mientras se ve, la burbuja se mueve con ella.
+    const contenedor = boton.parentElement;
+    contenedor.appendChild(burbuja);
+
+    // Encima de la campana, o debajo si arriba la tapa la cabecera. Sin salirse
+    // de la pantalla, con la flecha apuntando al centro de la campana.
+    const caja = contenedor.getBoundingClientRect();
+    const campana = boton.getBoundingClientRect();
+    const ancho = burbuja.offsetWidth;
+    const alto = burbuja.offsetHeight;
+    const centro = campana.left + campana.width / 2;
+    const izquierda = Math.min(Math.max(8, centro - ancho / 2), document.documentElement.clientWidth - ancho - 8);
+    const techo = document.querySelector('.header')?.getBoundingClientRect().bottom || 0;
+    const abajo = campana.top - alto - 10 < techo;
+    burbuja.classList.toggle('burbuja-avisos--abajo', abajo);
+    burbuja.style.left = `${izquierda - caja.left}px`;
+    burbuja.style.top = `${(abajo ? campana.bottom + 10 : campana.top - alto - 10) - caja.top}px`;
+    burbuja.style.setProperty('--flecha', `${centro - izquierda}px`);
+
+    burbujaAvisos = burbuja;
+    // Ya se midio (offsetWidth), asi que la clase dispara la transicion de entrada.
+    burbuja.classList.add('is-visible');
+    burbujaAvisosTimer = setTimeout(() => {
+        burbuja.classList.remove('is-visible');
+        setTimeout(() => burbuja.remove(), 250);
+        if (burbujaAvisos === burbuja) burbujaAvisos = null;
+    }, 1800);
+}
+
 async function toggleFollow(authorId) {
     if (!authorId || !currentUser || authorId === currentUser.uid || followActionIds.has(authorId)) return;
     followActionIds.add(authorId);
@@ -2424,7 +2469,13 @@ postsContainer.addEventListener('click', async event => {
     const deleteButton = event.target.closest('.delete-post-btn');
     if (deleteButton) return deletePostWithLog(deleteButton.dataset.id);
     const followButton = event.target.closest('.follow-btn');
-    if (followButton) return toggleFollow(followButton.dataset.authorId);
+    if (followButton) {
+        const autor = followButton.dataset.authorId;
+        if (followButton.classList.contains('follow-btn--avisos') && autor && !followActionIds.has(autor)) {
+            mostrarBurbujaAvisos(followButton, !followingIds[autor]);
+        }
+        return toggleFollow(autor);
+    }
     const likeButton = event.target.closest('.like-btn');
     if (likeButton && currentUser) {
         // Un toque a la vez por publicacion: dos toques rapidos no se pisan.

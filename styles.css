@@ -761,6 +761,7 @@
   .post-header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
   .user-info { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex: 1 1 8rem; }
   .post-header-actions {
+    position: relative; /* ancla de la burbuja de la campana (5.34) */
     display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end;
     gap: var(--space-2); margin-inline-start: auto;
   }
@@ -1760,6 +1761,37 @@
   .aviso__accion:focus-visible { outline: 2px solid var(--c-surface); outline-offset: 2px; }
   @media (min-width: 1024px) {
     .aviso { inset-block-end: var(--space-6); }
+  }
+
+  /* --- 5.34 Burbuja de la campana de avisos ----------------------------------------
+     Sale de la campana de una publicacion al tocarla y dice si las notificaciones
+     quedan activadas. No recibe toques ni tapa la pantalla, y se va sola. La JS
+     la pone dentro de .post-header-actions, encima de la campana (o debajo, si
+     arriba la tapa la cabecera), y apunta la flecha a la campana. */
+  .burbuja-avisos {
+    position: absolute; z-index: var(--z-dropdown);
+    display: flex; align-items: center; gap: var(--space-1);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-pill);
+    background: var(--c-text); color: var(--c-surface);
+    box-shadow: var(--elev-3);
+    font-size: var(--fs-xs); font-weight: 600; white-space: nowrap;
+    pointer-events: none;
+    opacity: 0; transform: translateY(4px) scale(0.92);
+    transform-origin: var(--flecha, 50%) 100%;
+    transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+  }
+  .burbuja-avisos i { font-size: 1rem; }
+  .burbuja-avisos::after {
+    content: ''; position: absolute; inset-block-start: 100%; inset-inline-start: var(--flecha, 50%);
+    translate: -50% 0;
+    border: 6px solid transparent; border-block-start-color: var(--c-text);
+  }
+  .burbuja-avisos.is-visible { opacity: 1; transform: none; }
+  .burbuja-avisos--abajo { transform: translateY(-4px) scale(0.92); transform-origin: var(--flecha, 50%) 0; }
+  .burbuja-avisos--abajo::after {
+    inset-block: auto 100%;
+    border-block-start-color: transparent; border-block-end-color: var(--c-text);
   }
 
   /* --- 5.33 Tutorial de bienvenida (tutorial.js) -----------------------------------
