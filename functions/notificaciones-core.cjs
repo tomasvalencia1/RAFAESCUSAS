@@ -1,5 +1,5 @@
 /*
- * Nucleo del despachador de notificaciones de RafaConecta.
+ * Nucleo del despachador de notificaciones de RafaApp.
  *
  * Lo usan dos entradas con la misma logica:
  *   - api/notificar.js (Vercel): la app lo llama justo despues de publicar algo.
@@ -173,7 +173,7 @@ async function enviarPrueba(db, messaging, uid) {
 
   const r = await sendToUsers(messaging, {
     tokensByUser: { [uid]: tokens }, userIds: [uid],
-    title: 'Prueba de RafaConecta',
+    title: 'Prueba de RafaApp',
     body: 'Si ves este aviso, las notificaciones funcionan.',
     type: 'test', entityId: 'prueba'
   });
@@ -294,7 +294,7 @@ async function dispatchNotifications(db, messaging) {
     if (!timestamp || timestamp <= since || await enviado(safeKey(`chat_${item.id}`))) continue;
     await processEvent({
       eventId: safeKey(`chat_${item.id}`), timestamp, targets,
-      title: `Mensaje de ${await nombreDe(senderId, 'RafaConecta')}`,
+      title: `Mensaje de ${await nombreDe(senderId, 'RafaApp')}`,
       body: 'Tienes un nuevo mensaje en el chat institucional.', type: 'chat', entityId: item.id
     });
   }
@@ -339,7 +339,7 @@ async function dispatchNotifications(db, messaging) {
     const followers = asEntries(following).filter(([, list]) => Boolean(list?.[authorId])).map(([uid]) => uid);
     await processEvent({ eventId: safeKey(`post_${id}`), timestamp, targets: followers,
       title: `Nueva publicación de ${await nombreDe(authorId, 'una persona que sigues')}`,
-      body: 'Hay una publicación nueva en RafaConecta.', type: 'post', entityId: id });
+      body: 'Hay una publicación nueva en RafaApp.', type: 'post', entityId: id });
   }
   // Soporte: solo a los administradores, que son quienes tienen el buzon. La
   // notificacion incluye quien escribe y un extracto.
@@ -351,7 +351,7 @@ async function dispatchNotifications(db, messaging) {
     const texto = String(ticket?.texto || '').replace(/\s+/g, ' ').trim();
     await processEvent({ eventId: safeKey(`support_${id}`), timestamp: Number(ticket?.timestamp || 0), targets: equipoDeSoporte.filter(uid => uid !== ticket.userId),
       title: autor ? `Solicitud de soporte de ${autor}`.slice(0, 80) : 'Nueva solicitud de soporte',
-      body: texto ? (texto.length > 100 ? `${texto.slice(0, 99)}…` : texto) : 'Una persona necesita ayuda en RafaConecta.',
+      body: texto ? (texto.length > 100 ? `${texto.slice(0, 99)}…` : texto) : 'Una persona necesita ayuda en RafaApp.',
       type: 'support', entityId: id });
   }
 
@@ -394,7 +394,7 @@ async function dispatchNotifications(db, messaging) {
   for (const uid of aprobadasAhora) {
     if (marcas[uid]) continue;
     await processEvent({ eventId: safeKey(`cuenta_aprobada_${uid}_${runStartedAt}`), timestamp: runStartedAt, targets: [uid],
-      title: 'Tu cuenta de RafaConecta fue aprobada',
+      title: 'Tu cuenta de RafaApp fue aprobada',
       body: 'Ya puedes entrar. Toca aquí para empezar y conocer la app.',
       type: 'cuenta_aprobada', entityId: uid });
     marcas[uid] = runStartedAt;

@@ -106,7 +106,7 @@ function checkApkVersion() {
         updateOverlay.innerHTML = `
             <div style="background:#241e18;padding:32px;border-radius:24px;border:1px solid rgba(255,250,242,0.1);max-width:400px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
                 <div style="font-size:64px;margin-bottom:20px;line-height:1;">⚠️</div>
-                <h2 style="font-size:22px;font-weight:700;color:#fffaf2;margin-bottom:12px;font-family:'Inter',sans-serif;letter-spacing:-0.5px;">Instale la nueva versión de RafaConecta</h2>
+                <h2 style="font-size:22px;font-weight:700;color:#fffaf2;margin-bottom:12px;font-family:'Inter',sans-serif;letter-spacing:-0.5px;">Instale la nueva versión de RafaApp</h2>
                 <p style="font-size:14px;color:rgba(255,250,242,0.7);line-height:1.5;font-family:'Inter',sans-serif;">
                     Desinstale esta versión e instale la versión actualizada para continuar usando la aplicación.
                 </p>
@@ -805,7 +805,7 @@ loginGoogleBtn.addEventListener('click', async () => {
 
         if (isAndroidWebView()) {
             setLoginButtonLoading(false);
-            avisar('Esta versión de la app ya no puede iniciar sesión. Instala la versión nueva de RafaConecta o entra desde el navegador.');
+            avisar('Esta versión de la app ya no puede iniciar sesión. Instala la versión nueva de RafaApp o entra desde el navegador.');
             return;
         }
 
@@ -1217,7 +1217,7 @@ function mostrarFalloDeArranque(user) {
     const mensaje = document.getElementById('auth-loading-msg');
     const reintentar = document.getElementById('auth-retry-btn');
     authLoadingScreen.classList.add('active', 'has-error');
-    if (mensaje) mensaje.textContent = 'No se pudo conectar con RafaConecta. Revisa tu conexión a internet.';
+    if (mensaje) mensaje.textContent = 'No se pudo conectar con RafaApp. Revisa tu conexión a internet.';
     if (!reintentar) return;
     reintentar.hidden = false;
     reintentar.onclick = async () => {
@@ -3873,7 +3873,7 @@ function renderAdminUsers(filter = '') {
 
     adminUsersList.querySelectorAll('[data-quitar-acceso]').forEach(btn => {
         btn.addEventListener('click', async () => {
-            if (!confirm('¿Quitar el acceso a esta cuenta? Dejará de ver RafaConecta hasta que la apruebes de nuevo.')) return;
+            if (!confirm('¿Quitar el acceso a esta cuenta? Dejará de ver RafaApp hasta que la apruebes de nuevo.')) return;
             btn.disabled = true;
             try {
                 await remove(ref(db, `aprobados/${btn.dataset.quitarAcceso}`));

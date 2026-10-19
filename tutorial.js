@@ -1,4 +1,4 @@
-// RafaConecta · Tutorial de bienvenida
+// RafaApp · Tutorial de bienvenida
 // -----------------------------------------------------------------------------
 // Recorrido guiado por la app: oscurece la pantalla, ilumina cada parte real
 // (pestañas, Crear, barra inferior, perfil...) y explica para que sirve en una
@@ -54,7 +54,7 @@ function definirPasos(s) {
   return [
     {
       titulo: `Te damos la bienvenida${primerNombre(s?.nombre) ? `, ${primerNombre(s.nombre)}` : ''}`,
-      texto: 'RafaConecta es la red de la IE Rafael Uribe Uribe. En un minuto te mostramos dónde está cada cosa.',
+      texto: 'RafaApp es la red de la IE Rafael Uribe Uribe. En un minuto te mostramos dónde está cada cosa.',
       siguiente: 'Empezar',
     },
     {
@@ -126,7 +126,7 @@ function definirPasos(s) {
       texto: barraInferiorVisible()
         ? 'Si algo no funciona, escribe a Soporte desde Más. Puedes repetir este recorrido en Más › Tutorial.'
         : 'Si algo no funciona, escribe a Soporte. Puedes repetir este recorrido desde tu perfil, en "Ver tutorial".',
-      siguiente: 'Empezar a usar RafaConecta',
+      siguiente: 'Empezar a usar RafaApp',
     },
   ];
 }
