@@ -137,7 +137,7 @@ async function sendToUsers(messaging, { tokensByUser, userIds, title, body, type
       },
       webpush: {
         notification: { icon: '/logo.png', badge: '/logo.png' },
-        fcmOptions: { link: 'https://rafaconecta.vercel.app/' }
+        fcmOptions: { link: 'https://rafaapp-ruu.vercel.app/' }
       }
     });
 
