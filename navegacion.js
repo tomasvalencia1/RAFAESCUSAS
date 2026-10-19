@@ -1,4 +1,4 @@
-// RafaConecta · Navegacion movil por configuracion
+// RafaApp · Navegacion movil por configuracion
 // -----------------------------------------------------------------------------
 // Para añadir, quitar o reordenar una seccion de la barra inferior o de la hoja
 // "Más", se edita SOLO el array SECCIONES.

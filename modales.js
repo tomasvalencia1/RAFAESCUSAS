@@ -1,4 +1,4 @@
-// RafaConecta · Accesibilidad de las ventanas modales
+// RafaApp · Accesibilidad de las ventanas modales
 // -----------------------------------------------------------------------------
 // app.js abre y cierra cada ventana poniendo o quitando la clase `active` en su
 // `.modal-overlay`. Este modulo observa esa clase y, sin tocar esos manejadores,

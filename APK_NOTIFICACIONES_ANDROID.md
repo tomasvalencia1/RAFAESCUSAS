@@ -1,4 +1,4 @@
-# Notificaciones FCM para la APK RafaConecta
+# Notificaciones FCM para la APK RafaApp
 
 La parte web y el envío gratuito ya están implementados. Para que Android reciba avisos cuando la aplicación esté cerrada, integra este archivo en el **proyecto Android original** con el que se genera la APK. No es posible añadir de forma fiable este código sin ese proyecto fuente.
 
@@ -73,7 +73,7 @@ class RafaFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         createChannel()
-        val title = message.notification?.title ?: "RafaConecta"
+        val title = message.notification?.title ?: "RafaApp"
         val body = message.notification?.body ?: "Tienes una notificación nueva."
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notification)

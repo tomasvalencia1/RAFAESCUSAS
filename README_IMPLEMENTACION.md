@@ -1,4 +1,4 @@
-# Implementación de comunidad — RafaConecta
+# Implementación de comunidad — RafaApp
 
 La aplicación existente usa **Firebase Realtime Database (RTDB)**, no Firestore. Por eso las colecciones solicitadas se implementaron como nodos RTDB y las reglas consolidadas están en `database.rules.json`.
 
